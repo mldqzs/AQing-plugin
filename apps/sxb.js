@@ -11,8 +11,8 @@ const closeorder = await sycfg.get_cfg('bot.yaml', 'close_order')
 export class jinyong extends plugin {
     constructor() {
         super({
-            name: "AQ:»úÆ÷ÈËÈº¿ª¹Ø",
-            dsc: "¿ØÖÆ»úÆ÷ÈËÔÚÖ¸¶¨Èº¿ª¹Ø",
+            name: "AQ:ä¸Šä¸‹ç­",
+            dsc: "ä¸Šä¸‹ç­",
             event: "message",
             priority: -10,
             rule: [{
@@ -29,22 +29,22 @@ export class jinyong extends plugin {
         });
     }
 
-    // ¹Ø»ú
+    // å…³æœº
     async jinyong(e) {
         if (e.isGroup) {
             this.file = './config/config/group.yaml'
             let data = YAML.parse(fs.readFileSync(this.file, 'utf8'))
             console.log(data)
-            data[e.group_id] = { enable: ["AQ:»úÆ÷ÈËÈº¿ª¹Ø",] }
+            data[e.group_id] = { enable: ["AQ:æœºå™¨äººç¾¤å¼€å…³",] }
             let yaml = YAML.stringify(data)
             fs.writeFileSync(this.file, yaml, "utf8")
             e.reply(closetip)
         } else {
-            e.reply('ÇëÔÚÈºÁÄÖĞÊ¹ÓÃ')
+            e.reply('è¯·åœ¨ç¾¤èŠä¸­ä½¿ç”¨')
         }
     }
 
-    /** ¿ª»ú */
+    /** å¼€æœº */
     async kaiqi(e) {
         if (e.isGroup) {
             this.file = './config/config/group.yaml'
@@ -54,7 +54,7 @@ export class jinyong extends plugin {
             fs.writeFileSync(this.file, yaml, "utf8")
             e.reply(starttip)
         } else {
-            e.reply('ÇëÔÚÈºÁÄÖĞÊ¹ÓÃ')
+            e.reply('è¯·åœ¨ç¾¤èŠä¸­ä½¿ç”¨')
         }
     }
 }
