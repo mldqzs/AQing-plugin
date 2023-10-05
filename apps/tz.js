@@ -12,7 +12,7 @@ export class example extends plugin {
     constructor() {
         super({
             /** 功能名称 */
-            name: 'tz',
+            name: 'AQ:召唤堂主',
             /** 功能描述 */
             dsc: '简单开发示例',
             /** https://oicqjs.github.io/oicq/#events */
