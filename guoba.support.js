@@ -11,7 +11,7 @@ export function supportGuoba () {
     pluginInfo: {
       name: 'AQing-plugin',
       title: 'AQing-plugin',
-      author: '@hsxfk',
+      author: '@明るい青紫色',
       authorLink: '',
       link: '',
       isV3: true,
