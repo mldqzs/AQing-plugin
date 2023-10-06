@@ -304,7 +304,7 @@ export class Fakemessage extends plugin {
     let bm = await Yaml.getread(path)
     bm.白名单.push(TA);
     await Yaml.getwrite(path, bm);
-    let msg = [segment.at(e.user_id), `已加入伪造消息白名单！`];
+    let msg = [segment.at(e.user_id), `已将该用户加入伪造消息白名单`];
     await e.reply(msg)
     return true;
     }
