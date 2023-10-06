@@ -38,6 +38,11 @@ export class Fakemessage extends plugin {
               reg: "^#?伪造加白.*$",  //匹配消息正则，命令正则
             /** 执行方法 */
               fnc: 'jb'
+             },{
+            /** 命令正则匹配 */
+              reg: "^#?伪造删白.*$",  //匹配消息正则，命令正则
+            /** 执行方法 */
+              fnc: 'sb'
         }
       ]
     })
@@ -308,4 +313,33 @@ export class Fakemessage extends plugin {
     await e.reply(msg)
     return true;
     }
+        async sb(e) {
+      if (!e.isMaster) {
+          await e.reply('你也配？')
+        return false
+    }
+
+    let G = e.message[0].text.replace(/#|伪造删白/g, "").trim()
+    if(e.message[1]){
+    let atItem = e.message.filter((item) => item.type === "at");
+    G = atItem[0].qq;
+    }else{ G = G.match(/[1-9]\d*/g) }
+    if (!G) return e.reply(`请输入正确的QQ号！`)
+    G = parseInt(G);
+    let TA = G;
+
+    let bm = await Yaml.getread(path) // path 是你的另一个 bm.yaml 文件的路径
+    let index = bm.白名单.indexOf(TA); // 找到要删除的 QQ 号在白名单数组中的索引
+    if (index > -1) { // 如果找到了
+    bm.白名单.splice(index, 1); // 从白名单数组中删除该索引对应的元素
+    await Yaml.getwrite(path, bm); // 把更新后的数据写入到 bm.yaml 文件中
+    let msg = [segment.at(e.user_id), `已从伪造消息白名单中删除！`];
+    await e.reply(msg)
+    return true;
+    } else { // 如果没找到
+    let msg = [segment.at(e.user_id), `该QQ号不在伪造消息白名单中！`];
+    await e.reply(msg)
+    return false;
+    }
+}
 } 
