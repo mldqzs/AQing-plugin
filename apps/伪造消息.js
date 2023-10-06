@@ -4,10 +4,7 @@ import Yaml from '../Yaml/Yaml.js'
 const _path = process.cwd();
 let path = './plugins/AQing-plugin/config/config/bm.yaml'
 const direction = "使用方法：\n一条消息的格式为【@一名群友+ta的发言内容】。可叠加多条消息，示例：\n" +
-  "伪造消息@甲这是甲说的话@乙这是乙说的第一句话|这是乙说的第二句话@丙这是丙发送的图片\n" +
-  "另外，@群友，可用|^qq号|代替\n可以在“伪造消息”命令后带可选参数：\n" +
-  "^t大标题|、^s底部小字|、^p转发消息外显|、^b消息摘要1,消息摘要2或者^b消息摘要1\n消息摘要的逗号必须是英文输入(消息摘要最多显示4条消息),底部小字和摘要和外显修改仅在手q生效";
-
+  "伪造消息@甲这是甲说的话@乙这是乙说的第一句话|这是乙说的第二句话@丙这是丙发送的图片\n" 
 
 const dontRumorMaster = true;  //是true否false禁止造谣机器人主人。若禁止，试图造谣主人时会被警告
 
