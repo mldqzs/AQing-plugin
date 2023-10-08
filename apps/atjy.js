@@ -86,7 +86,7 @@ export default class example extends plugin {
     if (this.e.isMaster) {
       jy = true;
       addJyGroup(e.group_id);
-      e.reply("已开启本群被艾特禁言功能");
+      e.reply("已开启本群被艾特禁言功能，不许艾特阿晴哦!");
       return true;
     } else {
       e.reply("你没有权限开启被艾特禁言功能");
