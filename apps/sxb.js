@@ -11,7 +11,7 @@ const closeorder = await sycfg.get_cfg('bot.yaml', 'close_order')
 export class jinyong extends plugin {
     constructor() {
         super({
-            name: "AQ:上下班",
+            name: "AQ:机器人群开关",
             dsc: "上下班",
             event: "message",
             priority: -10,
