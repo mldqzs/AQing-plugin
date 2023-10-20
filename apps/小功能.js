@@ -36,10 +36,6 @@ export class example extends plugin {
                     reg: '^摸鱼人日历$',
                     /** 执行方法 */
                     fnc: 'moyu'
-                },
-                {
-                    reg: '^#刷听歌时长$',
-                    fnc: 'tg'
                 }
             ]
         })
@@ -69,20 +65,4 @@ export class example extends plugin {
         await e.reply(msg);
         return true
     }
-    async tg(e) {
-        let qq = e.user_id
-        if (e.at) qq = e.at
-        if (e.atBot) qq = Bot.uin
-        logger.info('[AQ：tg]', e.msg);
-        let url= `https://fkapi.rjk66.cn/qqsc/qqsc.php?uin=${qq}`
-        let res = await fetch(url).catch((err) => logger.error(err));
-        if (!res) {
-            logger.error('查询接口请求失败');
-            return await this.reply('查询接口请求失败');
-        }
-        res = await res.json();
-        logger.info(`请求结果：${res.text}`);
-        e.reply(`哼哼哼，听歌时长刷成功咯，点击查看榜单https://y.qq.com/m/client/vipexchange/index.html`)
-        return true;
-        }
 }
