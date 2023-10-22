@@ -9,9 +9,11 @@
 基于云崽插件，自用的，基本都是些无用功能（艾特机器人禁言，ai，每日番剧推荐等）
 
 #### 安装教程
-# Giee
+```
+# Gitee
 git clone https://gitee.com/aayhg/AQing-plugin ./plugins/AQing-plugin
 
+```
 #### 使用说明
 
 发送#阿晴帮助来查看帮助
