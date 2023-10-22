@@ -1,13 +1,16 @@
-# AQing-plungin
+# AQing-plugin
 
 #### 介绍
-基于云崽-bot的插件，本人是小白，部分cv了各位大佬的
+基于云崽-bot的插件，本人是小白，部分cv了各位大佬的，
+由于是练手用的自用插件，所以更新会很频繁，bug也多
 
-#### 软件架构
-基于云崽插件，自用
+
+#### 功能
+基于云崽插件，自用的，基本都是些无用功能（艾特机器人禁言，ai，每日番剧推荐等）
 
 #### 安装教程
-自用插件
+# Giee
+git clone https://gitee.com/aayhg/AQing-plugin ./plugins/AQing-plugin
 
 #### 使用说明
 
