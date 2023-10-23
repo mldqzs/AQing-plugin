@@ -48,7 +48,7 @@ export class example extends plugin {
         return true
     }
     async dj(e) {
-        let url = `https://api.fengye.ink/api/dzimg`
+        let url = `https://ybapi.cn/API/dz.php`
         let msg = [segment.at(e.user_id), segment.image(url)]
         await e.reply(msg);
         return true
