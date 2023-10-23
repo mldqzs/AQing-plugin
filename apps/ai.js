@@ -29,7 +29,7 @@ export default class example extends plugin {
           }
 
           async ai(e){
-            if (!e.atBot || ab.ai !== true){
+            if (!e.atBot || !ab.ai == true){
               return false;
             }
             else {
