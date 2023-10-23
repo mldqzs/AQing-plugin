@@ -59,8 +59,7 @@ export function supportGuoba () {
         field: 'config.botname',
         label: '设置机器人名字',
         bottomHelpMessage: '机器人名字',
-        component: 'InputNumber',
-        required: true,
+        component: 'Input',
         componentProps: {
           placeholder: '请输入机器人名字'
         }
