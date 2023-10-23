@@ -144,16 +144,6 @@ export function supportGuoba () {
             valueFormatter: ((value) => Number.parseInt(value)).toString(),
           },
         },
-      {
-        component: 'Divider',
-        label: 'ai开关'
-      },
-      {
-        field: 'config.ai',
-        label: '功能开关',
-        bottomHelpMessage: '是否开启',
-        component: 'Switch'
-            },
       ],
       getConfigData () {
         return setting.merge()
