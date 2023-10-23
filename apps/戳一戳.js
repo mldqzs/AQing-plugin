@@ -338,7 +338,7 @@ export class chuo extends plugin {
 
             
         async chuoyichuo(e) {
-          if (cyc !== true|| !GroupList.includes(e.group_id)){
+          if (cyc !== true || !GroupList.includes(e.group_id)){
             return false;
            } else{
         if (e.target_id == cfg.qq) {
