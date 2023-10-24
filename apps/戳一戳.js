@@ -18,17 +18,17 @@ let data=await Yaml.getread(主人)
 let masterQQ = data.masterQQ
 
 //戳主人
-let img_1 = `https://gchat.qpic.cn/gchatpic_new/0/0-0-48FFACB9CBFFC6BE22655734B5DC90C6/0`
-let img_2 = `https://gchat.qpic.cn/gchatpic_new/0/0-0-1E4AB620DD72AF01FB089EF0E8472F8F/0`
-let img_3 = `https://gchat.qpic.cn/gchatpic_new/0/0-0-C8C51A0511B75DF6ACB0D568D74FC26A/0`
+let img_1 = `https://gchat.qpic.cn/gchatpic_new/0/0-0-3342AA8F1C10BE780788320262EB20DF/0`
+let img_2 = `https://gchat.qpic.cn/gchatpic_new/0/0-0-228D9236822AE031774CB1B6F335A64C/0`
+let img_3 = `https://gchat.qpic.cn/gchatpic_new/0/0-0-49F4EB19B8DA489EAC52B41FD7C47FA9/0`
 let img_4 = `https://gchat.qpic.cn/gchatpic_new/0/0-0-ED42AEB4E0EAF7931B2DA661150EA347/0`
-let img_5 = `https://gchat.qpic.cn/gchatpic_new/0/0-0-88093E88156E6AF7AAA83AA1CE77B622/0`
-let img_6 = `https://gchat.qpic.cn/gchatpic_new/0/0-0-7A8DBC4D19DC163492606FDA11D661C0/0`
-let img_7 = `https://gchat.qpic.cn/gchatpic_new/0/0-0-6FACCDF731876A1E4A84915DBE33BB0A/0`
-let img_8 = `https://gchat.qpic.cn/gchatpic_new/0/0-0-524FBE8C6CA57F8402B0F85621BF9CB0/0`
-let img_9 = `https://gchat.qpic.cn/gchatpic_new/0/0-0-0050E009426C696B7EDECA40BDC56EF2/0`
-let img_10 = `https://gchat.qpic.cn/gchatpic_new/0/0-0-BB4CEBDB3B5923945E0F79FCB2C237B6/0`
-let img_11 = `https://gchat.qpic.cn/gchatpic_new/0/0-0-93D43275FE1CB116AA950876A4E8066C/0`
+let img_5 = `https://gchat.qpic.cn/gchatpic_new/0/0-0-BC03789032045BC27B6364862A334B1C/0`
+let img_6 = `https://gchat.qpic.cn/gchatpic_new/0/0-0-35E814BF9147BE0B1DF6783EE5680A9D/0`
+let img_7 = `https://gchat.qpic.cn/gchatpic_new/0/0-0-9C93DC7BFADC359932C53284C443BD0B/0`
+let img_8 = `https://gchat.qpic.cn/gchatpic_new/0/0-0-E88AA9A513AC5D92A107CC4444182AD2/0`
+let img_9 = `https://gchat.qpic.cn/gchatpic_new/0/0-0-D2F28C6F2ECDE91CE5562983347687AC/0`
+let img_10 = `https://gchat.qpic.cn/gchatpic_new/0/0-0-EC43223C4AD8BF0DA65D9B2637387C12/0`
+let img_11 = `https://gchat.qpic.cn/gchatpic_new/0/0-0-E52FB13D638DB1AC8136F9EA56328DB0/0`
 
 //戳人🐔
 let word_list = ['你干嘛~',
