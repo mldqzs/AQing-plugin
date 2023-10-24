@@ -457,10 +457,6 @@ export class chuo extends plugin {
                             await common.sleep(10);
                             await e.reply('戳！！');
                             await common.sleep(10);
-                            await e.reply('小！！');
-                            await common.sleep(10)
-                            await e.reply('纳！！')
-                            await common.sleep(10);
                             await e.group.muteMember(e.operator_id, 120)
                             await common.sleep(50)
                             await e.reply('让你面壁思过2分钟，哼╯^╰')
