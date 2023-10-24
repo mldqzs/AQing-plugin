@@ -5,7 +5,6 @@ const _path = process.cwd();
 let path = './plugins/AQing-plugin/config/config/config.yaml'
 
 let ab = await Yaml.getread(path)
-let ac = ab.ai
 export default class example extends plugin {
   constructor() {
       super({
@@ -30,7 +29,7 @@ export default class example extends plugin {
           }
 
           async ai(e){
-            if (!e.atBot || !ac == true){
+            if (!e.atBot || !ab.ai == true){
               return false;
             }
             else {
