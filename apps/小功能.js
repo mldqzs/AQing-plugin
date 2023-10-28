@@ -42,7 +42,7 @@ export class example extends plugin {
                     fnc: 'xj'
                 },
                 {
-                    reg: '^阿晴告诉我(.*)的答案$',
+                    reg: '^阿晴告诉我(.*)$',
                     fnc: 'da'
                 }
             ]
