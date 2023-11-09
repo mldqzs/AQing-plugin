@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="zh">
+
+<head>
+    <meta charset="UTF-8">
+    <title>帮助</title>
+    <link rel="preload" href="{{pluResPath}}/plugins/AQing-plugin/resources/font/tttgbnumber.ttf" as="font">
+    <link rel="stylesheet" type="text/css" href="{{pluResPath}}/plugins/AQing-plugin/resources/html/help/help.css" />
+</head>
+
+<body>
+    <div class="container" id="container">
+        <div class="head_box">
+            <h1 style="color: rgb(229, 65, 183);">阿晴插件使用指南</h1>
+            <div style="color: blueviolet;">AQing-plugin帮助</div>
+        </div>
+
+        <div class="help">
+
+            <div class="title">
+                <h2>{{helpList.group}}</h2>
+            </div>
+            <div class="help-text">
+                {{each helpList.list list}}
+                <div class="help-div">
+                    <div>
+                        <div class="img-div">
+                            <img src="{{pluResPath}}/plugins/AQing-plugin/resources/html/help/img/{{list.icon}}.png">
+                        </div>
+                        <div class="text-div">
+                            <b class="text-title-div">
+                                {{list.title}}
+                            </b>
+                            <div class="text-desc-div">
+                                {{list.desc}}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {{/each}}
+
+            </div>
+        </div>
+     <div class="logo">
+        <h3 style="color: rgb(226, 43, 189);">Created By AQing-plugin & 明るい青紫色 </h3>
+    </div>
+</body>
+
+</html>
