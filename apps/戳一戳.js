@@ -330,8 +330,7 @@ export class chuo extends plugin {
             event: 'notice.group.poke',
             priority: -1145,
             rule: [
-                {  
-                    reg: '.*',                                      
+                {                                    
                     fnc: 'chuoyichuo'
                                        
                 }
