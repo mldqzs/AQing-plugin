@@ -6,7 +6,7 @@ const Textreply = '如果......是主人的话.....';
 //图片回复(填写图片链接或路径)
 const imgreply = 'https://gchat.qpic.cn/gchatpic_new/0/0-0-BF870802BD8B09E2968F9F7634FA6513/0';
 let ciku = ['牙签拿什么日？', '没感觉。。。细狗', '行不行阿。。细狗']
-let muteMax = 43200;//禁言分钟数上限
+let muteMax = 60;//禁言分钟数上限
 let muteMin = 1;//禁言分钟数下限
 export class example extends plugin {
     constructor() {
