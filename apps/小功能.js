@@ -143,7 +143,7 @@ export class example extends plugin {
             return await this.reply('查询接口请求失败');
         }
         res = await res.json();
-        e.reply(`${res.data.message}`)
+        e.reply(`${res.message}`)
         return true
         }
  
