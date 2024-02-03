@@ -133,6 +133,8 @@ export class example extends plugin {
         return true
         }
     async nc(e) {
+            let msg = e.msg.replace("屁话生成","").trim()
+    msg = msg.split(" ")
         logger.info('[AQ：屁话生成]', e.msg);
         let url= `https://oiapi.net/API/Bullshit/?title=${msg}&length=200`
         let res = await fetch(url).catch((err) => logger.error(err));
