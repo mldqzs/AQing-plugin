@@ -70,8 +70,8 @@ export class example extends plugin {
     async dj(e) {
         let m = e.msg.replace("拿纸写字","").trim()
     m = m.split(" ")
-        let url = `https://api.cenguigui.cn/api/diy/?text=${msg}`
-        let m = [segment.at(e.user_id), segment.image(url)]
+        let url = `https://api.cenguigui.cn/api/diy/?text=${m}`
+        let msg = [segment.at(e.user_id), segment.image(url)]
         await e.reply(msg);
         return true
     }
