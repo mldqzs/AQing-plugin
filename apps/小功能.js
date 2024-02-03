@@ -103,7 +103,7 @@ export class example extends plugin {
         e.reply(`qq：${res.data.uin}\n凶吉：${res.data.luck}\n评价：${res.data.evaluate}\n解读：${res.data.master}`)
         return true;
         }
-    async nc(e) {
+    async da(e) {
         logger.info('[AQ：答案之书]', e.msg);
         let url= `https://api.lolimi.cn/API/daan/?type=json`
         let res = await fetch(url).catch((err) => logger.error(err));
