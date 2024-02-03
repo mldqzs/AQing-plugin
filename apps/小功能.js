@@ -54,7 +54,7 @@ export class example extends plugin {
                     fnc: 'nc'
                 },
                 {
-                    reg: '^阿晴屁话生成(.*)$',
+                    reg: '^屁话生成(.*)$',
                     fnc: 'nc'
                 }
             ]
