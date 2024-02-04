@@ -56,10 +56,6 @@ export class example extends plugin {
                 {
                     reg: '^屁话生成(.*)$',
                     fnc: 'ph'
-                },
-                {
-                    reg: '^随机菜谱$',
-                    fnc: 'cp'
                 }
             ]
         })
@@ -136,14 +132,6 @@ export class example extends plugin {
         }
         res = await res.json();
         e.reply(`来咯，看看吧：\n${res.data.name}\n`)
-        return true
-        }
-    async cp(e) {
-        logger.info('[AQ：随机菜谱]', e.msg);
-        let url= `https://api.tangdouz.com/a/makefood.php?f=1`
-        let res = await fetch(url).catch((err) => logger.error(err));
-        res = await res.text();
-        e.reply(res)
         return true
         }
     async ph(e) {
