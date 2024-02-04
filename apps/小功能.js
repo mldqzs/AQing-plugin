@@ -58,7 +58,7 @@ export class example extends plugin {
                     fnc: 'ph'
                 },
                 {
-                    reg: '^语言合成(.*)$',
+                    reg: '^加密(.*)$',
                     fnc: 'yn'
                 }
             ]
@@ -72,13 +72,12 @@ export class example extends plugin {
         return true
     }
     async yn(e) {
-        let m = e.msg.replace("语言合成","").trim()
+        let m = e.msg.replace("加密","").trim()
     m = m.split(" ")
-        let url = `https://wanghun.top/api/yh/v2/yuyinlaotian.php?msg=${m}`
+        let url = `https://wanghun.top/api/yh/v2/luosi.php?jia=${m}`
         let res = await fetch(url).catch((err) => logger.error(err));
         res = await res.text();
-        let msg = [segment.record(res)]
-        await e.reply(msg);
+        await e.reply(res);
         return true
     }
     async dj(e) {
