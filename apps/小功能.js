@@ -142,6 +142,7 @@ export class example extends plugin {
         logger.info('[AQ：随机菜谱]', e.msg);
         let url= `https://api.tangdouz.com/a/makefood.php?f=1&return=json`
         let res = await fetch(url).catch((err) => logger.error(err));
+        res = await res.json();
         e.reply(`名字:${res.菜谱}\n分类:${res.分类}\n主分类:${res.主分类}\n简介:${res.菜谱简介}\n难度:${res.难度}\n耗时:${res.耗时}\n步骤:${res.提示}`)
         return true
         }
