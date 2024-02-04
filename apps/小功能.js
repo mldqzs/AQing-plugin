@@ -75,7 +75,9 @@ export class example extends plugin {
         let m = e.msg.replace("语言合成","").trim()
     m = m.split(" ")
         let url = `https://wanghun.top/api/yh/v2/yuyinlaotian.php?msg=${m}`
-        let msg = [segment.record(url)]
+        let res = await fetch(url).catch((err) => logger.error(err));
+        res = await res.text();
+        let msg = [segment.record(res)]
         await e.reply(msg);
         return true
     }
