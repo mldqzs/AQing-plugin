@@ -56,6 +56,10 @@ export class example extends plugin {
                 {
                     reg: '^屁话生成(.*)$',
                     fnc: 'ph'
+                },
+                {
+                    reg: '^语言合成(.*)$',
+                    fnc: 'yn'
                 }
             ]
         })
@@ -64,6 +68,14 @@ export class example extends plugin {
         let file = fs.readdirSync(xhz_path)
         let imgnum = Math.round(Math.random() * (file.length - 1))
         let msg = [segment.at(e.user_id), segment.image('file://' + xhz_path + file[imgnum])]
+        await e.reply(msg);
+        return true
+    }
+    async yn(e) {
+        let m = e.msg.replace("语言合成","").trim()
+    m = m.split(" ")
+        let url = `https://wanghun.top/api/yh/v2/yuyinlaotian.php?msg=${m}`
+        let msg = [segment.record(url)]
         await e.reply(msg);
         return true
     }
