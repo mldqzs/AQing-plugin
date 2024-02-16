@@ -7,10 +7,22 @@ const addGroupPromptProps = {
   placeholder: '请输入群号',
   okText: '添加',
   rules: [
-    {required: true, message: '群号捏'},
-    {pattern: '^\\d+$', message: '群号应该是纯数字的吧'},
+    {required: true, message: '你写了个寂寞'},
+    {pattern: '^\\d+$', message: '这玩意应该是纯数字的吧'},
     {min: 5, message: '你这细狗，太短了'},
     {max: 10, message: '太…长了…阿晴受不了捏'},
+  ],
+}
+
+const add = {
+  content: '请输入QQ号：',
+  placeholder: '请输入QQ号',
+  okText: '添加',
+  rules: [
+    {required: true, message: '你写了个寂寞'},
+    {pattern: '^\\d+$', message: '这玩意应该是纯数字的吧'},
+    {min: 5, message: '你这细狗，太短了'},
+    {max: 11, message: '太…长了…阿晴受不了捏'},
   ],
 }
 
@@ -34,8 +46,26 @@ export function supportGuoba () {
     },
     // 配置项信息
     configInfo: {
-    
-      schemas: [{
+      schemas: [
+       { component: 'Divider',
+        label: '绝对主人设置'
+      },
+      {
+        field: 'config.绝对主人',
+        label: '设置绝对主人',
+        bottomHelpMessage: '设置绝对主人',
+        component: 'GTags',
+        componentProps: {
+          placeholder: '请输入QQ',
+          allowAdd: true,
+          allowDel: true,
+          showPrompt: true,
+          promptProps: add,
+          valueFormatter: ((value) => Number.parseInt(value)).toString(),
+        },
+      }, 
+        
+        {
         component: 'Divider',
         label: '艾特禁言设置'
       },
