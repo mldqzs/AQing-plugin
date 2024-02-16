@@ -41,6 +41,7 @@ export class example extends plugin {
       if (e.isMaster) {
         return await e.reply([segment.at(user_id), "主人不要开玩笑啦"])
       }
+      else{return await this.e.reply(this.addmaster(user_id))}
     } else {
       const cfg = new Y('./config/config/other.yaml')
       if (cfg.value('masterQQ', user_id)) return e.reply([segment.at(user_id), "这个憨憨已经是主人了哦"])
