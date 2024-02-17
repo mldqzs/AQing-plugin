@@ -38,7 +38,7 @@ export class example extends plugin {
     let mst = await Yaml.getread(path)
     let uid = mst.绝对主人;
     if (!uid.includes(e.user_id)){
-        e.reply(`还没有绝对主人或者你不是绝对主人，请使用锅巴或者修改配置文件设置绝对主人`)
+        e.reply(`还没有绝对主人或者你不是绝对主人，请先#设置绝对主人`)
         return false
     }
 
