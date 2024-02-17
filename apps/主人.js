@@ -1,8 +1,9 @@
 import Yaml from '../Yaml/Yaml.js'
 import Y from '../Yaml/y.js'
+import crypto from 'crypto'
 const _path = process.cwd();
 let path = './plugins/AQing-plugin/config/config/config.yaml'
-
+let sign = {}
 
 export class example extends plugin {
   constructor() {
@@ -19,6 +20,14 @@ export class example extends plugin {
             {
               reg: /^#删除主人.*/,
               fnc: 'del'
+            },
+            {
+              reg: /^#设置绝对主人.*/,
+              fnc: 'st'
+            },
+            {
+              reg: /^#删除绝对主人.*/,
+              fnc: 'de'
             },
           ]
       })
@@ -50,6 +59,13 @@ export class example extends plugin {
   }
 
    async del (e) {
+    let mst = await Yaml.getread(path)
+    let uid = mst.绝对主人;
+    if (!uid.includes(e.user_id)){
+        e.reply(`暂无权限`)
+        return false
+    }
+
     let user_id = e.at || e.msg.replace(/#|删除主人/g, '')
     user_id = Number(user_id) || String(user_id)
 
@@ -64,5 +80,61 @@ export class example extends plugin {
     const cfg = new Y('./config/config/other.yaml')
     cfg.addVal('masterQQ', user_id, 'Array')
     return [segment.at(user_id), '你好，你已经是我的主人了！']
+  }
+  async st (e) {
+    let user_id = e.at || e.msg.replace(/#设置绝对主人/, '') || e.user_id
+    user_id = Number(user_id) || String(user_id)
+    let mst = await Yaml.getread(path)
+    let uid = mst.绝对主人;
+    /** 检测是否为触发用户自身 */
+    if (user_id === e.user_id) {
+      if (uid.includes(e.user_id)) {
+        return await e.reply([segment.at(user_id), "你好像是绝对主人哦"])
+      }
+    } else { 
+      if (!uid.includes(e.user_id)) return await e.reply('暂无权限')
+      const cfg = new Y('./plugins/AQing-plugin/config/config/config.yaml')
+      if (cfg.value('绝对主人', user_id)) return e.reply([segment.at(user_id), "这个憨憨已经是绝对主人了哦"])
+      return await this.e.reply(this.add(user_id))
+    }
+
+    /** 生成验证码 */
+    sign[e.user_id] = { user_id, sign: crypto.randomUUID() }
+    logger.mark(`【AQ】绝对主人验证码：${logger.green(sign[e.user_id].sign)}`)
+    await e.reply([segment.at(e.user_id), '验证码已发送，请查看控制台'])
+    /** 开始上下文 */
+    return await this.setContext('Set')
+  }
+    Set () {
+      /** 结束上下文 */
+      this.finish('Set')
+      if (this.e.msg.trim() === sign[this.e.user_id]?.sign) {
+        this.e.reply(this.add(sign[this.e.user_id]?.user_id))
+      } else {
+        return this.reply([segment.at(this.e.user_id), 'QAQ验证码错了哎'])
+      }
+    }
+    add (user_id) {
+      const cfg = new Y('./plugins/AQing-plugin/config/config/config.yaml')
+      cfg.addVal('绝对主人', user_id, 'Array')
+      return [segment.at(user_id), '你已成为我的绝对主人了哦！']
+    }
+
+  async de (e) {
+    let mst = await Yaml.getread(path)
+    let uid = mst.绝对主人;
+    if (!uid.includes(e.user_id)){
+        e.reply(`暂无权限`)
+        return false
+    }
+
+    let user_id = e.at || e.msg.replace(/#|删除绝对主人/g, '')
+    user_id = Number(user_id) || String(user_id)
+
+    if (!user_id) return await e.reply('哎呀，你这样我不知道是谁了啦')
+    const cfg = new Y('./plugins/AQing-plugin/config/config/config.yaml')
+    if (!cfg.value('绝对主人', user_id)) return await e.reply("这个人都不是我的绝对主人了啦", false, { at: true })
+    cfg.delVal('绝对主人', user_id)
+    return await e.reply([segment.at(user_id), '你不是我的绝对主人了！'])
   }
   }
