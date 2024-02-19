@@ -3,7 +3,7 @@ import Y from '../Yaml/y.js'
 import crypto from 'crypto'
 const _path = process.cwd();
 let path = './plugins/AQing-plugin/config/config/config.yaml'
-let sign = {}
+let s = {}
 
 export class example extends plugin {
   constructor() {
@@ -99,8 +99,8 @@ export class example extends plugin {
     }
 
     /** 生成验证码 */
-    sign[e.user_id] = { user_id, sign: crypto.randomUUID() }
-    logger.mark(`【AQ】绝对主人验证码：${logger.green(sign[e.user_id].sign)}`)
+    s[e.user_id] = { user_id, s: crypto.randomUUID() }
+    logger.mark(`【AQ】绝对主人验证码：${logger.green(s[e.user_id].s)}`)
     await e.reply([segment.at(e.user_id), '验证码已发送，请查看控制台'])
     /** 开始上下文 */
     return await this.setContext('Set')
@@ -108,8 +108,8 @@ export class example extends plugin {
     Set () {
       /** 结束上下文 */
       this.finish('Set')
-      if (this.e.msg.trim() === sign[this.e.user_id]?.sign) {
-        this.e.reply(this.add(sign[this.e.user_id]?.user_id))
+      if (this.e.msg.trim() === s[this.e.user_id]?.s) {
+        this.e.reply(this.add(s[this.e.user_id]?.user_id))
       } else {
         return this.reply([segment.at(this.e.user_id), 'QAQ验证码错了哎'])
       }
