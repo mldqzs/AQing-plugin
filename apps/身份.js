@@ -6,8 +6,8 @@ let cy = await Yaml.getread(path)
 let botname = cy.botname
 let 主人 = './config/config/other.yaml';
 let m = await Yaml.getread(主人)
-let mst = await Yaml.getread(path)
-let uid = mst.绝对主人;
+let mst = path
+let u = await Yaml.getread(mst)
 
 export class example extends plugin {
   constructor() {
@@ -34,7 +34,7 @@ export class example extends plugin {
       return false
    }
   else if (e.msg == '我是谁'){
-    if (uid.includes(e.user_id)) {
+    if (u.绝对主人?.includes(e.user_id)) {
    let msg = [`绝对主人！${botname}可是不会忘记的哦！嘿嘿~`,segment.image(`https://gchat.qpic.cn/gchatpic_new/0/0-0-01D0F147B25D3748DA55C82635FE52A4/0`)]
   e.reply(msg)
   return true
@@ -62,7 +62,7 @@ export class example extends plugin {
   let id = e.at
   let groupId = e.group_id
   const memberInfo = await Bot.getGroupMemberInfo(groupId, id);
-  if (uid.includes(id)) {
+  if (u.绝对主人?.includes(id)) {
     let msg = [`这是绝对主人，你不许欺负她哦！${botname}会盯着你哒！`,segment.image(`https://gchat.qpic.cn/gchatpic_new/0/0-0-3342AA8F1C10BE780788320262EB20DF/0`)]
     e.reply(msg)
     return true
