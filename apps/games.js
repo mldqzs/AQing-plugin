@@ -34,7 +34,7 @@ export class example extends plugin {
                 /** 命令正则匹配 */
                 reg: '^公布答案$',
                 /** 执行方法 */
-                fnc: 'gb'
+                fnc: 'kantu'
             },
             ]
           })
@@ -48,11 +48,18 @@ export class example extends plugin {
             logger.error('接口请求失败');
             return await this.reply('接口请求失败');
         }
+        if(e.msg == '看图猜成语'){
         res = await res.json();
         logger.info(`请求结果：${res.data.pic}`);
         let a = `${res.data.pic}`
         let msg = [`${res.data.msg}`, segment.image(a)]
         e.reply(msg)
+        }
+         else if(e.msg == '公布答案'){
+            logger.info('[AQ：猜成语]', e.msg);
+            res = await res.json();
+            e.reply(`${res.data.answer}`)
+         }
         return true;
         }
 
@@ -66,18 +73,6 @@ export class example extends plugin {
         }
         res = await res.json();
         e.reply(`${res.data.msg}`)
-        return true;
-        } 
-    async gb(e) {
-        logger.info('[AQ：猜成语]', e.msg);
-        let url= `https://xiaoapi.cn/API/game_ktccy.php?msg=开始游戏&id=3171419706`
-        let res = await fetch(url).catch((err) => logger.error(err));
-        if (!res) {
-            logger.error('接口请求失败');
-            return await this.reply('接口请求失败');
-        }
-        res = await res.json();
-        e.reply(`${res.data.answer}`)
         return true;
         } 
         async wocai(e) {
