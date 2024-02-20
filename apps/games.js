@@ -1,4 +1,6 @@
 import plugin from '../../../lib/plugins/plugin.js';
+let dati = ""
+let daan = ""
 
 export class example extends plugin {
   constructor() {
@@ -30,12 +32,6 @@ export class example extends plugin {
                 /** 执行方法 */
                 fnc: 'tishi'
             },
-            {
-                /** 命令正则匹配 */
-                reg: '^公布答案$',
-                /** 执行方法 */
-                fnc: 'kantu'
-            },
             ]
           })
       }
@@ -55,11 +51,14 @@ export class example extends plugin {
         let msg = [`${res.data.msg}`, segment.image(a)]
         e.reply(msg)
         }
-         else if(e.msg == '公布答案'){
-            logger.info('[AQ：猜成语]', e.msg);
-            res = await res.json();
-            e.reply(`${res.data.answer}`)
-         }
+        dati = setTimeout(() => {
+            e.reply(['很可惜没有人答对呢'])
+            daan = res.data.answer
+            e.reply(['正确答案是' + daan])
+            console.log(daan)
+            console.log()
+          }
+            , 60000);
         return true;
         }
 
@@ -85,9 +84,9 @@ export class example extends plugin {
         if (res.data.msg === `不对呢，再来！`) {
             return await this.reply('猜错了哦，要不要试试提示？');
         }
-        let a = `${res.data.pic}`
-        let msg = [`你也太厉害了吧！${res.data.msg}`, segment.image(a)]
+        let msg = [`猜对了，这是给你的奖励哦`, segment.image(`https://api.vvhan.com/api/girl`)]
         e.reply(msg)
+        clearTimeout(dati)
         return true;
         }
     }
