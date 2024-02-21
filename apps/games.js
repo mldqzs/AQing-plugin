@@ -38,7 +38,7 @@ export class example extends plugin {
 
     async kantu(e) {
         logger.info('[AQ：猜成语]', e.msg);
-        let url= `https://xiaoapi.cn/API/game_ktccy.php?msg=开始游戏&id=3171419706`
+        let url= `https://xiaoapi.cn/API/game_ktccy.php?msg=开始游戏&id=${e.group_id}`
         let res = await fetch(url).catch((err) => logger.error(err));
         if (!res) {
             logger.error('接口请求失败');
@@ -64,7 +64,7 @@ export class example extends plugin {
 
        async tishi(e) {
         logger.info('[AQ：猜成语]', e.msg);
-        let url= `https://xiaoapi.cn/API/game_ktccy.php?msg=提示&id=3171419706`
+        let url= `https://xiaoapi.cn/API/game_ktccy.php?msg=提示&id=${e.group_id}`
         let res = await fetch(url).catch((err) => logger.error(err));
         if (!res) {
             logger.error('接口请求失败');
@@ -78,7 +78,7 @@ export class example extends plugin {
         logger.info('[AQ：猜成语]', e.msg);
         let m = e.msg.replace("猜成语","").trim()
         m = m.split(" ")
-        let url= `https://xiaoapi.cn/API/game_ktccy.php?msg=我猜${m}&id=3171419706`
+        let url= `https://xiaoapi.cn/API/game_ktccy.php?msg=我猜${m}&id=${e.group_id}`
         let res = await fetch(url).catch((err) => logger.error(err));
         res = await res.json();
         if (res.data.msg === `不对呢，再来！`) {
