@@ -84,7 +84,7 @@ export class example extends plugin {
         if (res.data.msg === `不对呢，再来！`) {
             return await this.reply('猜错了哦，要不要试试提示？');
         }
-        let msg = [`猜对了，这是给你的奖励哦`, segment.image(`https://api.vvhan.com/api/girl`)]
+        let msg = [`猜对了，这是给你的奖励哦`, segment.image(`https://api.lolimi.cn/API/tup/xjj.php`)]
         e.reply(msg)
         clearTimeout(dati)
         return true;
