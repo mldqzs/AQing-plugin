@@ -42,7 +42,7 @@ export default class example extends plugin {
             }
             res = await res.text();
             logger.info(`请求结果：${res}`);
-            await e.reply(`${res.msg}`);
+            await e.reply(`${res}`);
             }
           }
           async kqai(e) {
