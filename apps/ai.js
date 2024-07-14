@@ -33,7 +33,8 @@ export default class example extends plugin {
               return false;
             }
             else {
-            let url= `https://api.mhimg.cn/api/gpt_aimaoniang/?prompt=${msg}`
+              let msg 
+            let url= `https://api.mhimg.cn/api/gpt_aimaoniang/?prompt=${e.msg}`
             let res = await fetch(url).catch((err) => logger.error(err));
             if (!res) {
                 logger.error('查询接口请求失败');
