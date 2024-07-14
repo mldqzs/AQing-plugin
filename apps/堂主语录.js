@@ -39,10 +39,15 @@ export class tangzhu extends plugin {
 
     async tz(e) {
         logger.info('[用户命令]', e.msg)
+        try{
         let file = fs.readdirSync(xhz_path)
         let imgnum = Math.round(Math.random() * (file.length - 1))
         let msg = [segment.at(e.user_id), segment.image('file://' + xhz_path + file[imgnum])]
         await e.reply(msg);
+        }
+        catch(err) {
+            e.reply('出问题了，可能是资源未安装，请先使用#更新堂主语录来安装资源');
+        }
         return true
     }
 

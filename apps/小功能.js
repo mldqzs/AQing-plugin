@@ -1,6 +1,6 @@
 
 import plugin from '../../../lib/plugins/plugin.js'//导包部分
-import { segment } from "oicq";
+import fs from 'node:fs';
 import fetch from "node-fetch";
 const xhz_path = 'plugins/AQing-plugin/resources/ys/'
 export class example extends plugin {
@@ -42,15 +42,15 @@ export class example extends plugin {
                     fnc: 'xj'
                 },
                 {
-                    reg: '^阿晴告诉我(.*)$',
+                    reg: '^答案之书(.*)$',
                     fnc: 'da'
                 },
                 {
-                    reg: '^阿晴龙一下$',
+                    reg: '^龙一下$',
                     fnc: 'lt'
                 },
                 {
-                    reg: '^阿晴给我取个昵称$',
+                    reg: '^取个昵称$',
                     fnc: 'nc'
                 },
                 {

@@ -44,7 +44,7 @@ const helpList =
     },
     {
       "icon": 5,
-      "title": "阿晴告诉我xx",
+      "title": "答案之书xx",
       "desc": "答案之书"
     },
     {

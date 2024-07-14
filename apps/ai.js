@@ -33,14 +33,14 @@ export default class example extends plugin {
               return false;
             }
             else {
-            let url= `https://api.lolimi.cn/API/AI/ys3.5.php?msg=${e.msg}&speaker=派蒙`
+            let url= `https://api.mhimg.cn/api/gpt_aimaoniang/?prompt=${msg}`
             let res = await fetch(url).catch((err) => logger.error(err));
             if (!res) {
                 logger.error('查询接口请求失败');
                 return await this.reply('查询接口请求失败');
             }
-            res = await res.json();
-            logger.info(`请求结果：${res.text}`);
+            res = await res.text();
+            logger.info(`请求结果：${res}`);
             await e.reply(`${res.msg}`);
             }
           }
