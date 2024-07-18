@@ -124,7 +124,7 @@ export class example extends plugin {
         }
     async da(e) {
         logger.info('[AQ：答案之书]', e.msg);
-        let m = e.msg.replace("屁话生成","").trim()
+        let m = e.msg.replace("答案之书","").trim()
         msg = msg.split(" ")
         let url= `https://api.lolimi.cn/API/daan/?type=json`
         let res = await fetch(url).catch((err) => logger.error(err));
