@@ -1,4 +1,4 @@
-import Yaml from '../Yaml/Yaml.js'
+
 import Y from '../Yaml/y.js'
 import crypto from 'crypto'
 const _path = process.cwd();
@@ -35,7 +35,7 @@ export class example extends plugin {
 
 
   async zr(e) {
-    let mst = await Yaml.getread(path)
+    let mst = await Y.getread(path)
     let uid = mst.绝对主人;
     if (!uid.includes(e.user_id)){
         e.reply(`还没有绝对主人或者你不是绝对主人，请先#设置绝对主人`)

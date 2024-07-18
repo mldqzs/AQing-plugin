@@ -48,7 +48,7 @@ export class example extends plugin {
         res = await res.json();
         logger.info(`请求结果：${res.data.pic}`);
         let a = `${res.data.pic}`
-        let msg = [`${res.data.msg}`, segment.image(a)]
+        let msg = [`${res.data.msg}`, segment.image(a),'\n你可以使用『猜成语+你的答案』来回答问题']
         e.reply(msg)
         }
         dati = setTimeout(() => {

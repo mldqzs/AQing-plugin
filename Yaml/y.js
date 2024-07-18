@@ -96,6 +96,17 @@ export default class YamlHandler {
     this.save()
   }
 
+  getread(path) {
+    try {
+       var file = fs.readFileSync(path, 'utf8');
+     } catch (e) {
+       console.log(e);
+       return false;
+     }
+     //转换
+     return Yaml.parse(file);
+   }
+
   /**
    * 在指定键的位置添加新的键值对。
    * @param {string} key - 指定的键
