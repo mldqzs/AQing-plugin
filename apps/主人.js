@@ -57,10 +57,9 @@ export class example extends plugin {
   }
 
    async del (e) {
-    let mst = await Yaml.getread(path)
-    let uid = mst.绝对主人;
-    if (!uid.includes(e.user_id)){
-        e.reply(`暂无权限`)
+    const mst = new Y('./plugins/AQing-plugin/config/config/config.yaml')
+    if (!mst.value('绝对主人', e.user_id)){
+        e.reply(`无权限`)
         return false
     }
 

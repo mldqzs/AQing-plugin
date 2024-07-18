@@ -124,6 +124,8 @@ export class example extends plugin {
         }
     async da(e) {
         logger.info('[AQ：答案之书]', e.msg);
+        let m = e.msg.replace("屁话生成","").trim()
+        msg = msg.split(" ")
         let url= `https://api.lolimi.cn/API/daan/?type=json`
         let res = await fetch(url).catch((err) => logger.error(err));
         if (!res) {
@@ -132,7 +134,7 @@ export class example extends plugin {
         }
         res = await res.json();
         logger.info(`请求结果：${res.text}`);
-        e.reply(`哼哼哼，阿晴只能说：\n${res.data.zh}\n${res.data.en}\n剩下的你自己去品味吧~`)
+        e.reply(`你的问题是：${m}\n答案为,${res.data.zh}\n${res.data.en}\n`)
         return true;
         }
     async nc(e) {
