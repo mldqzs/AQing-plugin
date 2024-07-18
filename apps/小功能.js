@@ -134,7 +134,7 @@ export class example extends plugin {
         }
         res = await res.json();
         logger.info(`请求结果：${res.text}`);
-        e.reply(`你的问题是：${msg}\n答案为,${res.data.zh}\n${res.data.en}\n`)
+        e.reply(`你的问题是：${msg}\n答案为: \n${res.data.zh}\n${res.data.en}\n`)
         return true;
         }
     async nc(e) {
