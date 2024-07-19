@@ -1,10 +1,10 @@
 import plugin from '../../../lib/plugins/plugin.js'
 import fs from 'node:fs';
-import Yaml from '../Yaml/Yaml.js'
-const _path = process.cwd();
-let path = './plugins/AQing-plugin/config/config/config.yaml'
+import Y from '../Yaml/y.js'
+const mst = new Y('./plugins/AQing-plugin/config/config/config.yaml')
+const aiValue = mst.get('ai');
 
-let ab = await Yaml.getread(path)
+
 export default class example extends plugin {
   constructor() {
       super({
@@ -29,11 +29,10 @@ export default class example extends plugin {
           }
 
           async ai(e){
-            if (!e.atBot || !ab.ai == true){
+            if (!e.atBot || !aiValue == true){
               return false;
             }
             else {
-              let msg 
             let url= `https://api.mhimg.cn/api/gpt_aimaoniang/?prompt=${e.msg}`
             let res = await fetch(url).catch((err) => logger.error(err));
             if (!res) {

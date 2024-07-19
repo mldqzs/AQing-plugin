@@ -1,10 +1,9 @@
 import plugin from '../../../lib/plugins/plugin.js'
 import fetch from 'node-fetch'
 import lodash from 'lodash'
-import Yaml from '../Yaml/Yaml.js'
-let path = './plugins/AQing-plugin/config/config/config.yaml'
-let cy = await Yaml.getread(path)
-let botname = cy.botname
+import Y from '../Yaml/y.js'
+const mst = new Y('./plugins/AQing-plugin/config/config/config.yaml')
+const botname = mst.get('botname');
 const Textreply = '如果......是主人的话.....';
 //图片回复(填写图片链接或路径)
 const imgreply = 'https://gchat.qpic.cn/gchatpic_new/0/0-0-BF870802BD8B09E2968F9F7634FA6513/0';

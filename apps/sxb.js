@@ -1,12 +1,11 @@
 import plugin from '../../../lib/plugins/plugin.js'
 import YAML from "yaml"
 import fs from "node:fs"
-import Yaml from '../Yaml/Yaml.js'
-let path = './plugins/AQing-plugin/config/config/config.yaml'
-let cy = await Yaml.getread(path)
-let botname = cy.botname
-let closetip = cy.close_tip
-let starttip = cy.start_tip
+import Y from '../Yaml/y.js'
+const mst = new Y('./plugins/AQing-plugin/config/config/config.yaml')
+const botname = mst.get('botname');
+const closetip = mst.get('close_tip');
+const starttip  = mst.get('start_tip');
 
 export class jinyong extends plugin {
     constructor() {
@@ -33,7 +32,7 @@ export class jinyong extends plugin {
     async jinyong(e) {
         if (e.isGroup) {
             this.file = './config/config/group.yaml'
-            let data = YAML.parse(fs.readFileSync(this.file, 'utf8'))
+            const data = YAML.parse(fs.readFileSync(this.file, 'utf8'))
             console.log(data)
             data[e.group_id] = { enable: ["AQ:机器人群开关",] }
             let yaml = YAML.stringify(data)

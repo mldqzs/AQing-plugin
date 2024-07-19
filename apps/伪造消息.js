@@ -1,8 +1,7 @@
 import plugin from '../../../lib/plugins/plugin.js';
 import cfg from '../../../lib/config/config.js'
-import Yaml from '../Yaml/Yaml.js'
 const _path = process.cwd();
-let path = './plugins/AQing-plugin/config/config/bm.yaml'
+import Y from '../Yaml/y.js'
 const direction = "使用方法：\n一条消息的格式为【@一名群友+ta的发言内容】。可叠加多条消息，示例：\n" +
   "伪造消息@甲这是甲说的话@乙这是乙说的第一句话|这是乙说的第二句话@丙这是丙发送的图片\n" 
 
@@ -247,12 +246,11 @@ export class Fakemessage extends plugin {
 
   // 检测是否为主人或白名单qq 
     async checkMaster(e, qq) {
-    let wst = await Yaml.getread(path)
-    let muteTime = wst.禁言时间;
-    let wlist = wst.白名单;//对wlist中的qq造谣时会收到警告
+    const wst = new Y(`./plugins/AQing-plugin/config/config/bm.yaml`)
+    const muteTime = wst.get(`禁言时间`);
     if (
       !e.isMaster &&
-      (wlist.includes(qq) || (dontRumorMaster && cfg.masterQQ.includes(qq)))
+      (wst.value('白名单', qq)|| (dontRumorMaster && cfg.masterQQ.includes(qq)))
     ) {
       e.reply([segment.at(e.user_id), "不可以这样！"]);
         e.group.muteMember(e.user_id, muteTime * 60);
@@ -297,49 +295,28 @@ export class Fakemessage extends plugin {
     }
 
 
-    let G = e.message[0].text.replace(/#|伪造加白/g, "").trim()
-    if(e.message[1]){
-    let atItem = e.message.filter((item) => item.type === "at");
-    G = atItem[0].qq;
-    }else{ G = G.match(/[1-9]\d*/g) }
-    if (!G) return e.reply(`请输入正确的QQ号！`)
-    G = parseInt(G);
-    let TA = G;
+    let user_id = e.at || e.msg.replace(/#|伪造加白/g, '')
+    user_id = Number(user_id) || String(user_id)
 
-    let bm = await Yaml.getread(path)
-    bm.白名单.push(TA);
-    await Yaml.getwrite(path, bm);
-    let msg = [segment.at(e.user_id), `已将该用户加入伪造消息白名单`];
-    await e.reply(msg)
-    return true;
-    }
-        async sb(e) {
+    if (!user_id) return await e.reply('哎呀，你这样我不知道是谁了啦')
+    const cfg = new Y('./plugins/AQing-plugin/config/config/bm.yaml')
+    if (!cfg.value('白名单', user_id)) return await e.reply("未找到该用户", false, { at: true })
+    cfg.addVal('白名单', user_id)
+    return await e.reply(['已将该用户加入伪造消息白名单'])
+}
+async sb(e) {
       if (!e.isMaster) {
-          await e.reply('你也配？')
+          await e.reply('无权限')
         return false
     }
 
-    let G = e.message[0].text.replace(/#|伪造删白/g, "").trim()
-    if(e.message[1]){
-    let atItem = e.message.filter((item) => item.type === "at");
-    G = atItem[0].qq;
-    }else{ G = G.match(/[1-9]\d*/g) }
-    if (!G) return e.reply(`请输入正确的QQ号！`)
-    G = parseInt(G);
-    let TA = G;
+    let user_id = e.at || e.msg.replace(/#|伪造删白/g, '')
+    user_id = Number(user_id) || String(user_id)
 
-    let bm = await Yaml.getread(path) // path 是你的另一个 bm.yaml 文件的路径
-    let index = bm.白名单.indexOf(TA); // 找到要删除的 QQ 号在白名单数组中的索引
-    if (index > -1) { // 如果找到了
-    bm.白名单.splice(index, 1); // 从白名单数组中删除该索引对应的元素
-    await Yaml.getwrite(path, bm); // 把更新后的数据写入到 bm.yaml 文件中
-    let msg = [segment.at(e.user_id), `已从伪造消息白名单中删除！`];
-    await e.reply(msg)
-    return true;
-    } else { // 如果没找到
-    let msg = [segment.at(e.user_id), `该QQ号不在伪造消息白名单中！`];
-    await e.reply(msg)
-    return false;
-    }
+    if (!user_id) return await e.reply('哎呀，你这样我不知道是谁了啦')
+    const cfg = new Y('./plugins/AQing-plugin/config/config/bm.yaml')
+    if (!cfg.value('白名单', user_id)) return await e.reply("未找到该用户", false, { at: true })
+    cfg.delVal('白名单', user_id)
+    return await e.reply(['已将该用户从伪造白名单中移除'])
 }
 } 
