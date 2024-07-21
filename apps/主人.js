@@ -81,15 +81,14 @@ export class example extends plugin {
   async st (e) {
     let user_id = e.at || e.msg.replace(/#设置绝对主人/, '') || e.user_id
     user_id = Number(user_id) || String(user_id)
-    let mst = await Yaml.getread(path)
-    let uid = mst.绝对主人;
+    const mst = new Y('./plugins/AQing-plugin/config/config/config.yaml')
     /** 检测是否为触发用户自身 */
     if (user_id === e.user_id) {
-      if (uid.includes(e.user_id)) {
+      if (mst.value('绝对主人', e.user_id)) {
         return await e.reply([segment.at(user_id), "你好像是绝对主人哦"])
       }
     } else { 
-      if (!uid.includes(e.user_id)) return await e.reply('暂无权限')
+      if (!mst.value('绝对主人', e.user_id)) return await e.reply('暂无权限')
       const cfg = new Y('./plugins/AQing-plugin/config/config/config.yaml')
       if (cfg.value('绝对主人', user_id)) return e.reply([segment.at(user_id), "这个憨憨已经是绝对主人了哦"])
       return await this.e.reply(this.add(user_id))
