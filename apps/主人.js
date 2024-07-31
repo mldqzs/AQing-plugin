@@ -150,6 +150,7 @@ export class example extends plugin {
   
     const cfg = new Y('./config/config/other.yaml')
     const masters = cfg.value('masterQQ') || [];
+    console.log('Masters:', masters); // 打印主人列表内容
     if (masters.length === 0) {
       return await e.reply('目前还没有主人哦');
     }
