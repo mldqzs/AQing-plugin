@@ -121,10 +121,9 @@ export class example extends plugin {
     }
 
   async de (e) {
-    let mst = await Yaml.getread(path)
-    let uid = mst.绝对主人;
-    if (!uid.includes(e.user_id)){
-        e.reply(`暂无权限`)
+    const mst = new Y('./plugins/AQing-plugin/config/config/config.yaml')
+    if (!mst.value('绝对主人', e.user_id)){
+        e.reply(`无权限`)
         return false
     }
 
@@ -149,17 +148,12 @@ export class example extends plugin {
     }
   
     const cfg = new Y('./config/config/other.yaml')
-    const masters = cfg.value('masterQQ') || [];
-    console.log('Masters:', masters); // 打印主人列表内容
-    if (masters.length === 0) {
-      return await e.reply('目前还没有主人哦');
+    const masters = cfg.get('masterQQ')
+    if (masters && masters.length > 0) {
+      const masterList = masters.join(', ')
+      return await e.reply(`当前的主人有: ${masterList}`)
+    } else {
+      return await e.reply('目前还没有主人。')
     }
-  
-    let reply = '主人列表：';
-    for (const master of masters) {
-      reply += `
-  ${master}`;
-    }
-    return await e.reply(reply);
   }
   }
