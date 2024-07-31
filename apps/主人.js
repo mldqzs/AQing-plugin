@@ -142,8 +142,8 @@ export class example extends plugin {
 
 
   async listMasters(e) {
-    const mst = new Y('./config/config/other.yaml')
-    if (!mst.value('masterQQ', e.user_id)){
+    const mst = new Y('./plugins/AQing-plugin/config/config/config.yaml')
+    if (!mst.value('绝对主人', e.user_id)){
         e.reply(`无权限`)
         return false
     }
