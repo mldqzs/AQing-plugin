@@ -28,6 +28,10 @@ export class example extends plugin {
               reg: /^#删除绝对主人.*/,
               fnc: 'de'
             },
+            {
+              reg: /^#主人列表/,
+              fnc: 'listMasters'
+            }
           ]
       })
   }
@@ -132,5 +136,29 @@ export class example extends plugin {
     if (!cfg.value('绝对主人', user_id)) return await e.reply("这个人都不是我的绝对主人了啦", false, { at: true })
     cfg.delVal('绝对主人', user_id)
     return await e.reply([segment.at(user_id), '你不是我的绝对主人了！'])
+  }
+
+
+
+
+  async listMasters(e) {
+    const mst = new Y('./config/config/other.yaml')
+    if (!mst.value('masterQQ', e.user_id)){
+        e.reply(`无权限`)
+        return false
+    }
+  
+    const cfg = new Y('./config/config/other.yaml')
+    const masters = cfg.value('masterQQ') || [];
+    if (masters.length === 0) {
+      return await e.reply('目前还没有主人哦');
+    }
+  
+    let reply = '主人列表：';
+    for (const master of masters) {
+      reply += `
+  ${master}`;
+    }
+    return await e.reply(reply);
   }
   }
