@@ -46,7 +46,7 @@ export default class example extends plugin {
           }
           async kqai(e) {
             if (this.e.isMaster) {
-              ab.ai = true;
+              mst.set('ai', true);
               e.reply("开启咯~要记得艾特阿晴哦");
               return true;
             } else {
@@ -56,7 +56,7 @@ export default class example extends plugin {
           }
           async gbai(e) {
             if (this.e.isMaster) {
-              ab.ai = false;
+              mst.set('ai', false);
               e.reply("关闭啦QAQ");
               return true;
             } else {
