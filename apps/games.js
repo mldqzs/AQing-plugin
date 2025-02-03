@@ -26,7 +26,7 @@ export class example extends plugin {
     }
 
     try {
-      const apiUrl = `https://xiaoapi.cn/API/game_ktccy.php?msg=开始游戏&id=${e.group_id}`
+      const apiUrl = `https://xiaoapi.cn/API/game_ktccy.php?msg=开始游戏&id=${Bot.uin}`
       const res = await fetch(apiUrl)
       
       if (!res.ok) throw new Error(`API响应异常: ${res.status}`)
