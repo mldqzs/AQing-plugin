@@ -55,7 +55,7 @@ export class example extends plugin {
       else{return await this.e.reply(this.addmaster(user_id))}
     } else {
       const cfg = new Y('./config/config/other.yaml')
-      if (cfg.value('masterQQ', user_id)) return e.reply([segment.at(user_id), "这个憨憨已经是主人了哦"])
+      if (cfg.value('master', `${Bot.uin}:${user_id}`)) return e.reply([segment.at(user_id), "这个憨憨已经是主人了哦"])
       return await this.e.reply(this.addmaster(user_id))
     }
   }
@@ -72,14 +72,14 @@ export class example extends plugin {
 
     if (!user_id) return await e.reply('哎呀，你这样我不知道是谁了啦')
     const cfg = new Y('./config/config/other.yaml')
-    if (!cfg.value('masterQQ', user_id)) return await e.reply("这个人是谁呀，好像不是我的主人哦", false, { at: true })
-    cfg.delVal('masterQQ', user_id)
+    if (!cfg.value('master', `${Bot.uin}:${user_id}`)) return await e.reply("这个人是谁呀，好像不是我的主人哦", false, { at: true })
+    cfg.delVal('master', `${Bot.uin}:${user_id}`)
     return await e.reply([segment.at(user_id), '你不是我的主人了！'])
   }
 
   addmaster (user_id) {
     const cfg = new Y('./config/config/other.yaml')
-    cfg.addVal('masterQQ', user_id, 'Array')
+    cfg.addVal('master', `${Bot.uin}:${user_id}`, 'Array')
     return [segment.at(user_id), '你好，你已经是我的主人了！']
   }
   async st (e) {
@@ -148,7 +148,7 @@ export class example extends plugin {
     }
   
     const cfg = new Y('./config/config/other.yaml')
-    const masters = cfg.get('masterQQ')
+    const masters = cfg.get('master')
     if (masters && masters.length > 0) {
       const masterList = masters.join(', ')
       return await e.reply(`当前的主人有: ${masterList}`)

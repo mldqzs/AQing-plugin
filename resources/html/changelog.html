@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>阿晴版本信息</title>
+  <style>
+    body {
+      font-family: ' Arial', sans-serif;
+      margin: 0;
+      padding: 0;
+      background: url('https://t.mwm.moe/mp') no-repeat center center fixed;
+      background-size: cover;
+      background-color: rgba(255, 255, 255, 0.95);
+      height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+    .changelog-container {
+      max-width: 800px;
+      padding: 20px;
+      background: rgba(255, 255, 255, 0.95);
+      border-radius: 20px;
+      box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+      overflow: hidden;
+    }
+    .changelog {
+      background: transparent;
+      padding: 0;
+      border: none;
+      box-shadow: none;
+    }
+    h1 {
+      color: #2c3e50;
+      margin-bottom: 20px;
+      text-align: center;
+    }
+    .version-item {
+      margin-bottom: 20px;
+      padding-bottom: 15px;
+      border-bottom: 1px solid #eee;
+    }
+    .version-title {
+      font-size: 1.2em;
+      color: #e74c3c;
+      margin-bottom: 10px;
+    }
+    .version-description {
+      line-height: 1.6;
+    }
+  </style>
+</head>
+<body>
+  <div class="changelog-container">
+    <h1>当前版本信息</h1>
+    <div class="changelog">
+      {{ changelog }}
+    </div>
+  </div>
+</body>
+</html>

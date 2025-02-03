@@ -4,8 +4,8 @@ const helpList =
   "list": [
     {
       "icon": 1,
-      "title": "堂主",
-      "desc": "随机发送堂主逆天语录"
+      "title": "随机弱智吧",
+      "desc": "随机发送弱智吧语录"
     },
     {
       "icon": 2,
@@ -31,36 +31,6 @@ const helpList =
       "icon": 9,
       "title": "#查看艾特禁言群聊",
       "desc": "查看有哪些群开启了被艾特禁言"
-    },
-    {
-      "icon": 3,
-      "title": "坤坤",
-      "desc": "giegie图"
-    },
-    {
-      "icon": 4,
-      "title": "原神",
-      "desc": "原神启动！"
-    },
-    {
-      "icon": 5,
-      "title": "答案之书xx",
-      "desc": "答案之书"
-    },
-    {
-      "icon": 6,
-      "title": "摸鱼人日历",
-      "desc": "查看摸鱼人日历"
-    },
-    {
-      "icon": 3,
-      "title": "屁话生成xx",
-      "desc": "生成一段屁话"
-    },
-    {
-      "icon": 3,
-      "title": "戳一戳",
-      "desc": "具体配置可以用锅巴改"
     },
     {
       "icon": 2,

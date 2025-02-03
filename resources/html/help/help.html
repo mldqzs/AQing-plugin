@@ -4,45 +4,166 @@
 <head>
     <meta charset="UTF-8">
     <title>帮助</title>
-    <link rel="preload" href="{{pluResPath}}/plugins/AQing-plugin/resources/font/tttgbnumber.ttf" as="font">
-    <link rel="stylesheet" type="text/css" href="{{pluResPath}}/plugins/AQing-plugin/resources/html/help/help.css" />
+    <style>
+        /* 内联CSS样式 */
+        @font-face {
+            font-family: "tttgbnumber";
+            src: url("{{pluResPath}}/plugins/AQing-plugin/resources/font/tttgbnumber.ttf");
+            font-weight: normal;
+            font-style: normal;
+            unicode-range: U+0041-005A, U+0061-007A; /* 指定字体支持的字符范围 */
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            font-family: 'tttgbnumber', Arial, sans-serif;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: url('{{pluResPath}}/plugins/AQing-plugin/resources/html/help/img/bgimg1.jpg')  center center ;
+            background-size: cover;
+            background-color: #f5f5f500;
+            color: #fefefe00;
+            font-size: 16px;
+            line-height: 1.6;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 1920px;
+            margin: 0 auto;
+            padding: 20px;
+            background: rgba(255, 255, 255, 0);
+            border-radius: 20px;
+            box-shadow: 0 2px 10px rgb(0, 0, 0);
+        }
+
+        .head_box {
+            text-align: center;
+            margin-bottom: 40px;
+            padding: 20px 0;
+            border-bottom: 2px solid #e74c3c;
+        }
+
+        .head_box h1 {
+            font-size: 36px;
+            color: #e74c3c;
+            margin-bottom: 10px;
+        }
+
+        .head_box div {
+            color: #9b59b6;
+            font-size: 20px;
+        }
+
+        .help {
+            margin: 40px 0;
+        }
+
+        .title h2 {
+            font-size: 28px;
+            color: #2c3e50;
+            margin-bottom: 20px;
+            text-align: center;
+            padding: 10px 0;
+            border-bottom: 2px solid #3498db;
+        }
+
+        .help-text {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            padding: 20px;
+        }
+
+        .help-div {
+            background: #f8f9fa78;
+            border-radius: 10px;
+            padding: 15px;
+            box-shadow: 0 3px 6px rgba(0, 0, 0, 0.1);
+            transition: transform 0.3s ease;
+        }
+
+        .help-div:hover {
+            transform: translateY(-5px);
+        }
+
+        .img-div {
+            text-align: center;
+            margin-bottom: 10px;
+        }
+
+        .img-div img {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            object-fit: cover;
+        }
+
+        .text-div {
+            text-align: left;
+        }
+
+        .text-title-div {
+            font-size: 18px;
+            color: #2c3e50;
+            margin-bottom: 10px;
+        }
+
+        .text-desc-div {
+            color: #7f8c8d;
+            font-size: 14px;
+        }
+
+        .logo {
+            text-align: center;
+            margin-top: 40px;
+            padding: 20px 0;
+            border-top: 1px solid #ddd;
+        }
+
+        .logo h3 {
+            color: #e74c3c;
+            font-size: 24px;
+        }
+    </style>
 </head>
 
 <body>
     <div class="container" id="container">
         <div class="head_box">
-            <h1 style="color: rgb(229, 65, 183);">阿晴插件使用指南</h1>
-            <div style="color: blueviolet;">AQing-plugin帮助</div>
+            <h1>阿晴插件使用指南</h1>
+            <div>AQing-plugin帮助</div>
         </div>
 
         <div class="help">
-
             <div class="title">
-                <h2>{{helpList.group}}</h2>
+                <h2>功能列表</h2>
             </div>
             <div class="help-text">
                 {{each helpList.list list}}
                 <div class="help-div">
-                    <div>
-                        <div class="img-div">
-                            <img src="{{pluResPath}}/plugins/AQing-plugin/resources/html/help/img/{{list.icon}}.png">
-                        </div>
-                        <div class="text-div">
-                            <b class="text-title-div">
-                                {{list.title}}
-                            </b>
-                            <div class="text-desc-div">
-                                {{list.desc}}
-                            </div>
+                    <div class="img-div">
+                        <img src="{{pluResPath}}/plugins/AQing-plugin/resources/html/help/img/{{list.icon}}.png">
+                    </div>
+                    <div class="text-div">
+                        <b class="text-title-div">
+                            {{list.title}}
+                        </b>
+                        <div class="text-desc-div">
+                            {{list.desc}}
                         </div>
                     </div>
                 </div>
                 {{/each}}
-
             </div>
         </div>
-     <div class="logo">
-        <h3 style="color: rgb(226, 43, 189);">Created By AQing-plugin & 明るい青紫色 </h3>
+
+        <div class="logo">
+            <h3>Created By AQing-plugin & 明るい青紫色</h3>
+        </div>
     </div>
 </body>
 
