@@ -64,7 +64,7 @@ export class example extends plugin {
     if (!answer) return e.reply('请提供要猜测的成语')
 
     try {
-      const apiUrl = `https://xiaoapi.cn/API/game_ktccy.php?msg=我猜${encodeURIComponent(answer)}&id=${e.group_id}`
+      const apiUrl = `https://xiaoapi.cn/API/game_ktccy.php?msg=我猜${encodeURIComponent(answer)}&id=${Bot.uin}`
       const res = await fetch(apiUrl)
       
       if (!res.ok) throw new Error(`API响应异常: ${res.status}`)
@@ -95,7 +95,7 @@ export class example extends plugin {
     if (!this.validateGame(e.group_id)) return
 
     try {
-      const apiUrl = `https://xiaoapi.cn/API/game_ktccy.php?msg=提示&id=${e.group_id}`
+      const apiUrl = `https://xiaoapi.cn/API/game_ktccy.php?msg=提示&id=${Bot.uin}`
       const res = await fetch(apiUrl)
       
       if (!res.ok) throw new Error(`API响应异常: ${res.status}`)
