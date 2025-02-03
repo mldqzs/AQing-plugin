@@ -80,7 +80,7 @@ export class example extends plugin {
         await e.reply([
           '🎉 恭喜答对啦！',
           segment.image('https://api.lolimi.cn/API/tup/xjj.php'),
-          `正确答案：${gameState.get(e.group_id)?.answer}`
+          `正确答案：${answer}`
         ])
       }
     } catch (err) {
