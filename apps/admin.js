@@ -46,7 +46,7 @@ export default class BotNameModifier extends plugin {
     }
 
     // 更新设置中的机器人名字
-    const newConfig = lodash.set(setting.merge(), 'config.botname', newBotName)
+    const newConfig = lodash.set(setting.merge(), 'botname', newBotName)
     setting.analysis(newConfig)
 
     // 保存设置到 config.yaml

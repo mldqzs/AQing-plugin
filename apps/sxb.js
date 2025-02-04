@@ -3,7 +3,7 @@ import YAML from "yaml"
 import fs from "node:fs"
 import Y from '../Yaml/y.js'
 const mst = new Y('../config/config/config.yaml')
-const botname = mst.get('config.botname');
+const botname = mst.get('botname');
 const closetip = mst.get('close_tip');
 const starttip  = mst.get('start_tip');
 
