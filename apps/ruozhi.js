@@ -7,7 +7,6 @@ import { fileURLToPath } from 'node:url';
 // 配置常量
 const CONFIG = {
   TEMPLATE_PATH: resolve(dirname(fileURLToPath(import.meta.url)), '../resources/html/ruozhiba.html'),
-  BACKGROUND_API: '../resources/html/help/img/bgimg2.jpg',
   RUOZHIBI_API: 'https://api.pearktrue.cn/api/ruozhiba/',
   VIEWPORT: { width: 800, height: 600 },
   CACHE: {
@@ -104,7 +103,6 @@ export class RuozhibaInfo extends plugin {
   // 渲染模板
   renderTemplate(data) {
     return this.template
-      .replace('{{backgroundUrl}}', CONFIG.BACKGROUND_API)
       .replace('{{question}}', data.instruction ?? '暂无问题')
       .replace('{{answer}}', data.output ?? '暂无回答')
       .replace('{{timestamp}}', new Date().toLocaleString());
