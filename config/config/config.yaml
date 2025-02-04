@@ -5,15 +5,14 @@ bm:
     - 3583785919
   禁言时间: 5
 config:
-  botname: 阿晴2号
+  botname: 阿晴
   muteTime: 5
   jyGroupList: []
-  ai: false
-  绝对主人:
+绝对主人:
     - 123456
     - 3171419706
-  start_tip: 阿晴上班了,今天又是充满干劲的一天~
-  close_tip: 阿晴去玩了，开溜~
+start_tip: 阿晴上班了,今天又是充满干劲的一天~
+close_tip: 阿晴去玩了，开溜~
 muteTime: 5
 jyGroupList:
   - 912363090

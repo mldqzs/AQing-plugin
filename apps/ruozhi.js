@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 // 配置常量
 const CONFIG = {
   TEMPLATE_PATH: resolve(dirname(fileURLToPath(import.meta.url)), '../resources/html/ruozhiba.html'),
-  BACKGROUND_API: 'https://t.mwm.moe/pc',
+  BACKGROUND_API: 'file://../resources/html/help/img/bgimg2.jpg',
   RUOZHIBI_API: 'https://api.pearktrue.cn/api/ruozhiba/',
   VIEWPORT: { width: 800, height: 600 },
   CACHE: {
