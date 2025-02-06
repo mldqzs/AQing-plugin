@@ -1,3 +1,8 @@
+let map = await e.group.getMemberMap();
+let arrMember = Array.from(map.values());
+let randomWife = arrMember[Math.round(Math.random() * (arrMember.length - 1))];
+let number = Math.ceil(Math.random() * 2);
+
 export default class laopo extends plugin {
   constructor() {
     super({
@@ -15,6 +20,7 @@ export default class laopo extends plugin {
   }
 
   async todayWife(e) {
+    
     const currentDate = new Date();
     const year = currentDate.getFullYear();
     const month = (currentDate.getMonth() + 1).toString().padStart(2, '0');
@@ -55,12 +61,6 @@ export default class laopo extends plugin {
         e.reply(msg);
         return;
     }
-
-    let map = await e.group.getMemberMap();
-    let arrMember = Array.from(map.values());
-    let randomWife = arrMember[Math.round(Math.random() * (arrMember.length - 1))];
-    let number = Math.ceil(Math.random() * 2);
-
     if (number > 1) {
       let msg = [
         segment.at(e.user_id),
