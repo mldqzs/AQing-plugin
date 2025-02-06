@@ -27,6 +27,19 @@ export default class laopo extends plugin {
     let date_time3 = await redis.get(`Yunzai:mylp:${e.user_id}_daka`);
     date_time3 = date_time3 ? JSON.parse(date_time3) : null;
 
+    if (e.isMaster) {
+      let msg = [
+        segment.at(e.user_id),
+        "\n主人主人！你的老婆在这哦:",
+        segment.image(`https://q1.qlogo.cn/g?b=qq&s=0&nk=${randomWife.user_id}`),
+        `【${randomWife.nickname}】 (${randomWife.user_id}) 嘻嘻~`
+      ]
+  
+      e.reply(msg);
+  
+      return true;
+    }
+
     if (date_time === date_time2) {
         let msg = [
             segment.at(e.user_id),
