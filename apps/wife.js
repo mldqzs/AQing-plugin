@@ -1,7 +1,3 @@
-let map = await e.group.getMemberMap();
-let arrMember = Array.from(map.values());
-let randomWife = arrMember[Math.round(Math.random() * (arrMember.length - 1))];
-let number = Math.ceil(Math.random() * 2);
 
 export default class laopo extends plugin {
   constructor() {
@@ -20,7 +16,11 @@ export default class laopo extends plugin {
   }
 
   async todayWife(e) {
-    
+    let map = await e.group.getMemberMap();
+    let arrMember = Array.from(map.values());
+    let randomWife = arrMember[Math.round(Math.random() * (arrMember.length - 1))];
+    let number = Math.ceil(Math.random() * 2);
+
     const currentDate = new Date();
     const year = currentDate.getFullYear();
     const month = (currentDate.getMonth() + 1).toString().padStart(2, '0');
