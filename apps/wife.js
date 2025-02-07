@@ -1,9 +1,8 @@
-
 export default class laopo extends plugin {
   constructor() {
     super({
-      name: 'AQ: 随机老婆',
-      dsc: '随机老婆',
+      name: 'AQ: 每日老婆',
+      dsc: '每日随机老婆并支持抢夺',
       event: 'message',
       priority: 5000,
       rule: [
@@ -11,71 +10,137 @@ export default class laopo extends plugin {
           reg: '^今日老婆$',
           fnc: 'todayWife',
         },
+        {
+          reg: '^抢老婆(@\\d+)?$',
+          fnc: 'grabWife',
+        },
       ],
     });
   }
 
+  // 获取格式化日期
+  #getDate() {
+    const d = new Date();
+    return `${d.getFullYear()}-${(d.getMonth() + 1).toString().padStart(2, '0')}-${d.getDate().toString().padStart(2, '0')}`;
+  }
+
+  // 显示老婆信息
+  async #showWife(e, uid) {
+    const memberMap = await e.group.getMemberMap(); // 获取群成员 Map
+    const member = memberMap.get(uid); // 使用 Map 的 get 方法
+    if (!member) return false;
+
+    const msg = [
+      segment.at(e.user_id),
+      "\n今日你的老婆是：",
+      segment.image(`https://q1.qlogo.cn/g?b=qq&s=0&nk=${uid}`),
+      `【${member.nickname}】(${uid})`,
+      "\n要保护好TA哦！"
+    ];
+    e.reply(msg);
+    return true;
+  }
+
+  // 今日老婆
   async todayWife(e) {
-    let map = await e.group.getMemberMap();
-    let arrMember = Array.from(map.values());
-    let randomWife = arrMember[Math.round(Math.random() * (arrMember.length - 1))];
-    let number = Math.ceil(Math.random() * 2);
+    const date = this.#getDate();
+    const key = `Yunzai:jrlp:${e.user_id}`;
 
-    const currentDate = new Date();
-    const year = currentDate.getFullYear();
-    const month = (currentDate.getMonth() + 1).toString().padStart(2, '0');
-    const day = currentDate.getDate().toString().padStart(2, '0');
-    const date_time = `${year}-${month}-${day}`;
-
-    // 修复 Redis 数据获取部分
-    let date_time2 = await redis.get(`Yunzai:jrlp:${e.user_id}_daka`);
-    date_time2 = date_time2 ? JSON.parse(date_time2) : null;
-    let date_time3 = await redis.get(`Yunzai:mylp:${e.user_id}_daka`);
-    date_time3 = date_time3 ? JSON.parse(date_time3) : null;
-
-    if (e.isMaster) {
-      let msg = [
-        segment.at(e.user_id),
-        "\n主人主人！你的老婆在这哦:",
-        segment.image(`https://q1.qlogo.cn/g?b=qq&s=0&nk=${randomWife.user_id}`),
-        `【${randomWife.nickname}】 (${randomWife.user_id}) 嘻嘻~`
-      ]
-  
-      e.reply(msg);
-  
-      return true;
+    // 尝试获取已存老婆
+    let wifeData = await redis.get(key);
+    if (wifeData) {
+      wifeData = JSON.parse(wifeData);
+      if (wifeData.date === date) {
+        if (await this.#showWife(e, wifeData.wife)) return;
+        // 老婆不在群则重新选择
+      }
     }
 
-    if (date_time === date_time2) {
-        let msg = [
-            segment.at(e.user_id),
-            `\n你还要几个老婆啊！你这个花心大萝卜！`
-        ];
-        e.reply(msg);
-        return;
-      } else if (date_time === date_time3) {
-        let msg = [
-            segment.at(e.user_id),
-            `\n一天一次哦！明天再来吧！`
-        ];
-        e.reply(msg);
-        return;
-    }
-    if (number > 1) {
-      let msg = [
-        segment.at(e.user_id),
-        "\n今天你的老婆是",
-        segment.image(`https://q1.qlogo.cn/g?b=qq&s=0&nk=${randomWife.user_id}`),
-        `【${randomWife.nickname}】 (${randomWife.user_id}) \n要保护好TA哦！`
-      ];
+    // 随机选择新老婆
+    const memberMap = await e.group.getMemberMap(); // 获取群成员 Map
+    const members = Array.from(memberMap.values()); // 转换为数组
+    const filteredMembers = members.filter(m => m.user_id !== e.user_id); // 排除自己
 
-      e.reply(msg);
-      // 修复 Redis 设置部分
-      redis.set(`Yunzai:jrlp:${e.user_id}_daka`, JSON.stringify(date_time));
+    if (filteredMembers.length === 0) {
+      return e.reply("你群都没人！");
+    }
+
+    const wife = filteredMembers[Math.floor(Math.random() * filteredMembers.length)]; // 随机选择一个成员
+    await redis.set(key, JSON.stringify({
+      date: date,
+      wife: wife.user_id,
+    }));
+
+    this.#showWife(e, wife.user_id);
+  }
+
+  // 抢老婆
+  async grabWife(e) {
+  
+    const date = this.#getDate();
+    const key = `Yunzai:jrlp:${e.user_id}`;
+  
+    // 检查是否已有老婆
+    let myData = await redis.get(key);
+    if (myData) {
+      myData = JSON.parse(myData);
+      if (myData.date === date) {
+        return e.reply("你今天已经有老婆了，不能贪心哦！");
+      }
+    }
+  
+    // 解析目标用户
+    const target = e.message.filter(m => m.type === "at").find(m => m.qq);
+    if (!target) return e.reply("抢空气？");
+    const targetId = target.qq;
+  
+    if (targetId === e.user_id) {
+      return e.reply("我勒个豆！自己ntr自己？", true);
+    }
+  
+    // 获取目标的老婆
+    const targetKey = `Yunzai:jrlp:${targetId}`;
+    let targetData = await redis.get(targetKey);
+    if (!targetData) {
+      return e.reply("对方今天还没有老婆哦！");
+    }
+    targetData = JSON.parse(targetData);
+  
+    if (targetData.date !== date) {
+      return e.reply("对方的老婆已经过期了");
+    }
+  
+    // 检查老婆是否在群
+    const memberMap = await e.group.getMemberMap(); // 获取群成员 Map
+    const wifeMember = memberMap.get(targetData.wife); // 使用 Map 的 get 方法
+    if (!wifeMember) {
+      return e.reply("对方的老婆已经退群了");
+    }
+  
+    // 抢夺成功率50%
+    if (Math.random() < 0.3) {
+      // 抢夺成功
+      await redis.set(key, JSON.stringify({
+        date: date,
+        wife: targetData.wife,
+      }));
+      await redis.del(targetKey); // 原主人失去老婆
+  
+      e.reply([
+        segment.at(e.user_id),
+        ` 成功抢走了 `,
+        segment.at(targetId),
+        ` 的老婆！\n`,
+        segment.image(`https://q1.qlogo.cn/g?b=qq&s=0&nk=${targetData.wife}`),
+        `【${wifeMember.nickname}】现在属于你了！`,
+      ]);
     } else {
-      e.reply(`很遗憾，你没有老婆哦！`);
-      // 修复 Redis 设置部分
-      redis.set(`Yunzai:mylp:${e.user_id}_daka`, JSON.stringify(date_time));
+      e.reply([
+        segment.at(e.user_id),
+        ` 抢夺失败，你被 `,
+        segment.at(targetId),
+        ` 反杀了！🤡👈`,
+      ]);
     }
   }
 }
