@@ -121,7 +121,6 @@ export default class laopo extends plugin {
       return e.reply("对方的老婆已经退群了");
     }
   
-    // 抢夺成功率50%
     if (Math.random() < 0.2) {
       // 抢夺成功
       await redis.set(key, JSON.stringify({
