@@ -14,6 +14,10 @@ export default class laopo extends plugin {
           reg: '^抢老婆(@\\d+)?$',
           fnc: 'grabWife',
         },
+        {
+          reg: '^我要离婚$',
+          fnc: 'divorce',
+        },
       ],
     });
   }
@@ -88,7 +92,7 @@ export default class laopo extends plugin {
     if (targetId === e.user_id) {
       return e.reply("我勒个豆！自己ntr自己？", true);
     }
-    
+
     // 检查是否已有老婆
     let myData = await redis.get(key);
     if (myData) {
@@ -118,7 +122,7 @@ export default class laopo extends plugin {
     }
   
     // 抢夺成功率50%
-    if (Math.random() < 0.3) {
+    if (Math.random() < 0.2) {
       // 抢夺成功
       await redis.set(key, JSON.stringify({
         date: date,
@@ -141,6 +145,16 @@ export default class laopo extends plugin {
         segment.at(targetId),
         ` 反杀了！🤡👈`,
       ]);
+    }
+  }
+  async divorce(e) {
+    const Key = `Yunzai:jrlp:${e.user_id}`;
+    let targetData = await redis.get(Key);
+    if (!targetData) {
+      return e.reply("没老婆你离个锤子婚\n🤡👈");
+    }else{
+      await redis.del(Key)
+      return e.reply("离婚成功！要不要去找个新老婆？");
     }
   }
 }
