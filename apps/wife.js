@@ -79,16 +79,7 @@ export default class laopo extends plugin {
   
     const date = this.#getDate();
     const key = `Yunzai:jrlp:${e.user_id}`;
-  
-    // 检查是否已有老婆
-    let myData = await redis.get(key);
-    if (myData) {
-      myData = JSON.parse(myData);
-      if (myData.date === date) {
-        return e.reply("你今天已经有老婆了，不能贪心哦！");
-      }
-    }
-  
+    
     // 解析目标用户
     const target = e.message.filter(m => m.type === "at").find(m => m.qq);
     if (!target) return e.reply("抢空气？");
@@ -96,6 +87,15 @@ export default class laopo extends plugin {
   
     if (targetId === e.user_id) {
       return e.reply("我勒个豆！自己ntr自己？", true);
+    }
+    
+    // 检查是否已有老婆
+    let myData = await redis.get(key);
+    if (myData) {
+      myData = JSON.parse(myData);
+      if (myData.date === date) {
+        return e.reply("你今天已经有老婆了，不能贪心哦！");
+      }
     }
   
     // 获取目标的老婆
