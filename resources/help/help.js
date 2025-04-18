@@ -44,8 +44,8 @@ const helpList =
     },
     {
       "icon": 3,
-      "title": "今日老婆 \ 抢老婆",
-      "desc": "看看你今天的老婆 \ ntr"
+      "title": "塔罗牌",
+      "desc": "看看今日塔罗牌"
     },
     {
       "icon": 3,
