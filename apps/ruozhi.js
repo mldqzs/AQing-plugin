@@ -102,11 +102,11 @@ export class RuozhibaInfo extends plugin {
 
     // 渲染模板
     renderTemplate(data) {
-        const backgroundUrl = 'https://t.mwm.moe/pc'; // 假设这是有效的背景图片 URL
+        const backgroundUrl = 'http://acg.yaohud.cn/dm/acg.php'; // 假设这是有效的背景图片 URL
         return this.template
            .replace('{{question}}', data.instruction ?? '暂无问题')
            .replace('{{answer}}', data.output ?? '暂无回答')
            .replace('{{timestamp}}', new Date().toLocaleString())
-           .replace('{{https://t.mwm.moe/pc}}', backgroundUrl);
+           .replace('{{http://acg.yaohud.cn/dm/acg.php}}', backgroundUrl);
     }
 }
