@@ -227,7 +227,6 @@ export class Fakemessage extends plugin {
     }
   
     e.reply(ForwardMsg); // 回复消息
-    return true; // 返回 true 阻挡消息不再往下
   }
 
   // 检测是否为主人或白名单qq 
