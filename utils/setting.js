@@ -21,6 +21,8 @@ class Setting {
 
   /** 初始化配置 */
   initCfg () {
+    // 用户配置目录不在仓库中（已 gitignore），首次运行需先创建
+    if (!fs.existsSync(this.configPath)) fs.mkdirSync(this.configPath, { recursive: true })
     const files = fs.readdirSync(this.defPath).filter(file => file.endsWith('.yaml'))
     for (let file of files) {
       if (!fs.existsSync(`${this.configPath}${file}`)) {
@@ -122,6 +124,7 @@ class Setting {
     if (type === 'defSet') return `${this.defPath}${app}.yaml`
     else {
       try {
+        if (!fs.existsSync(this.configPath)) fs.mkdirSync(this.configPath, { recursive: true })
         if (!fs.existsSync(`${this.configPath}${app}.yaml`)) {
           fs.copyFileSync(`${this.defPath}${app}.yaml`, `${this.configPath}${app}.yaml`)
         }

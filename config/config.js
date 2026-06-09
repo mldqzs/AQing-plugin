@@ -14,6 +14,11 @@ export default new class sycfg {
             fs.mkdirSync("./data/aq");
         }
 
+        //用户配置目录不在仓库中（已 gitignore），首次运行需先创建
+        if (!fs.existsSync(this.config_path)) {
+            fs.mkdirSync(this.config_path, { recursive: true })
+        }
+
         //如果用户配置文件不存在，将默认配置文件复制到用户配置
         const files = fs.readdirSync(this.default_config_path).filter(file => file.endsWith('.yaml'))
         for (let file of files) {
