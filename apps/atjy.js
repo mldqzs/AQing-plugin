@@ -3,53 +3,55 @@ import yaml from 'yaml';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-// 获取当前文件的目录路径
 const currentFileURL = fileURLToPath(import.meta.url);
 const currentDirectory = dirname(currentFileURL);
 
-// 获取配置文件路径
 const configPath = join(currentDirectory, '../config/config/config.yaml');
 
-// 从 config.yaml 中读取初始配置
-let config = {};
-try {
-  const configContent = fs.readFileSync(configPath, 'utf8');
-  config = yaml.parse(configContent);
-} catch (err) {
-  console.error('读取配置文件失败:', err);
-}
-let jy = false;
+// 带 mtime 的缓存：文件未变动时复用缓存，被锅巴/外部改写后自动重读，实现热加载
+let _cache = null;
+let _mtime = 0;
 
-// 确保 config.yaml 中包含 muteTime 和 jyGroupList
-config.muteTime = config.muteTime || 5; // 默认禁言时间 5 分钟
-config.jyGroupList = config.jyGroupList || []; // 默认为空数组
-
-let muteTime = config.muteTime;
-let jyGroupList = config.jyGroupList;
-
-function saveConfig() {
+function getConfig() {
   try {
-    const configContent = yaml.stringify(config);
-    fs.writeFileSync(configPath, configContent, 'utf8');
+    const stat = fs.statSync(configPath);
+    if (!_cache || stat.mtimeMs !== _mtime) {
+      _cache = yaml.parse(fs.readFileSync(configPath, 'utf8')) || {};
+      _mtime = stat.mtimeMs;
+    }
+  } catch (err) {
+    console.error('读取配置文件失败:', err);
+    _cache = _cache || {};
+  }
+  _cache.muteTime = _cache.muteTime ?? 5;
+  _cache.jyGroupList = _cache.jyGroupList || [];
+  return _cache;
+}
+
+function saveConfig(config) {
+  try {
+    fs.writeFileSync(configPath, yaml.stringify(config), 'utf8');
+    _cache = config;
+    _mtime = fs.statSync(configPath).mtimeMs;
   } catch (err) {
     console.error('保存配置文件失败:', err);
   }
 }
 
-async function addJyGroup(groupId) {
-  if (!jyGroupList.includes(groupId)) {
-    jyGroupList.push(groupId);
-    config.jyGroupList = jyGroupList;
-    saveConfig();
+function addJyGroup(groupId) {
+  const config = getConfig();
+  if (!config.jyGroupList.includes(groupId)) {
+    config.jyGroupList.push(groupId);
+    saveConfig(config);
   }
 }
 
-async function deleteJyGroup(groupId) {
-  const index = jyGroupList.indexOf(groupId);
+function deleteJyGroup(groupId) {
+  const config = getConfig();
+  const index = config.jyGroupList.indexOf(groupId);
   if (index > -1) {
-    jyGroupList.splice(index, 1);
-    config.jyGroupList = jyGroupList;
-    saveConfig();
+    config.jyGroupList.splice(index, 1);
+    saveConfig(config);
   } else {
     console.log('没有找到要删除的群号');
   }
@@ -80,41 +82,43 @@ export default class example extends plugin {
           fnc: "closejy",
         },
         {
-          reg: "#查看艾特禁言群聊", 
-          fnc: "checkjy", 
+          reg: "#查看艾特禁言群聊",
+          fnc: "checkjy",
         },
       ],
     });
   }
 
   async atjy(e) {
-    if (!e.atBot || !jy || this.e.isMaster || !e.group.is_owner && !e.group.is_admin || e.member.is_owner || e.member.is_admin || !jyGroupList.includes(e.group_id)){
-        return false;
-    } else {
-        await e.group.muteMember(e.user_id, muteTime * 60);
-        e.reply([segment.at(e.user_id), ` ${replayMsg}`]);
-        await e.group.recallMsg(e.message_id);
-        return true;
+    const { muteTime, jyGroupList } = getConfig();
+    // 按群判断，不再依赖全局标志
+    if (!e.atBot || !jyGroupList.includes(e.group_id) || e.isMaster ||
+        (!e.group.is_owner && !e.group.is_admin) ||
+        e.member.is_owner || e.member.is_admin) {
+      return false;
     }
+    await e.group.muteMember(e.user_id, muteTime * 60);
+    e.reply([segment.at(e.user_id), ' 不许艾特我哦！']);
+    await e.group.recallMsg(e.message_id);
+    return true;
   }
 
   async jytime(e) {
     let newnum = e.msg.replace(/^#设置被艾特禁言时间/g, '').trim();
     const newREG = new RegExp('^\\d+$');
-    if (!newREG.test(newnum) || newnum < 0 || newnum > 30) {
-      e.reply(`参数不符合要求！(0<x<30)`);
+    if (!newREG.test(newnum) || Number(newnum) <= 0 || Number(newnum) > 30) {
+      e.reply('参数不符合要求！(0<x≤30)');
       return true;
     }
+    const config = getConfig();
     config.muteTime = Number(newnum);
-    muteTime = config.muteTime;
-    saveConfig();
+    saveConfig(config);
     e.reply('被艾特禁言时间已设置为: ' + newnum + '分钟');
     return true;
   }
 
   async openjy(e) {
-    if (this.e.isMaster) {
-      jy = true;
+    if (e.isMaster) {
       await addJyGroup(e.group_id);
       e.reply("已开启本群被艾特禁言功能，不许艾特我哦!");
       return true;
@@ -125,8 +129,7 @@ export default class example extends plugin {
   }
 
   async closejy(e) {
-    if (this.e.isMaster) {
-      jy = false;
+    if (e.isMaster) {
       await deleteJyGroup(e.group_id);
       e.reply("已关闭本群被艾特禁言功能");
       return true;
@@ -136,21 +139,22 @@ export default class example extends plugin {
     }
   }
 
-  async checkjy(e) { 
-    if (this.e.isMaster) { 
-      if (jyGroupList.length > 0) { 
-        let msg = "已经开启被艾特禁言的群聊有：\n"; 
-        for (let group of jyGroupList) { 
-          msg += `${group}\n`; 
+  async checkjy(e) {
+    if (e.isMaster) {
+      const { jyGroupList } = getConfig();
+      if (jyGroupList.length > 0) {
+        let msg = "已经开启被艾特禁言的群聊有：\n";
+        for (let group of jyGroupList) {
+          msg += `${group}\n`;
         }
-        e.reply(msg); 
-        return true; 
-      } else { 
-        e.reply("没有开启被艾特禁言的群聊"); 
+        e.reply(msg);
+        return true;
+      } else {
+        e.reply("没有开启被艾特禁言的群聊");
         return false;
       }
-    } else { 
-      e.reply("你没有权限查看被艾特禁言的群聊"); 
+    } else {
+      e.reply("你没有权限查看被艾特禁言的群聊");
       return false;
     }
   }

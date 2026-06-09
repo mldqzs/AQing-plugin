@@ -28,7 +28,7 @@ export class Capoo extends plugin {
 
     const randomNumber = this.getRandomElement(num)
 
-    this.e.reply(segment.image(_PATH + '/plugins/AQing-plugin/resources/images//capoo' + randomNumber + '.gif'))
+    this.e.reply(segment.image(_PATH + '/plugins/AQing-plugin/resources/images/capoo' + randomNumber + '.gif'))
 
   }
 

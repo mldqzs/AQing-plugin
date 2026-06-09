@@ -1,7 +1,8 @@
 
 import Y from '../Yaml/y.js'
 import crypto from 'crypto'
-const _path = process.cwd();
+import puppeteer from '../../../lib/puppeteer/puppeteer.js'
+const _path = process.cwd().replace(/\\/g, '/');
 let s = {}
 
 export class example extends plugin {
@@ -52,11 +53,11 @@ export class example extends plugin {
       if (e.isMaster) {
         return await e.reply([segment.at(user_id), "主人不要开玩笑啦"])
       }
-      else{return await this.e.reply(this.addmaster(user_id))}
+      else{return await e.reply(this.addmaster(user_id))}
     } else {
       const cfg = new Y('./config/config/other.yaml')
       if (cfg.value('master', `${Bot.uin}:${user_id}`)) return e.reply([segment.at(user_id), "这个憨憨已经是主人了哦"])
-      return await this.e.reply(this.addmaster(user_id))
+      return await e.reply(this.addmaster(user_id))
     }
   }
 
@@ -95,7 +96,7 @@ export class example extends plugin {
       if (!mst.value('绝对主人', e.user_id)) return await e.reply('暂无权限')
       const cfg = new Y('./plugins/AQing-plugin/config/config/config.yaml')
       if (cfg.value('绝对主人', user_id)) return e.reply([segment.at(user_id), "这个憨憨已经是绝对主人了哦"])
-      return await this.e.reply(this.add(user_id))
+      return await e.reply(this.add(user_id))
     }
 
     /** 生成验证码 */
@@ -146,14 +147,56 @@ export class example extends plugin {
         e.reply(`无权限`)
         return false
     }
-  
+
     const cfg = new Y('./config/config/other.yaml')
     const masters = cfg.get('master')
-    if (masters && masters.length > 0) {
-      const masterList = masters.join(', ')
-      return await e.reply(`当前的主人有: ${masterList}`)
-    } else {
+    if (!masters || masters.length === 0) {
       return await e.reply('目前还没有主人。')
     }
+
+    /** 从 botuin:qq 形式提取 qq，并去重 */
+    const qqList = [...new Set(masters.map(m => String(m).split(':').pop()))].filter(Boolean)
+
+    /** 获取头像、昵称 */
+    const list = []
+    for (const qq of qqList) {
+      list.push({
+        qq,
+        nickname: await this.getNickname(e, qq),
+        avatar: `https://q1.qlogo.cn/g?b=qq&s=640&nk=${qq}`
+      })
+    }
+
+    const data = {
+      tplFile: './plugins/AQing-plugin/resources/html/master/master.html',
+      pluResPath: _path,
+      saveId: 'master',
+      masters: list,
+      total: list.length
+    }
+
+    const img = await puppeteer.screenshot('master', data)
+    if (img) return await e.reply(img)
+    /** 截图失败兜底为文字 */
+    return await e.reply('当前的主人有:\n' + list.map(m => `${m.nickname}(${m.qq})`).join('\n'))
   }
+
+  /** 获取昵称，优先群名片，其次陌生人信息，失败回退为 QQ 号 */
+  async getNickname(e, qq) {
+    try {
+      if (e.isGroup && Bot.getGroupMemberInfo) {
+        const member = await Bot.getGroupMemberInfo(e.group_id, Number(qq))
+        if (member?.card || member?.nickname) return member.card || member.nickname
+      }
+    } catch {}
+    try {
+      const info = await Bot.getStrangerInfo?.(Number(qq))
+      if (info?.nickname) return info.nickname
+    } catch {}
+    try {
+      const info = await Bot.pickFriend?.(Number(qq))?.getInfo?.()
+      if (info?.nickname) return info.nickname
+    } catch {}
+    return String(qq)
   }
+}

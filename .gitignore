@@ -1,0 +1,5 @@
+# 运行时用户配置，克隆者将从 defSet_config 自动生成干净默认值
+config/config/
+
+# 数据与依赖
+node_modules/

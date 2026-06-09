@@ -3,166 +3,157 @@
 
 <head>
     <meta charset="UTF-8">
-    <title>帮助</title>
+    <title>阿晴插件帮助</title>
     <style>
-        /* 内联CSS样式 */
         @font-face {
             font-family: "tttgbnumber";
             src: url("{{pluResPath}}/plugins/AQing-plugin/resources/font/tttgbnumber.ttf");
             font-weight: normal;
             font-style: normal;
-            unicode-range: U+0041-005A, U+0061-007A; /* 指定字体支持的字符范围 */
         }
 
         * {
             margin: 0;
             padding: 0;
-            font-family: 'tttgbnumber', Arial, sans-serif;
             box-sizing: border-box;
+            font-family: 'tttgbnumber', Arial, "Microsoft YaHei", "WenQuanYi Micro Hei", "Droid Sans Fallback", sans-serif;
         }
 
         body {
-            background: url('{{pluResPath}}/plugins/AQing-plugin/resources/html/help/img/bgimg1.jpg')  center center ;
-            background-size: cover;
-            background-color: #f5f5f500;
-            color: #fefefe00;
-            font-size: 16px;
-            line-height: 1.6;
+            width: 880px;
+            background: linear-gradient(135deg, #6a5af9 0%, #8e6ad6 45%, #c86dd7 100%);
+            padding: 36px;
         }
 
         .container {
-            width: 100%;
-            max-width: 1920px;
-            margin: 0 auto;
-            padding: 20px;
-            background: rgba(255, 255, 255, 0);
-            border-radius: 20px;
-            box-shadow: 0 2px 10px rgb(0, 0, 0);
+            background: rgba(255, 255, 255, 0.10);
+            border-radius: 28px;
+            padding: 34px;
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.28);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.18);
         }
 
         .head_box {
             text-align: center;
-            margin-bottom: 40px;
-            padding: 20px 0;
-            border-bottom: 2px solid #e74c3c;
+            margin-bottom: 30px;
+            padding-bottom: 22px;
+            border-bottom: 2px solid rgba(255, 255, 255, 0.25);
         }
 
         .head_box h1 {
-            font-size: 36px;
-            color: #e74c3c;
-            margin-bottom: 10px;
+            font-size: 44px;
+            color: #ffffff;
+            letter-spacing: 3px;
+            text-shadow: 0 3px 10px rgba(0, 0, 0, 0.3);
         }
 
-        .head_box div {
-            color: #9b59b6;
-            font-size: 20px;
+        .head_box .subtitle {
+            margin-top: 10px;
+            font-size: 19px;
+            color: rgba(255, 255, 255, 0.82);
+            letter-spacing: 1px;
         }
 
-        .help {
-            margin: 40px 0;
-        }
-
-        .title h2 {
-            font-size: 28px;
-            color: #2c3e50;
-            margin-bottom: 20px;
-            text-align: center;
-            padding: 10px 0;
-            border-bottom: 2px solid #3498db;
-        }
-
-        .help-text {
+        .help-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 20px;
-            padding: 20px;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 16px;
         }
 
-        .help-div {
-            background: #f8f9fa78;
-            border-radius: 10px;
-            padding: 15px;
-            box-shadow: 0 3px 6px rgba(0, 0, 0, 0.1);
-            transition: transform 0.3s ease;
+        .card {
+            display: flex;
+            align-items: center;
+            background: rgba(255, 255, 255, 0.94);
+            border-radius: 16px;
+            padding: 14px 18px;
+            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.16);
+            border-left: 5px solid #8e6ad6;
         }
 
-        .help-div:hover {
-            transform: translateY(-5px);
-        }
-
-        .img-div {
-            text-align: center;
-            margin-bottom: 10px;
-        }
-
-        .img-div img {
-            width: 60px;
-            height: 60px;
-            border-radius: 50%;
+        .card .icon {
+            width: 54px;
+            height: 54px;
+            border-radius: 14px;
             object-fit: cover;
+            flex-shrink: 0;
+            background: #efeaff;
+            padding: 4px;
         }
 
-        .text-div {
-            text-align: left;
+        .card .text {
+            margin-left: 16px;
+            min-width: 0;
         }
 
-        .text-title-div {
-            font-size: 18px;
-            color: #2c3e50;
-            margin-bottom: 10px;
+        .card .title {
+            font-size: 20px;
+            color: #2d2150;
+            font-weight: bold;
+            margin-bottom: 4px;
+            word-break: break-all;
         }
 
-        .text-desc-div {
-            color: #7f8c8d;
+        .card .desc {
             font-size: 14px;
+            color: #7a7193;
+            line-height: 1.45;
+            word-break: break-all;
         }
 
-        .logo {
+        .footer {
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 2px solid rgba(255, 255, 255, 0.25);
             text-align: center;
-            margin-top: 40px;
-            padding: 20px 0;
-            border-top: 1px solid #ddd;
         }
 
-        .logo h3 {
-            color: #e74c3c;
-            font-size: 24px;
+        .footer .version {
+            display: inline-block;
+            background: rgba(0, 0, 0, 0.28);
+            color: #ffffff;
+            font-size: 16px;
+            padding: 8px 22px;
+            border-radius: 20px;
+            letter-spacing: 1px;
+        }
+
+        .footer .version b {
+            color: #ffe27a;
+        }
+
+        .footer .credit {
+            margin-top: 12px;
+            font-size: 13px;
+            color: rgba(255, 255, 255, 0.65);
         }
     </style>
 </head>
 
 <body>
-    <div class="container" id="container">
+    <div class="container">
         <div class="head_box">
-            <h1>阿晴插件使用指南</h1>
-            <div>AQing-plugin帮助</div>
+            <h1>阿晴插件</h1>
+            <div class="subtitle">AQing-plugin · 功能帮助</div>
         </div>
 
-        <div class="help">
-            <div class="title">
-                <h2>功能列表</h2>
-            </div>
-            <div class="help-text">
-                {{each helpList.list list}}
-                <div class="help-div">
-                    <div class="img-div">
-                        <img src="{{pluResPath}}/plugins/AQing-plugin/resources/html/help/img/{{list.icon}}.png">
-                    </div>
-                    <div class="text-div">
-                        <b class="text-title-div">
-                            {{list.title}}
-                        </b>
-                        <div class="text-desc-div">
-                            {{list.desc}}
-                        </div>
-                    </div>
+        <div class="help-grid">
+            {{each helpList.list list}}
+            <div class="card">
+                <img class="icon" src="{{pluResPath}}/plugins/AQing-plugin/resources/html/help/img/{{list.icon}}.png">
+                <div class="text">
+                    <div class="title">{{list.title}}</div>
+                    <div class="desc">{{list.desc}}</div>
                 </div>
-                {{/each}}
             </div>
+            {{/each}}
         </div>
 
-        <div class="logo">
-            <h3>Created By AQing-plugin & 明るい青紫色</h3>
+        <div class="footer">
+            <div class="version">
+                TRSS-Yunzai <b>v{{yunzaiVersion}}</b> &nbsp;·&nbsp; AQing-plugin <b>v{{pluginVersion}}</b>
+            </div>
+            <div class="credit">Created By 明るい青紫色 · 发送「#阿晴版本」查看版本信息</div>
         </div>
     </div>
 </body>

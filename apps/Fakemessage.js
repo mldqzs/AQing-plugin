@@ -2,8 +2,15 @@ import plugin from '../../../lib/plugins/plugin.js';
 import cfg from '../../../lib/config/config.js'
 const _path = process.cwd();
 import Y from '../Yaml/y.js'
+
+const BM_PATH = './plugins/AQing-plugin/config/config/bm.yaml'
+
 const direction = "使用方法：\n一条消息的格式为【@一名群友+ta的发言内容】。可叠加多条消息，示例：\n" +
-  "伪造消息@甲这是甲说的话@乙这是乙说的第一句话|这是乙说的第二句话@丙这是丙发送的图片\n#伪造加白xx 添加至白名单（不会被伪造）\n#伪造删白xx 删除白名单" 
+  "伪造消息@甲这是甲说的话@乙这是乙说的第一句话|这是乙说的第二句话@丙这是丙发送的图片\n" +
+  "\n名单管理（仅主人）：\n" +
+  "#伪造加白xx / #伪造删白xx —— 白名单：不可被伪造（主人自动保护）\n" +
+  "#伪造加黑xx / #伪造删黑xx —— 黑名单：禁止使用伪造功能\n" +
+  "#伪造白名单 / #伪造黑名单 —— 查看名单"
 
 
 
@@ -32,39 +39,67 @@ export class Fakemessage extends plugin {
                   /** 执行方法 */
               fnc: 'Fakemessage'
               },{
-            /** 命令正则匹配 */
-              reg: "^#?伪造加白.*$",  //匹配消息正则，命令正则
-            /** 执行方法 */
-              fnc: 'jb'
+              reg: "^#?伪造加白.*$",
+              fnc: 'addWhite'
              },{
-            /** 命令正则匹配 */
-              reg: "^#?伪造删白.*$",  //匹配消息正则，命令正则
-            /** 执行方法 */
-              fnc: 'sb'
+              reg: "^#?伪造删白.*$",
+              fnc: 'delWhite'
+             },{
+              reg: "^#?伪造加黑.*$",
+              fnc: 'addBlack'
+             },{
+              reg: "^#?伪造删黑.*$",
+              fnc: 'delBlack'
+             },{
+              reg: "^#?伪造白名单$",
+              fnc: 'listWhite'
+             },{
+              reg: "^#?伪造黑名单$",
+              fnc: 'listBlack'
         }
       ]
     })
   }
   async Fakemessage(e) {
+    // 黑名单：禁止使用伪造功能（主人不受限）
+    if (!e.isMaster && this.inList('黑名单', e.user_id)) {
+      e.reply([segment.at(e.user_id), ' 你已被禁止使用伪造消息功能'])
+      return true
+    }
+
     let prompt = '';
     let brief = [];
     let title = '';
     let summary = '';
     let rawmsg = e.message;
-  
-    // 获取当前群配置
-    let conf = cfg.getGroup(this.group_id);
-    if (conf.onlyReplyAt && rawmsg[0].type === 'at' && rawmsg[0].qq === cfg.qq) {
-      rawmsg.splice(0, 1);
+
+    // 获取当前群配置（注意 TRSS 签名为 getGroup(bot_id, group_id)）
+    let conf = cfg.getGroup(e.self_id, e.group_id);
+
+    // 去掉开头的 @机器人 / 回复引用，定位到真正的指令文本段
+    while (rawmsg.length && rawmsg[0].type !== 'text') {
+      if (rawmsg[0].type === 'at' && String(rawmsg[0].qq) === String(e.self_id)) {
+        rawmsg.shift();
+      } else if (rawmsg[0].type === 'reply') {
+        rawmsg.shift();
+      } else {
+        break;
+      }
     }
-  
-    // 处理消息
-    for (let val of conf.botAlias) {
+
+    // 第一段不是文本则无法解析指令
+    if (!rawmsg.length || rawmsg[0].type !== 'text' || typeof rawmsg[0].text !== 'string') {
+      e.reply([direction]);
+      return true;
+    }
+
+    // 剥离机器人别名前缀及“伪造消息”指令前缀
+    for (let val of (conf.botAlias || [])) {
       let regBotName = new RegExp(val + "#*＃*伪造消息");
       rawmsg[0].text = rawmsg[0].text.replace(regBotName, "");
     }
     rawmsg[0].text = rawmsg[0].text.replace(/#*＃*伪造消息/, "");
-  
+
     console.log(rawmsg[0].text);
   
     let regExpQQ = /(\^|＾)\d{5,10}/g;
@@ -122,8 +157,9 @@ export class Fakemessage extends plugin {
     for (let i = 0; i < rawmsg.length; i++) {
       if (rawmsg[i].type === "at") {
         qq = rawmsg[i].qq;
-        name = rawmsg[i].text.replace(/@/g, "");
-        if (await this.checkMaster(e, qq)) {
+        name = (rawmsg[i].text || "").replace(/@/g, "");
+        if (!name) name = await this.getname(qq, e);
+        if (await this.checkProtected(e, qq)) {
           return true;
         }
         continue;
@@ -136,7 +172,7 @@ export class Fakemessage extends plugin {
           if (resqq) {
             qq = resqq[0].substring(1);
             name = await this.getname(qq, e);
-            if (await this.checkMaster(e, qq)) {
+            if (await this.checkProtected(e, qq)) {
               return true;
             }
             continue;
@@ -229,18 +265,26 @@ export class Fakemessage extends plugin {
     e.reply(ForwardMsg); // 回复消息
   }
 
-  // 检测是否为主人或白名单qq 
-  async checkMaster(e, qq) {
-    const wst = new Y('./plugins/AQing-plugin/config/config/bm.yaml');
-    const muteTime = wst.get('禁言时间');
-  
-    // 检查在白名单中
-    if (wst.value('白名单', qq)) {
-      e.reply([segment.at(e.user_id), "不可以这样！"]);
-      e.group.muteMember(e.user_id, muteTime * 60);
+  // 检测目标是否受保护（主人或白名单），受保护则禁言伪造者
+  async checkProtected(e, qq) {
+    const wst = new Y(BM_PATH);
+    const muteTime = wst.get('禁言时间') || 5;
+
+    const isMaster = cfg.masterQQ.map(String).includes(String(qq));
+    const inWhite = wst.value('白名单', Number(qq)) || wst.value('白名单', String(qq));
+
+    if (isMaster || inWhite) {
+      e.reply([segment.at(e.user_id), isMaster ? ' 不可以伪造主人哦！' : ' 不可以这样！']);
+      if (e.group?.muteMember) e.group.muteMember(e.user_id, muteTime * 60);
       return true;
     }
     return false;
+  }
+
+  // 判断 user_id 是否在指定名单（兼容数字/字符串）
+  inList(listName, user_id) {
+    const wst = new Y(BM_PATH);
+    return !!(wst.value(listName, Number(user_id)) || wst.value(listName, String(user_id)));
   }
 
   // 获取QQ的昵称
@@ -272,35 +316,61 @@ export class Fakemessage extends plugin {
     }
     return name;
   }
-  async jb(e) {
-      if (!e.isMaster) {
-          await e.reply('你也配？')
-        return false
-    }
+  // 从指令中解析目标 user_id（优先 @，其次正则去除指令前缀）
+  parseUserId(e, prefixReg) {
+    let user_id = e.at || e.msg.replace(prefixReg, '').trim()
+    return Number(user_id) || (user_id ? String(user_id) : null)
+  }
 
+  async addWhite(e) {
+    if (!e.isMaster) { await e.reply('你也配？'); return false }
+    const user_id = this.parseUserId(e, /#|伪造加白/g)
+    if (!user_id) return e.reply('哎呀，你这样我不知道是谁了啦')
+    const wst = new Y(BM_PATH)
+    if (wst.value('白名单', user_id)) return e.reply('该用户已在白名单中')
+    wst.addVal('白名单', user_id)
+    return e.reply('已将该用户加入伪造消息白名单（不可被伪造）')
+  }
 
-    let user_id = e.at || e.msg.replace(/#|伪造加白/g, '')
-    user_id = Number(user_id) || String(user_id)
+  async delWhite(e) {
+    if (!e.isMaster) { await e.reply('无权限'); return false }
+    const user_id = this.parseUserId(e, /#|伪造删白/g)
+    if (!user_id) return e.reply('哎呀，你这样我不知道是谁了啦')
+    const wst = new Y(BM_PATH)
+    if (!wst.value('白名单', user_id)) return e.reply('该用户不在白名单中')
+    wst.delVal('白名单', user_id)
+    return e.reply('已将该用户从伪造白名单中移除')
+  }
 
-    if (!user_id) return await e.reply('哎呀，你这样我不知道是谁了啦')
-    const cfg = new Y('./plugins/AQing-plugin/config/config/bm.yaml')
-    if (!cfg.value('白名单', user_id))
-    cfg.addVal('白名单', user_id)
-    return await e.reply(['已将该用户加入伪造消息白名单'])
+  async addBlack(e) {
+    if (!e.isMaster) { await e.reply('你也配？'); return false }
+    const user_id = this.parseUserId(e, /#|伪造加黑/g)
+    if (!user_id) return e.reply('哎呀，你这样我不知道是谁了啦')
+    const wst = new Y(BM_PATH)
+    if (wst.value('黑名单', user_id)) return e.reply('该用户已在黑名单中')
+    wst.addVal('黑名单', user_id)
+    return e.reply('已将该用户加入伪造消息黑名单（禁止使用伪造功能）')
+  }
+
+  async delBlack(e) {
+    if (!e.isMaster) { await e.reply('无权限'); return false }
+    const user_id = this.parseUserId(e, /#|伪造删黑/g)
+    if (!user_id) return e.reply('哎呀，你这样我不知道是谁了啦')
+    const wst = new Y(BM_PATH)
+    if (!wst.value('黑名单', user_id)) return e.reply('该用户不在黑名单中')
+    wst.delVal('黑名单', user_id)
+    return e.reply('已将该用户从伪造黑名单中移除')
+  }
+
+  async listWhite(e) {
+    if (!e.isMaster) { await e.reply('无权限'); return false }
+    const list = new Y(BM_PATH).get('白名单') || []
+    return e.reply(list.length ? `伪造白名单（不可被伪造）：\n${list.join('\n')}` : '白名单为空')
+  }
+
+  async listBlack(e) {
+    if (!e.isMaster) { await e.reply('无权限'); return false }
+    const list = new Y(BM_PATH).get('黑名单') || []
+    return e.reply(list.length ? `伪造黑名单（禁止使用）：\n${list.join('\n')}` : '黑名单为空')
+  }
 }
-async sb(e) {
-      if (!e.isMaster) {
-          await e.reply('无权限')
-        return false
-    }
-
-    let user_id = e.at || e.msg.replace(/#|伪造删白/g, '')
-    user_id = Number(user_id) || String(user_id)
-
-    if (!user_id) return await e.reply('哎呀，你这样我不知道是谁了啦')
-    const cfg = new Y('./plugins/AQing-plugin/config/config/bm.yaml')
-    if (!cfg.value('白名单', user_id)) 
-    cfg.delVal('白名单', user_id)
-    return await e.reply(['已将该用户从伪造白名单中移除'])
-}
-} 

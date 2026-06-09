@@ -1,6 +1,7 @@
 import plugin from '../../../lib/plugins/plugin.js'
 import helpUtil from '../model/help.js'
 import puppeteer from "../../../lib/puppeteer/puppeteer.js";
+import { getVersionInfo } from '../model/version.js'
 
 const _path = process.cwd().replace(/\\/g, "/");
 
@@ -28,10 +29,13 @@ export class help extends plugin {
 
     async help(e) {
         let helpList = helpUtil.getList()
+        const { yunzaiVersion, pluginVersion } = getVersionInfo()
         let data = {
             tplFile: './plugins/AQing-plugin/resources/html/help/help.html',
             pluResPath: _path,
-            helpList
+            helpList,
+            yunzaiVersion,
+            pluginVersion
         }
         let img = await puppeteer.screenshot("help", data);
         e.reply(img)

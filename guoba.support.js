@@ -1,7 +1,5 @@
 import setting from './utils/setting.js'
 import lodash from 'lodash'
-import { pluginResources } from './utils/path.js'
-import path from 'path'
 
 const addGroupPromptProps = {
   content: '请输入群号：',
@@ -9,7 +7,7 @@ const addGroupPromptProps = {
   okText: '添加',
   rules: [
     { required: true, message: '你写了个寂寞' },
-    { pattern: '^\d+$', message: '这玩意应该是纯数字的吧' },
+    { pattern: '^\\d+$', message: '这玩意应该是纯数字的吧' },
     { min: 5, message: '你这细狗，太短了' },
     { max: 10, message: '太…长了…阿晴受不了捏' },
   ],
@@ -21,7 +19,7 @@ const add = {
   okText: '添加',
   rules: [
     { required: true, message: '你写了个寂寞' },
-    { pattern: '^\d+$', message: '这玩意应该是纯数字的吧' },
+    { pattern: '^\\d+$', message: '这玩意应该是纯数字的吧' },
     { min: 5, message: '你这细狗，太短了' },
     { max: 11, message: '太…长了…阿晴受不了捏' },
   ],
@@ -43,7 +41,6 @@ export function supportGuoba() {
       description: 'Yunzai-bot V3插件',
       icon: 'bi:box-seam',
       iconColor: '#7ed99e',
-      iconPath: path.join(pluginResources, 'common/cont/pamu.png')
     },
     // 配置项信息
     configInfo: {
@@ -77,7 +74,7 @@ export function supportGuoba() {
           },
         },
         {
-          field: 'config.艾特禁言群',
+          field: 'config.jyGroupList',
           label: '开启艾特禁言的群聊',
           bottomHelpMessage: '要开启艾特禁言的群聊，可以多个',
           component: 'GTags',
@@ -88,6 +85,46 @@ export function supportGuoba() {
             showPrompt: true,
             promptProps: addGroupPromptProps,
             valueFormatter: ((value) => Number.parseInt(value)).toString(),
+          },
+        },
+        { component: 'Divider', label: '伪造消息名单' },
+        {
+          field: 'bm.白名单',
+          label: '伪造白名单',
+          bottomHelpMessage: '白名单内用户不可被伪造（主人自动保护）',
+          component: 'GTags',
+          componentProps: {
+            placeholder: '请输入QQ',
+            allowAdd: true,
+            allowDel: true,
+            showPrompt: true,
+            promptProps: add,
+            valueFormatter: ((value) => Number.parseInt(value)).toString(),
+          },
+        },
+        {
+          field: 'bm.黑名单',
+          label: '伪造黑名单',
+          bottomHelpMessage: '黑名单内用户禁止使用伪造功能（主人不受限）',
+          component: 'GTags',
+          componentProps: {
+            placeholder: '请输入QQ',
+            allowAdd: true,
+            allowDel: true,
+            showPrompt: true,
+            promptProps: add,
+            valueFormatter: ((value) => Number.parseInt(value)).toString(),
+          },
+        },
+        {
+          field: 'bm.禁言时间',
+          label: '伪造主人/白名单的禁言时长',
+          bottomHelpMessage: '伪造受保护用户时，伪造者被禁言的分钟数',
+          component: 'InputNumber',
+          componentProps: {
+            min: 0,
+            max: 30,
+            placeholder: '请输入整数[0~30]',
           },
         },
         { component: 'Divider', label: '作息提示设置' },
@@ -128,7 +165,7 @@ export function supportGuoba() {
         for (let [keyPath, value] of Object.entries(data)) {
           lodash.set(config, keyPath, value)
         }
-        config = lodash.merge({}, setting.merge, config)
+        config = lodash.merge({}, setting.merge(), config)
         setting.analysis(config)
         return Result.ok({}, '保存成功~')
       },

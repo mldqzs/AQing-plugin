@@ -4,15 +4,13 @@ import lodash from 'lodash'
 import yaml from 'yaml'
 import path from 'path'
 import fs from 'fs'
-import puppeteer from 'puppeteer'
-import { dirname, join } from 'node:path';
+import { dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { getVersionInfo, getLatestChangelog } from '../model/version.js'
 
-// 获取当前文件的目录路径
 const currentFileURL = fileURLToPath(import.meta.url);
 const currentDirectory = dirname(currentFileURL);
 
-// 插件信息
 export default class BotNameModifier extends plugin {
   constructor() {
     super({
@@ -26,15 +24,15 @@ export default class BotNameModifier extends plugin {
           fnc: 'modifyName',
         },
         {
-          reg: '^#阿晴版本$',
-          fnc: 'showChangelog',
+          reg: '^#?阿晴版本$',
+          fnc: 'showVersion',
         },
       ],
     })
   }
 
   async modifyName(e) {
-    if (!this.e.isMaster) {
+    if (!e.isMaster) {
       e.reply('只有主人才能修改机器人名字哦！')
       return true
     }
@@ -45,11 +43,9 @@ export default class BotNameModifier extends plugin {
       return true
     }
 
-    // 更新设置中的机器人名字
     const newConfig = lodash.set(setting.merge(), 'botname', newBotName)
     setting.analysis(newConfig)
 
-    // 保存设置到 config.yaml
     const configPath = path.join(currentDirectory, '../config/config/config.yaml')
     const configContent = yaml.stringify(newConfig)
     fs.writeFileSync(configPath, configContent, 'utf8')
@@ -57,5 +53,18 @@ export default class BotNameModifier extends plugin {
     return true
   }
 
-
+  async showVersion(e) {
+    const { yunzaiVersion, pluginVersion } = getVersionInfo()
+    const changelog = getLatestChangelog()
+    let msg = '【阿晴插件 版本信息】\n'
+    msg += `━━━━━━━━━━━━━━\n`
+    msg += `TRSS-Yunzai：v${yunzaiVersion}\n`
+    msg += `AQing-plugin：v${pluginVersion}\n`
+    if (changelog) {
+      msg += `━━━━━━━━━━━━━━\n`
+      msg += `最新更新：\n${changelog}`
+    }
+    e.reply(msg)
+    return true
+  }
 }

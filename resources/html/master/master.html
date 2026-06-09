@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="zh">
+
+<head>
+    <meta charset="UTF-8">
+    <title>主人列表</title>
+    <style>
+        @font-face {
+            font-family: "tttgbnumber";
+            src: url("{{pluResPath}}/plugins/AQing-plugin/resources/font/tttgbnumber.ttf");
+            font-weight: normal;
+            font-style: normal;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'tttgbnumber', Arial, "Microsoft YaHei", "WenQuanYi Micro Hei", "Droid Sans Fallback", sans-serif;
+        }
+
+        body {
+            width: 720px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 30px;
+        }
+
+        .container {
+            background: rgba(255, 255, 255, 0.12);
+            border-radius: 24px;
+            padding: 30px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
+            backdrop-filter: blur(6px);
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 26px;
+            padding-bottom: 18px;
+            border-bottom: 2px solid rgba(255, 255, 255, 0.3);
+        }
+
+        .header h1 {
+            font-size: 38px;
+            color: #ffffff;
+            letter-spacing: 4px;
+            text-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+        }
+
+        .header .sub {
+            margin-top: 8px;
+            font-size: 18px;
+            color: rgba(255, 255, 255, 0.85);
+        }
+
+        .grid {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .card {
+            display: flex;
+            align-items: center;
+            background: rgba(255, 255, 255, 0.92);
+            border-radius: 18px;
+            padding: 16px 22px;
+            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
+        }
+
+        .avatar {
+            width: 84px;
+            height: 84px;
+            border-radius: 50%;
+            border: 3px solid #764ba2;
+            object-fit: cover;
+            flex-shrink: 0;
+            background: #eee;
+        }
+
+        .info {
+            margin-left: 22px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        .nickname {
+            font-size: 28px;
+            color: #2d2d44;
+            font-weight: bold;
+            margin-bottom: 6px;
+            word-break: break-all;
+        }
+
+        .qq {
+            font-size: 20px;
+            color: #764ba2;
+        }
+
+        .index {
+            margin-left: auto;
+            font-size: 30px;
+            color: rgba(118, 75, 162, 0.35);
+            font-weight: bold;
+        }
+
+        .footer {
+            text-align: center;
+            margin-top: 22px;
+            font-size: 15px;
+            color: rgba(255, 255, 255, 0.7);
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>主人列表</h1>
+            <div class="sub">当前共有 {{total}} 位主人</div>
+        </div>
+        <div class="grid">
+            {{each masters m i}}
+            <div class="card">
+                <img class="avatar" src="{{m.avatar}}" />
+                <div class="info">
+                    <div class="nickname">{{m.nickname}}</div>
+                    <div class="qq">QQ：{{m.qq}}</div>
+                </div>
+                <div class="index">#{{i + 1}}</div>
+            </div>
+            {{/each}}
+        </div>
+        <div class="footer">AQing-plugin · 主人管理</div>
+    </div>
+</body>
+
+</html>
