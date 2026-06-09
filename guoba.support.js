@@ -155,6 +155,55 @@ export function supportGuoba() {
             placeholder: '请输入文字',
           },
         },
+        { component: 'Divider', label: '阿晴涩图监控' },
+        {
+          component: 'SOFT_GROUP_BEGIN',
+          label: '涩图配置',
+        },
+        {
+          field: 'spdf.APP_ID',
+          label: '百度 App ID',
+          bottomHelpMessage: '百度「图片内容审核」应用的 App ID',
+          component: 'Input',
+          componentProps: {
+            placeholder: '请输入 App ID',
+          },
+        },
+        {
+          field: 'spdf.API_KEY',
+          label: '百度 API Key',
+          bottomHelpMessage: '百度「图片内容审核」应用的 API Key',
+          component: 'Input',
+          componentProps: {
+            placeholder: '请输入 API Key',
+          },
+        },
+        {
+          field: 'spdf.SECRET_KEY',
+          label: '百度 Secret Key',
+          bottomHelpMessage: '百度「图片内容审核」应用的 Secret Key',
+          component: 'Input',
+          componentProps: {
+            placeholder: '请输入 Secret Key',
+          },
+        },
+        {
+          field: 'spdf.isCD',
+          label: '涩图打分 CD 开关',
+          bottomHelpMessage: '开启后非主人使用打分有冷却时间',
+          component: 'Switch',
+        },
+        {
+          field: 'spdf.CD',
+          label: '涩图打分 CD 时长',
+          bottomHelpMessage: 'CD 时长（分钟），最小为 1',
+          component: 'InputNumber',
+          componentProps: {
+            min: 1,
+            max: 1440,
+            placeholder: '请输入整数（分钟）',
+          },
+        },
       ],
       getConfigData() {
         return setting.merge()
