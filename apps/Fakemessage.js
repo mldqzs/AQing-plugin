@@ -164,7 +164,9 @@ export class Fakemessage extends plugin {
         }
         continue;
       } else if (rawmsg[i].type === "text") {
-        if (rawmsg[i].text === "") continue;
+        // 去空格后为空则跳过：剥离"伪造消息"前缀或 @ 前后常残留纯空格段，
+        // 若按 === "" 判断会漏过空格段，导致 qq 尚未赋值就误回提示
+        if (rawmsg[i].text.trim() === "") continue;
   
         let txt = rawmsg[i].text.trim().split("|");
         for (let val of txt) {
@@ -207,6 +209,67 @@ export class Fakemessage extends plugin {
       return true;
     }
   
+    // 优先走 NapCat/OneBotv11 原生 forward API：每个节点显式带 user_id/nickname，
+    // 否则 NapCat 取不到发送者，会把整条转发回退成机器人自己
+    if (await this.sendByApi(e, data_msg, { prompt, brief, title, summary })) return true;
+
+    // 回退：旧的 makeForwardMsg 方式（非 OneBotv11 适配器时）
+    return this.legacyReply(e, data_msg, { prompt, brief, title, summary });
+  }
+
+  // NapCat 原生发送：复用适配器 makeMsg 生成 content（保留图片下载兼容），
+  // 但节点显式补 user_id/nickname，避免发送者回退成机器人。失败返回 false 走回退。
+  async sendByApi(e, data_msg, { prompt, brief, title, summary }) {
+    const bot = (typeof Bot !== "undefined" && Bot[e.self_id]) || e.bot;
+    const adapter = bot?.adapter;
+    if (!bot?.sendApi || adapter?.name !== "OneBotv11" || typeof adapter.makeMsg !== "function") {
+      return false;
+    }
+
+    const isGroup = e.isGroup ?? !!e.group_id;
+    try {
+      const messages = [];
+      for (const i of data_msg) {
+        const [content] = await adapter.makeMsg(i.message);
+        if (!content?.length) continue;
+        const uid = String(Number(i.user_id) || 80000000);
+        const name = i.nickname || "匿名消息";
+        messages.push({
+          type: "node",
+          data: {
+            user_id: uid,   // NapCat 读这两个字段决定发送者
+            nickname: name,
+            uin: uid,       // 兼容 go-cqhttp 老格式
+            name,
+            content,
+          },
+        });
+      }
+      if (!messages.length) return false;
+
+      const payload = isGroup
+        ? { group_id: e.group_id, messages }
+        : { user_id: e.user_id, messages };
+
+      // 仅在用户用 ^p/^t/^s/^b 显式指定时才覆盖外显/标题/底部/预览，否则用 NapCat 自然默认
+      if (prompt) payload.prompt = prompt;
+      if (title) payload.source = title;
+      if (summary) payload.summary = summary;
+      if (Array.isArray(brief) && brief.some(t => t !== "")) {
+        payload.news = brief.filter(t => t !== "").map(text => ({ text }));
+      }
+
+      const action = isGroup ? "send_group_forward_msg" : "send_private_forward_msg";
+      await bot.sendApi(action, payload);
+      return true;
+    } catch (err) {
+      logger?.error?.(`[伪造消息] NapCat 原生发送失败，回退默认方式：${err}`);
+      return false;
+    }
+  }
+
+  // 旧的发送方式：依赖 e.group/e.friend.makeForwardMsg，用于非 NapCat 适配器
+  async legacyReply(e, data_msg, { prompt, brief, title, summary }) {
     // 制作成合并消息
     let ForwardMsg;
     if (this.e.group && this.e.group.makeForwardMsg) {
@@ -218,7 +281,7 @@ export class Fakemessage extends plugin {
       e.reply("当前环境不支持伪造消息");
       return true;
     }
-  
+
     // 处理描述
     if (typeof ForwardMsg.data === "object") {
       if (ForwardMsg.data.meta && ForwardMsg.data.meta.detail) {
@@ -263,6 +326,7 @@ export class Fakemessage extends plugin {
     }
   
     e.reply(ForwardMsg); // 回复消息
+    return true;
   }
 
   // 检测目标是否受保护（主人或白名单），受保护则禁言伪造者
