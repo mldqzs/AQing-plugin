@@ -3,7 +3,6 @@ import fs from 'node:fs'
 import Y from '../Yaml/y.js'
 
 /*
- * 涩图打分（参考 root/涩图打分（v3）.js 改写）
  * - 百度图片审核 key 已迁移到 config/config/spdf.yaml，支持锅巴/手动修改、热生效
  * - 直接调用百度内容审核 REST API，免去 baidu-aip-sdk 依赖
  */
