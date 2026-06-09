@@ -39,7 +39,7 @@ export class jinyong extends plugin {
         const data = YAML.parse(fs.readFileSync(this.file, 'utf8'))
         data[e.group_id] = { enable: ["AQ:机器人群开关"] }
         fs.writeFileSync(this.file, YAML.stringify(data), "utf8")
-        e.reply(getCfg('close_tip'))
+        e.reply(getCfg('close_tip') || `${getCfg('botname') || '我'}下班啦，开溜~`)
         return true
     }
 
@@ -51,7 +51,7 @@ export class jinyong extends plugin {
         const data = YAML.parse(fs.readFileSync(this.file, 'utf8'))
         data[e.group_id] = { enable: null }
         fs.writeFileSync(this.file, YAML.stringify(data), "utf8")
-        e.reply(getCfg('start_tip'))
+        e.reply(getCfg('start_tip') || `${getCfg('botname') || '我'}上班啦，今天也元气满满~`)
         return true
     }
 }
