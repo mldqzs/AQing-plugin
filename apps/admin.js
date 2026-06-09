@@ -1,15 +1,8 @@
 
-import setting from '../utils/setting.js'
-import lodash from 'lodash'
-import yaml from 'yaml'
-import path from 'path'
-import fs from 'fs'
-import { dirname } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import Y from '../Yaml/y.js'
 import { getVersionInfo, getLatestChangelog } from '../model/version.js'
 
-const currentFileURL = fileURLToPath(import.meta.url);
-const currentDirectory = dirname(currentFileURL);
+const CFG_PATH = './plugins/AQing-plugin/config/config/config.yaml'
 
 export default class BotNameModifier extends plugin {
   constructor() {
@@ -43,13 +36,10 @@ export default class BotNameModifier extends plugin {
       return true
     }
 
-    const newConfig = lodash.set(setting.merge(), 'botname', newBotName)
-    setting.analysis(newConfig)
-
-    const configPath = path.join(currentDirectory, '../config/config/config.yaml')
-    const configContent = yaml.stringify(newConfig)
-    fs.writeFileSync(configPath, configContent, 'utf8')
-    e.reply(`机器人名字已成功修改为：${newBotName}`)
+    // 直接写入 config.yaml 的 botname 字段，提示语实时读取即时生效
+    const cfg = new Y(CFG_PATH)
+    cfg.set('botname', newBotName)
+    e.reply(`机器人名字已成功修改为：${newBotName}\n（上/下班命令已即时生效，无需重启）`)
     return true
   }
 
