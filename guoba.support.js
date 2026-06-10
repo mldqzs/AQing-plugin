@@ -60,6 +60,24 @@ export function supportGuoba() {
             valueFormatter: ((value) => Number.parseInt(value)).toString(),
           },
         },
+        { component: 'Divider', label: '复读禁言设置' },
+        {
+          field: 'config.repeatBan',
+          label: '复读禁言总开关',
+          bottomHelpMessage: '开启后，群内连续复读达到阈值会先警告，继续复读则阶梯禁言',
+          component: 'Switch',
+        },
+        {
+          field: 'config.repeatBanTime',
+          label: '复读初始禁言时间',
+          bottomHelpMessage: '首次禁言时长（分钟），之后每次阶梯递增 1 分钟，零点归零',
+          component: 'InputNumber',
+          componentProps: {
+            min: 1,
+            max: 60,
+            placeholder: '请输入整数（分钟）',
+          },
+        },
         { component: 'Divider', label: '艾特禁言设置' },
         {
           field: 'config.muteTime',

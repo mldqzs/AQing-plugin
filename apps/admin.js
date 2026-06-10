@@ -1,8 +1,10 @@
 
 import Y from '../Yaml/y.js'
+import puppeteer from '../../../lib/puppeteer/puppeteer.js'
 import { getVersionInfo, getLatestChangelog } from '../model/version.js'
 
 const CFG_PATH = './plugins/AQing-plugin/config/config/config.yaml'
+const _path = process.cwd().replace(/\\/g, '/')
 
 export default class BotNameModifier extends plugin {
   constructor() {
@@ -46,6 +48,33 @@ export default class BotNameModifier extends plugin {
   async showVersion(e) {
     const { yunzaiVersion, pluginVersion } = getVersionInfo()
     const changelog = getLatestChangelog()
+
+    // changelog 形如 "v1.1.1\n- xxx\n- yyy"，首行为版本号，其余为更新内容
+    let changeVer = ''
+    let changeBody = []
+    if (changelog) {
+      const arr = changelog.split('\n')
+      changeVer = arr.shift().trim()
+      changeBody = arr.map(l => l.trim()).filter(Boolean)
+    }
+
+    const data = {
+      tplFile: './plugins/AQing-plugin/resources/html/version/version.html',
+      pluResPath: _path,
+      saveId: 'version',
+      yunzaiVersion,
+      pluginVersion,
+      changeVer,
+      changeBody
+    }
+
+    const img = await puppeteer.screenshot('version', data)
+    if (img) {
+      await e.reply(img)
+      return true
+    }
+
+    // 截图失败兜底为文字
     let msg = '【阿晴插件 版本信息】\n'
     msg += `━━━━━━━━━━━━━━\n`
     msg += `TRSS-Yunzai：v${yunzaiVersion}\n`

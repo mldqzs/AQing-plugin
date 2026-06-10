@@ -2,6 +2,8 @@ botname: 阿晴 #机器人名字
 muteTime: 5
 jyGroupList: []
 ai: false #ai开关,默认false关闭，改成true开启
+repeatBan: true #复读禁言总开关,默认true开启,改成false关闭
+repeatBanTime: 1 #复读禁言初始禁言时间(分钟),之后每次阶梯+1
 
 绝对主人:
   - 123456

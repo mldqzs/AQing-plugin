@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <title>QQ 信息查询</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            width: 520px;
+            font-family: 'Microsoft YaHei', 'PingFang SC', 'Noto Sans CJK SC', sans-serif;
+            background: #0d0d1a;
+        }
+
+        #container {
+            width: 520px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* 背景图层 */
+        .bg {
+            position: absolute;
+            inset: 0;
+            z-index: 0;
+        }
+
+        .bg img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            object-position: center;
+            display: block;
+            filter: brightness(0.4) saturate(1.2);
+        }
+
+        /* 压暗遮罩 */
+        .bg::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: rgba(8, 8, 22, 0.35);
+        }
+
+        /* 内容层 */
+        .content {
+            position: relative;
+            z-index: 1;
+            padding: 26px 24px 20px;
+        }
+
+        /* Header */
+        .header {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            margin-bottom: 18px;
+        }
+
+        .avatar-wrap {
+            flex-shrink: 0;
+            width: 74px;
+            height: 74px;
+            border-radius: 50%;
+            border: 3px solid rgba(255, 255, 255, 0.50);
+            overflow: hidden;
+            box-shadow: 0 4px 18px rgba(0, 0, 0, 0.60);
+            background: #2a2a3a;
+        }
+
+        .avatar-wrap img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+
+        .main-title {
+            font-size: 18px;
+            font-weight: 700;
+            color: #fff;
+            letter-spacing: 1px;
+            text-shadow: 0 2px 10px rgba(0, 0, 0, 0.9);
+        }
+
+        .sub-title {
+            margin-top: 5px;
+            font-size: 12.5px;
+            color: rgba(255, 255, 255, 0.55);
+        }
+
+        /* 分隔线 */
+        .divider {
+            height: 1px;
+            background: linear-gradient(90deg,
+                    transparent 0%, rgba(255, 255, 255, 0.25) 20%,
+                    rgba(255, 255, 255, 0.25) 80%, transparent 100%);
+            margin-bottom: 13px;
+        }
+
+        /* 数据行 */
+        .rows {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin-bottom: 16px;
+        }
+
+        .row {
+            display: flex;
+            align-items: baseline;
+            gap: 8px;
+            background: rgba(255, 255, 255, 0.07);
+            border: 1px solid rgba(255, 255, 255, 0.10);
+            border-radius: 10px;
+            padding: 8px 13px;
+        }
+
+        .label {
+            font-size: 12px;
+            color: rgba(255, 255, 255, 0.50);
+            white-space: nowrap;
+            min-width: 70px;
+        }
+
+        .value {
+            font-size: 13px;
+            font-weight: 600;
+            color: #fff;
+            word-break: break-all;
+            text-shadow: 0 1px 4px rgba(0, 0, 0, 0.6);
+        }
+
+        /* Footer */
+        .footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-top: 1px solid rgba(255, 255, 255, 0.11);
+            padding-top: 10px;
+        }
+
+        .badge {
+            font-size: 10.5px;
+            color: rgba(255, 255, 255, 0.40);
+        }
+
+        .badge b {
+            color: rgba(255, 255, 255, 0.62);
+            font-weight: 600;
+        }
+
+        .time {
+            font-size: 10.5px;
+            color: rgba(255, 255, 255, 0.45);
+        }
+    </style>
+</head>
+
+<body>
+    <div id="container">
+        <div class="bg"><img src="{{bg ? bg : 'https://t.alcy.cc/moez'}}" alt=""></div>
+        <div class="content">
+
+            <div class="header">
+                <div class="avatar-wrap">
+                    {{if avatar}}<img src="{{avatar}}" alt="">{{/if}}
+                </div>
+                <div>
+                    <div class="main-title">📌 QQ 信息查询</div>
+                    <div class="sub-title">目标账号：{{qq}}</div>
+                </div>
+            </div>
+
+            <div class="divider"></div>
+
+            <div class="rows">
+                {{each lines item}}
+                <div class="row">
+                    <span class="label">{{item.key}}</span>
+                    <span class="value">{{item.value}}</span>
+                </div>
+                {{/each}}
+            </div>
+
+            <div class="footer">
+                <span class="badge">AQing-plugin <b>v{{pluginVersion}}</b></span>
+                <span class="time">🕐 {{now}}</span>
+            </div>
+
+        </div>
+    </div>
+</body>
+
+</html>

@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="zh">
+
+<head>
+    <meta charset="UTF-8">
+    <title>阿晴插件 版本信息</title>
+    <style>
+        @font-face {
+            font-family: "tttgbnumber";
+            src: url("{{pluResPath}}/plugins/AQing-plugin/resources/font/tttgbnumber.ttf");
+            font-weight: normal;
+            font-style: normal;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'tttgbnumber', Arial, "Microsoft YaHei", "WenQuanYi Micro Hei", "Droid Sans Fallback", sans-serif;
+        }
+
+        body {
+            width: 600px;
+            background: linear-gradient(135deg, #6a5af9 0%, #8e6ad6 45%, #c86dd7 100%);
+            padding: 34px;
+        }
+
+        .container {
+            background: rgba(255, 255, 255, 0.10);
+            border-radius: 26px;
+            padding: 32px;
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.28);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.18);
+        }
+
+        .head_box {
+            text-align: center;
+            margin-bottom: 26px;
+            padding-bottom: 20px;
+            border-bottom: 2px solid rgba(255, 255, 255, 0.25);
+        }
+
+        .head_box h1 {
+            font-size: 38px;
+            color: #ffffff;
+            letter-spacing: 3px;
+            text-shadow: 0 3px 10px rgba(0, 0, 0, 0.3);
+        }
+
+        .head_box .subtitle {
+            margin-top: 8px;
+            font-size: 17px;
+            color: rgba(255, 255, 255, 0.82);
+            letter-spacing: 1px;
+        }
+
+        .ver-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: rgba(255, 255, 255, 0.94);
+            border-radius: 16px;
+            padding: 16px 22px;
+            margin-bottom: 14px;
+            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.16);
+            border-left: 5px solid #8e6ad6;
+        }
+
+        .ver-row .name {
+            font-size: 20px;
+            color: #2d2150;
+            font-weight: bold;
+        }
+
+        .ver-row .ver {
+            font-size: 20px;
+            color: #8e6ad6;
+            font-weight: bold;
+        }
+
+        .changelog {
+            margin-top: 20px;
+        }
+
+        .changelog .clog-title {
+            font-size: 18px;
+            color: #ffffff;
+            margin-bottom: 12px;
+            letter-spacing: 1px;
+            text-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+        }
+
+        .changelog .clog-title b {
+            color: #ffe27a;
+        }
+
+        .changelog .clog-body {
+            background: rgba(255, 255, 255, 0.94);
+            border-radius: 16px;
+            padding: 18px 22px;
+            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.16);
+        }
+
+        .changelog .clog-line {
+            font-size: 15px;
+            color: #4a4163;
+            line-height: 1.7;
+            word-break: break-all;
+        }
+
+        .footer {
+            margin-top: 26px;
+            padding-top: 18px;
+            border-top: 2px solid rgba(255, 255, 255, 0.25);
+            text-align: center;
+            font-size: 13px;
+            color: rgba(255, 255, 255, 0.65);
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="head_box">
+            <h1>阿晴插件</h1>
+            <div class="subtitle">AQing-plugin · 版本信息</div>
+        </div>
+
+        <div class="ver-row">
+            <span class="name">TRSS-Yunzai</span>
+            <span class="ver">v{{yunzaiVersion}}</span>
+        </div>
+        <div class="ver-row">
+            <span class="name">AQing-plugin</span>
+            <span class="ver">v{{pluginVersion}}</span>
+        </div>
+
+        {{if changeVer}}
+        <div class="changelog">
+            <div class="clog-title">最新更新 · <b>{{changeVer}}</b></div>
+            <div class="clog-body">
+                {{each changeBody line}}
+                <div class="clog-line">{{line}}</div>
+                {{/each}}
+            </div>
+        </div>
+        {{/if}}
+
+        <div class="footer">TRSS-Yunzai v{{yunzaiVersion}} · AQing-plugin v{{pluginVersion}}</div>
+    </div>
+</body>
+
+</html>
