@@ -53,11 +53,11 @@ export class example extends plugin {
       if (e.isMaster) {
         return await e.reply([segment.at(user_id), "主人不要开玩笑啦"])
       }
-      else{return await e.reply(this.addmaster(user_id))}
+      else{return await e.reply(this.addmaster(e, user_id))}
     } else {
       const cfg = new Y('./config/config/other.yaml')
-      if (cfg.value('master', `${Bot.uin}:${user_id}`)) return e.reply([segment.at(user_id), "这个憨憨已经是主人了哦"])
-      return await e.reply(this.addmaster(user_id))
+      if (cfg.value('master', `${e.self_id}:${user_id}`)) return e.reply([segment.at(user_id), "这个憨憨已经是主人了哦"])
+      return await e.reply(this.addmaster(e, user_id))
     }
   }
 
@@ -73,14 +73,24 @@ export class example extends plugin {
 
     if (!user_id) return await e.reply('哎呀，你这样我不知道是谁了啦')
     const cfg = new Y('./config/config/other.yaml')
-    if (!cfg.value('master', `${Bot.uin}:${user_id}`)) return await e.reply("这个人是谁呀，好像不是我的主人哦", false, { at: true })
-    cfg.delVal('master', `${Bot.uin}:${user_id}`)
+    const inMaster = cfg.value('master', `${e.self_id}:${user_id}`)
+    const inMasterQQ = cfg.value('masterQQ', user_id)
+    if (!inMaster && !inMasterQQ) return await e.reply("这个人是谁呀，好像不是我的主人哦", false, { at: true })
+    // 与本体一致：全局 masterQQ 与该 Bot 的 master 一并移除
+    if (inMaster) cfg.delVal('master', `${e.self_id}:${user_id}`)
+    if (inMasterQQ) cfg.delVal('masterQQ', user_id)
     return await e.reply([segment.at(user_id), '你不是我的主人了！'])
   }
 
-  addmaster (user_id) {
+  // 与云崽本体 #设置主人 保持一致：同时写入全局 masterQQ 和当前 Bot 的 master，
+  // 这样新主人在所有权限校验（cfg.masterQQ / cfg.master[e.self_id]）下都生效，
+  // 而不只是单独某个机器人的主人。
+  // 注意 master 必须用 e.self_id（当前收到指令的 Bot 账号），不能用 Bot.uin：
+  // Bot.uin 是多账号数组，模板字符串化时多账号下取末位/随机值，会写到错误的 Bot 名下。
+  addmaster (e, user_id) {
     const cfg = new Y('./config/config/other.yaml')
-    cfg.addVal('master', `${Bot.uin}:${user_id}`, 'Array')
+    if (!cfg.value('masterQQ', user_id)) cfg.addVal('masterQQ', user_id, 'Array')
+    if (!cfg.value('master', `${e.self_id}:${user_id}`)) cfg.addVal('master', `${e.self_id}:${user_id}`, 'Array')
     return [segment.at(user_id), '你好，你已经是我的主人了！']
   }
   async st (e) {
