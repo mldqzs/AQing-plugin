@@ -330,7 +330,10 @@ export class Fakemessage extends plugin {
   }
 
   // 检测目标是否受保护（主人或白名单），受保护则禁言伪造者
+  // 主人不受黑白名单和主人保护的影响：操作者为主人时可伪造任何人
   async checkProtected(e, qq) {
+    if (e.isMaster) return false;
+
     const wst = new Y(BM_PATH);
     const muteTime = wst.get('禁言时间') || 5;
 
