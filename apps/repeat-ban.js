@@ -8,9 +8,11 @@
  *   警告后继续复读 → 阶梯禁言，禁言时长【群级别持久累加，不因复读链打断而减少】：
  *     本群历史档位为 N，下一个被禁的人 → N+1 分钟，以此类推
  *     只有零点才会将档位归零（CONFIG.dailyReset = true）
+ *     档位（banLevel）落盘到 data/repeat-ban.json，重启不丢失
  * - 复读机器人警告语本身也会被禁言
  * - 总开关在锅巴配置（config.repeatBan）中控制，关闭后整功能停用
  * - 管理员可通过「复读禁言 开启/关闭」单独控制本群开关
+ * - 主人可通过「设置复读禁言时间 N」设置初始禁言时间（分钟）
  */
 
 import plugin from '../../../lib/plugins/plugin.js'
@@ -58,6 +60,21 @@ function loadCfg() {
     _cfgCache = _cfgCache || {}
   }
   return _cfgCache
+}
+
+// 写入运行时配置（修改某个键并保存，随后清空缓存以便热生效）
+function writeCfg(key, value) {
+  let cfg = {}
+  try {
+    cfg = yaml.parse(fs.readFileSync(configPath, 'utf8')) || {}
+  } catch (err) {
+    logger.error('[复读禁言] 写入前读取配置失败:', err)
+  }
+  cfg[key] = value
+  fs.writeFileSync(configPath, yaml.stringify(cfg), 'utf8')
+  // 失效缓存，下次 loadCfg 重读
+  _cfgCache = null
+  _cfgMtime = 0
 }
 
 // 总开关，未配置时默认开启
@@ -287,8 +304,38 @@ function buildFingerprint(segs, plain, raw) {
 //    timer       : TimeoutId // 无新消息后自动清除复读链
 //  }
 // ─────────────────────────────────────────────
-const groupMeta  = {}   // 持久档位 + 开关
-const chainState = {}   // 复读链（打断即重置）
+// groupMeta 持久化文件：重启后 banLevel / enabled 不丢失
+const dataDir  = join(_dir, '../data')
+const metaPath = join(dataDir, 'repeat-ban.json')
+
+function loadMeta() {
+  try {
+    if (fs.existsSync(metaPath)) {
+      return JSON.parse(fs.readFileSync(metaPath, 'utf8')) || {}
+    }
+  } catch (err) {
+    logger.error('[复读禁言] 读取持久化档位失败:', err)
+  }
+  return {}
+}
+
+// 落盘（防抖：合并短时间内的多次写入，降低磁盘压力）
+let _saveTimer = null
+function saveMeta() {
+  if (_saveTimer) return
+  _saveTimer = setTimeout(() => {
+    _saveTimer = null
+    try {
+      if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true })
+      fs.writeFileSync(metaPath, JSON.stringify(groupMeta), 'utf8')
+    } catch (err) {
+      logger.error('[复读禁言] 写入持久化档位失败:', err)
+    }
+  }, 1000)
+}
+
+const groupMeta  = loadMeta()   // 持久档位 + 开关（启动时从磁盘恢复）
+const chainState = {}           // 复读链（打断即重置，无需持久化）
 
 // ── groupMeta 辅助 ────────────────────────────
 function getMeta(groupId) {
@@ -333,6 +380,7 @@ function scheduleDailyReset() {
     for (const id of Object.keys(groupMeta)) {
       if (groupMeta[id]) groupMeta[id].banLevel = 0
     }
+    saveMeta()
     logger.info('[复读禁言] 零点已重置所有群禁言档位')
     scheduleDailyReset()
   }, msUntilMidnight())
@@ -358,6 +406,12 @@ export class RepeatBanPlugin extends plugin {
           permission: 'admin',  // 仅管理员/群主可操作
         },
         {
+          // 设置初始禁言时间：「设置复读禁言时间 5」（分钟）
+          reg: '^[/#]?设置复读禁言时间\\s*\\d+$',
+          fnc: 'setBanTime',
+          permission: 'master',  // 仅机器人主人可操作
+        },
+        {
           // 监听所有群消息
           reg: '^[\\s\\S]*$',
           fnc: 'handleMessage',
@@ -381,6 +435,7 @@ export class RepeatBanPlugin extends plugin {
     const turnOn  = arg === '开启' || arg === 'on'
 
     meta.enabled = turnOn
+    saveMeta()
     await e.reply(
       turnOn
         ? '复读禁言已开启，复读机们小心了！'
@@ -388,6 +443,24 @@ export class RepeatBanPlugin extends plugin {
       true
     )
     return false
+  }
+
+  // ── 设置初始禁言时间 ──────────────────────────
+  async setBanTime(e) {
+    const m = e.msg.match(/(\d+)\s*$/)
+    const minutes = m ? parseInt(m[1]) : NaN
+    if (!Number.isFinite(minutes) || minutes <= 0) {
+      await e.reply('请输入一个大于 0 的整数（分钟），例如：设置复读禁言时间 5', true)
+      return true   // 已处理，消费掉该指令，避免落入下方复读监听
+    }
+    try {
+      writeCfg('repeatBanTime', minutes)
+      await e.reply(`复读初始禁言时间已设为 ${minutes} 分钟（之后每次阶梯 +1 分钟）`, true)
+    } catch (err) {
+      logger.error('[复读禁言] 设置初始禁言时间失败:', err)
+      await e.reply('设置失败，请检查配置文件权限', true)
+    }
+    return true   // 已处理，消费掉该指令，避免落入下方复读监听
   }
 
   // ── 消息监听 ──────────────────────────────────
@@ -463,6 +536,7 @@ export class RepeatBanPlugin extends plugin {
    */
   async _doBan(e, groupId, userId, meta, reason = 'repeat') {
     meta.banLevel += 1
+    saveMeta()
     // 初始禁言时间可在锅巴配置，之后每次阶梯 +1 分钟
     const banMinutes = repeatBanBaseTime() + (meta.banLevel - 1)
     const banSeconds = banMinutes * 60
