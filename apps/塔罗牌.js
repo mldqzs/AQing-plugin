@@ -5,7 +5,7 @@ import common from '../../../lib/common/common.js'
 export class TarotPlugin extends plugin {
   constructor() {
     super({
-      name: '塔罗牌',
+      name: 'AQ：塔罗牌',
       dsc: '塔罗牌占卜解读',
       event: 'message',
       priority: 5000,

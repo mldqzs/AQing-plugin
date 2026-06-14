@@ -9,7 +9,7 @@ const _path = process.cwd().replace(/\\/g, '/')
 export default class BotNameModifier extends plugin {
   constructor() {
     super({
-      name: 'AQ: 插件管理',
+      name: 'AQ：插件管理',
       dsc: '插件管理',
       event: 'message',
       priority: 100,

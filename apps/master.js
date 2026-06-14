@@ -8,7 +8,7 @@ let s = {}
 export class example extends plugin {
   constructor() {
       super({
-          name: 'AQ:主人管理',
+          name: 'AQ：主人管理',
           dsc: '主人管理',
           event: 'message',
           priority: 5,

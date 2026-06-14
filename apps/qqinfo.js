@@ -11,7 +11,7 @@ const _path = process.cwd().replace(/\\/g, '/')
 export default class QQInfoQuery extends plugin {
     constructor() {
         super({
-            name: 'QQ信息查询',
+            name: 'AQ：QQ信息查询',
             dsc: 'QQ查询',
             event: 'message',
             priority: 500,

@@ -16,7 +16,7 @@ let uping = false
 export class Update extends plugin {
   constructor () {
     super({
-      name: '[阿晴插件]更新',
+      name: 'AQ：更新',
       event: 'message',
       priority: 1000,
       rule: [

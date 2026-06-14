@@ -6,7 +6,7 @@ const _PATH = process.cwd()
 export class Capoo extends plugin {
   constructor() {
     super({
-      name: 'AQ:随机',
+      name: 'AQ：随机咖啵',
       dsc: '随机咖啵图片',
       event: 'message',
       priority: 5000,

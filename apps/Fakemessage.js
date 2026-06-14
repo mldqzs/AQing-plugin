@@ -24,7 +24,7 @@ export class Fakemessage extends plugin {
   constructor() {
       super({
           /** 功能名称 */
-          name: 'AQ:伪造消息',
+          name: 'AQ：伪造消息',
           /** 功能描述 */
           dsc: '伪造消息',
           /** https://oicqjs.github.io/oicq/#events */

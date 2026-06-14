@@ -82,7 +82,7 @@ let markUser = {}
 export class spdf extends plugin {
   constructor() {
     super({
-      name: '涩图打分',
+      name: 'AQ：涩图打分',
       dsc: '涩图打分',
       event: 'message',
       priority: 8000,

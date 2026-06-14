@@ -60,7 +60,7 @@ function deleteJyGroup(groupId) {
 export default class example extends plugin {
   constructor() {
     super({
-      name: "[阿晴插件]艾特机器人禁言",
+      name: "AQ：艾特机器人禁言",
       dsc: "艾特机器人禁言",
       event: "message",
       priority: -114514,

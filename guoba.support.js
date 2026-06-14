@@ -60,6 +60,13 @@ export function supportGuoba() {
             valueFormatter: ((value) => Number.parseInt(value)).toString(),
           },
         },
+        { component: 'Divider', label: '复读设置' },
+        {
+          field: 'config.fudu',
+          label: '复读开关',
+          bottomHelpMessage: '开启后，当消息由重复内容组成时机器人会再叠加一节复读（如 11→111、1212→121212），默认关闭',
+          component: 'Switch',
+        },
         { component: 'Divider', label: '复读禁言设置' },
         {
           field: 'config.repeatBan',

@@ -16,106 +16,154 @@
             margin: 0;
             padding: 0;
             box-sizing: border-box;
-            font-family: 'tttgbnumber', Arial, "Microsoft YaHei", "WenQuanYi Micro Hei", "Droid Sans Fallback", sans-serif;
+            font-family: 'tttgbnumber', -apple-system, "PingFang SC", "Microsoft YaHei", "Droid Sans Fallback", sans-serif;
         }
 
         body {
-            width: 880px;
-            background: linear-gradient(135deg, #6a5af9 0%, #8e6ad6 45%, #c86dd7 100%);
-            padding: 36px;
+            width: 840px;
+            position: relative;
+            padding: 30px;
+            /* root 里的初音背景图 + 轻柔光遮罩，整体偏 iOS 果冻质感 */
+            background:
+                linear-gradient(160deg, rgba(120, 170, 255, 0.30) 0%, rgba(180, 150, 240, 0.22) 50%, rgba(255, 180, 220, 0.28) 100%),
+                url("{{pluResPath}}/plugins/AQing-plugin/resources/html/help/img/bg-miku.png");
+            background-size: cover;
+            background-position: center top;
         }
 
+        /* 整张卡片：清透果冻玻璃（弱化模糊，让背景透出来） */
         .container {
-            background: rgba(255, 255, 255, 0.10);
-            border-radius: 28px;
-            padding: 34px;
-            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.28);
-            backdrop-filter: blur(8px);
-            border: 1px solid rgba(255, 255, 255, 0.18);
+            position: relative;
+            background: rgba(255, 255, 255, 0.12);
+            border-radius: 34px;
+            padding: 28px 26px;
+            border: 1.5px solid rgba(255, 255, 255, 0.45);
+            box-shadow:
+                0 18px 50px rgba(70, 90, 160, 0.26),
+                inset 0 1px 0 rgba(255, 255, 255, 0.6);
+            backdrop-filter: blur(5px) saturate(135%);
+            -webkit-backdrop-filter: blur(5px) saturate(135%);
         }
 
         .head_box {
             text-align: center;
-            margin-bottom: 30px;
-            padding-bottom: 22px;
-            border-bottom: 2px solid rgba(255, 255, 255, 0.25);
+            margin-bottom: 22px;
         }
 
         .head_box h1 {
-            font-size: 44px;
+            font-size: 46px;
             color: #ffffff;
-            letter-spacing: 3px;
-            text-shadow: 0 3px 10px rgba(0, 0, 0, 0.3);
+            letter-spacing: 4px;
+            text-shadow: 0 4px 14px rgba(70, 90, 170, 0.55);
         }
 
         .head_box .subtitle {
-            margin-top: 10px;
-            font-size: 19px;
-            color: rgba(255, 255, 255, 0.82);
+            display: inline-block;
+            margin-top: 14px;
+            font-size: 16px;
+            color: #5b4b8a;
             letter-spacing: 1px;
+            padding: 7px 20px;
+            border-radius: 999px;
+            background: linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(255, 255, 255, 0.72));
+            box-shadow:
+                0 6px 16px rgba(80, 100, 180, 0.22),
+                inset 0 1px 0 rgba(255, 255, 255, 0.9);
         }
 
         .help-grid {
             display: grid;
             grid-template-columns: repeat(2, 1fr);
-            gap: 16px;
+            gap: 14px;
         }
 
+        /* 果冻卡片 */
         .card {
+            position: relative;
             display: flex;
             align-items: center;
-            background: rgba(255, 255, 255, 0.94);
-            border-radius: 16px;
-            padding: 14px 18px;
-            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.16);
-            border-left: 5px solid #8e6ad6;
+            border-radius: 22px;
+            padding: 13px 16px;
+            overflow: hidden;
+            background: linear-gradient(145deg, rgba(255, 255, 255, 0.52), rgba(255, 255, 255, 0.24));
+            border: 1px solid rgba(255, 255, 255, 0.6);
+            box-shadow:
+                0 10px 22px rgba(60, 80, 160, 0.16),
+                inset 0 1px 0 rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(3px) saturate(130%);
+            -webkit-backdrop-filter: blur(3px) saturate(130%);
         }
 
-        .card .icon {
-            width: 54px;
-            height: 54px;
-            border-radius: 14px;
-            object-fit: cover;
+        /* 顶部高光，营造果冻反光 */
+        .card::before {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 46%;
+            background: linear-gradient(180deg, rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0));
+            pointer-events: none;
+        }
+
+        .card .icon-bubble {
+            width: 50px;
+            height: 50px;
             flex-shrink: 0;
-            background: #efeaff;
-            padding: 4px;
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(160deg, rgba(255, 255, 255, 0.95), rgba(235, 230, 255, 0.85));
+            box-shadow:
+                0 4px 12px rgba(90, 110, 190, 0.25),
+                inset 0 1px 0 rgba(255, 255, 255, 0.9);
+        }
+
+        .card .icon-bubble img {
+            width: 34px;
+            height: 34px;
+            object-fit: contain;
         }
 
         .card .text {
-            margin-left: 16px;
+            position: relative;
+            margin-left: 14px;
             min-width: 0;
         }
 
         .card .title {
-            font-size: 20px;
-            color: #2d2150;
+            font-size: 18px;
+            color: #34286b;
             font-weight: bold;
             margin-bottom: 4px;
             word-break: break-all;
+            text-shadow: 0 1px 0 rgba(255, 255, 255, 0.6);
         }
 
         .card .desc {
-            font-size: 14px;
-            color: #7a7193;
-            line-height: 1.45;
+            font-size: 13px;
+            color: #6a6190;
+            line-height: 1.4;
             word-break: break-all;
         }
 
         .footer {
-            margin-top: 30px;
-            padding-top: 20px;
-            border-top: 2px solid rgba(255, 255, 255, 0.25);
+            margin-top: 22px;
             text-align: center;
         }
 
         .footer .version {
             display: inline-block;
-            background: rgba(0, 0, 0, 0.28);
+            background: linear-gradient(180deg, rgba(60, 50, 110, 0.55), rgba(40, 35, 80, 0.45));
             color: #ffffff;
-            font-size: 16px;
-            padding: 8px 22px;
-            border-radius: 20px;
+            font-size: 15px;
+            padding: 9px 24px;
+            border-radius: 999px;
             letter-spacing: 1px;
+            box-shadow:
+                0 6px 16px rgba(40, 40, 90, 0.3),
+                inset 0 1px 0 rgba(255, 255, 255, 0.35);
         }
 
         .footer .version b {
@@ -123,9 +171,10 @@
         }
 
         .footer .credit {
-            margin-top: 12px;
-            font-size: 13px;
-            color: rgba(255, 255, 255, 0.65);
+            margin-top: 10px;
+            font-size: 12px;
+            color: rgba(255, 255, 255, 0.92);
+            text-shadow: 0 1px 4px rgba(60, 70, 140, 0.5);
         }
     </style>
 </head>
@@ -140,7 +189,9 @@
         <div class="help-grid">
             {{each helpList.list list}}
             <div class="card">
-                <img class="icon" src="{{pluResPath}}/plugins/AQing-plugin/resources/html/help/img/{{list.icon}}.png">
+                <div class="icon-bubble">
+                    <img src="{{pluResPath}}/plugins/AQing-plugin/resources/html/help/img/{{list.icon}}.png">
+                </div>
                 <div class="text">
                     <div class="title">{{list.title}}</div>
                     <div class="desc">{{list.desc}}</div>

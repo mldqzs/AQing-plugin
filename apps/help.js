@@ -10,7 +10,7 @@ export class help extends plugin {
     constructor() {
         super({
             /** 功能名称 */
-            name: 'AQ帮助',
+            name: 'AQ：帮助',
             /** 功能描述 */
             dsc: '阿晴插件帮助',
             /** https://oicqjs.github.io/oicq/#events */

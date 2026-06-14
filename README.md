@@ -43,6 +43,7 @@ git clone --depth=1 https://github.com/mldqzs/AQing-plugin ./plugins/AQing-plugi
 ## 友情链接
 
 - [TRSS-Yunzai](https://github.com/TimeRainStarSky/Yunzai) · [Gitee 镜像](https://gitee.com/TimeRainStarSky/Yunzai) —— 本插件所依赖的机器人框架
+- [戏天插件 xitian-plugin](https://github.com/XiTianGame/xitian-plugin) —— Yunzai 插件管理器，本插件的「安装 / 删除插件」功能参考了它的实现
 
 ## 声明
 

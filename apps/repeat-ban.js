@@ -394,7 +394,7 @@ scheduleDailyReset()
 export class RepeatBanPlugin extends plugin {
   constructor() {
     super({
-      name: '复读禁言',
+      name: 'AQ：复读禁言',
       dsc: '复读禁言',
       event: 'message.group',
       priority: 500,
