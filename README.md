@@ -17,6 +17,8 @@
 | 娱乐 | QQ 注册时间 | `#QQ注册时间` 查询 QQ 注册时间等信息，图片卡片展示 |
 | 娱乐 | 涩图打分 | 引用或发图给图片打分（需配置百度图片审核 key） |
 | 娱乐 | 塔罗牌 / 随机咖啵 | 每日塔罗牌、随机咖啵表情 |
+| 娱乐 | 禁漫天堂 | `#jm 漫画ID`（如 `#jm 350234`）下载整本为加密 PDF 发到群文件/私聊，需配置账号 AVS |
+| 调试 | 消息解剖台 | 引用一条消息后发 `取` / `解剖`，输出其消息段结构与元信息（仅主人，支持 NapCat 等 OneBot 适配器） |
 | 管理 | 插件安装 / 删除 | `#阿晴安装/删除插件`，支持单 js 与完整插件，GitHub 链接自动加速、失败退回原链接（仅主人） |
 | 管理 | 主人管理 | 增删主人、绝对主人、主人列表（头像图片展示） |
 | 管理 | 机器人名字 / 上下班 | 修改机器人名字、群内上/下班开关 |
@@ -36,11 +38,28 @@ git clone --depth=1 https://gitee.com/aayhg/AQing-plugin ./plugins/AQing-plugin
 git clone --depth=1 https://github.com/mldqzs/AQing-plugin ./plugins/AQing-plugin
 ```
 
-安装完成后重启云崽即可。
+安装完成后，在**云崽根目录**安装依赖（禁漫天堂功能需要），随后重启云崽即可：
+
+```bash
+pnpm install
+```
+
+> 依赖（`axios`、`cheerio`、`@cantoo/pdf-lib`、`sharp`、`p-limit`）已写入本插件 `package.json`，
+> 云崽为 pnpm workspace（`plugins/**`），在根目录执行一次 `pnpm install` 即会一并装好；
+> 若个别包构建报错，可在命令末尾加 `-w` 重试。
 
 ## 使用说明
 
 发送 `#阿晴帮助` 查看全部功能；发送 `#阿晴更新` 更新插件，`#阿晴版本` 查看版本信息。
+
+### 禁漫天堂
+
+1. 在云崽根目录执行 `pnpm install` 安装依赖（见上）。
+2. 配置账号 AVS（任选其一，均热生效、无需重启）：
+   - **锅巴**：锅巴管理面板 → AQing-plugin → 禁漫天堂，填入 AVS 等配置；
+   - **手动**：编辑 `config/config/jm.yaml`。
+   - AVS 获取：浏览器打开 `18comic-mygo.vip` 并登录 → F12 →「应用程序」→ Cookie 中名为 `AVS` 的值。
+3. 发送 `#jm 漫画ID`（如 `#jm 350234`），机器人会把整本下载为加密 PDF 上传到群文件/私聊（PDF 默认密码见 `jm.yaml` 的 `PASSWORD`）。
 
 ## 友情链接
 

@@ -1,0 +1,18 @@
+# ============ 禁漫天堂（JMComic）配置 ============
+# 指令：#jm 漫画ID（如 #jm 350234），机器人会把整本下载为加密 PDF 发到群文件/私聊。
+#
+# 修改方式（任选其一，均热生效、无需重启）：
+#   1.【推荐】锅巴：锅巴管理面板 → AQing-plugin → 禁漫天堂
+#   2.【手动】直接编辑本文件（config/config/jm.yaml）后保存即可
+#
+# AVS 获取：浏览器打开 18comic-mygo.vip 并登录 → 按 F12 →「应用程序/Application」
+#           → Cookie 里找到名为 AVS 的值，复制粘贴到下面（必填，否则无法下载）。
+
+AVS: ''                     # 账号 Cookie 的 AVS 字段（必填）
+CONCURRENCY: 3              # 下载漫画图片时的并发请求数
+MAX_PAGES: 100             # 单本最大页数，超出则不处理
+MAX_RETRIES: 3             # 单张图片下载失败的重试次数
+DEBUG: true                # 是否输出调试日志
+BASE_URL: 18comic-mygo.vip # 站点域名
+OUTPUT_DIR: temp           # PDF 临时输出目录（相对云崽根目录，需已存在）
+PASSWORD: cikeyqi          # 生成 PDF 的通用打开密码

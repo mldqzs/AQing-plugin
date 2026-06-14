@@ -1,7 +1,14 @@
 {
   "name": "aqing-plugin",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "description": "Yunzai-bot V3 插件 - 阿晴插件",
   "type": "module",
-  "author": "明るい青紫色"
+  "author": "明るい青紫色",
+  "dependencies": {
+    "@cantoo/pdf-lib": "^2.7.1",
+    "axios": "^1.17.0",
+    "cheerio": "^1.2.0",
+    "p-limit": "^7.3.0",
+    "sharp": "^0.35.1"
+  }
 }

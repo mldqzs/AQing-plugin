@@ -180,10 +180,9 @@ export function supportGuoba() {
             placeholder: '请输入文字',
           },
         },
-        { component: 'Divider', label: '阿晴涩图监控' },
         {
           component: 'SOFT_GROUP_BEGIN',
-          label: '涩图配置',
+          label: '涩涩配置',
         },
         {
           field: 'spdf.APP_ID',
@@ -228,6 +227,82 @@ export function supportGuoba() {
             max: 1440,
             placeholder: '请输入整数（分钟）',
           },
+        },
+        { component: 'Divider', label: '禁漫天堂（JMComic）' },
+        {
+          field: 'jm.AVS',
+          label: '账号 AVS',
+          bottomHelpMessage: '登录 18comic-mygo.vip 后 F12 →「应用程序」→ Cookie 里名为 AVS 的值（必填，否则无法下载）',
+          component: 'Input',
+          componentProps: {
+            placeholder: '请输入 Cookie 中的 AVS 字段',
+          },
+        },
+        {
+          field: 'jm.CONCURRENCY',
+          label: '下载并发数',
+          bottomHelpMessage: '下载漫画图片时的并发请求数，太大易被风控；低配置服务器不建议设太大，内存/带宽吃紧容易崩溃，建议 2~3',
+          component: 'InputNumber',
+          componentProps: {
+            min: 1,
+            max: 10,
+            placeholder: '请输入整数[1~10]',
+          },
+        },
+        {
+          field: 'jm.MAX_PAGES',
+          label: '最大页数',
+          bottomHelpMessage: '单本超过该页数则不处理，避免超大本子；低配置服务器不建议设太大，合成 PDF 时图片越多越占内存，容易崩溃',
+          component: 'InputNumber',
+          componentProps: {
+            min: 1,
+            max: 1000,
+            placeholder: '请输入整数（页）',
+          },
+        },
+        {
+          field: 'jm.MAX_RETRIES',
+          label: '失败重试次数',
+          bottomHelpMessage: '单张图片下载失败时的重试次数',
+          component: 'InputNumber',
+          componentProps: {
+            min: 0,
+            max: 10,
+            placeholder: '请输入整数[0~10]',
+          },
+        },
+        {
+          field: 'jm.PASSWORD',
+          label: 'PDF 打开密码',
+          bottomHelpMessage: '生成的加密 PDF 的通用打开密码',
+          component: 'Input',
+          componentProps: {
+            placeholder: '请输入 PDF 密码',
+          },
+        },
+        {
+          field: 'jm.BASE_URL',
+          label: '站点域名',
+          bottomHelpMessage: '禁漫站点域名，失效时可在此更换',
+          component: 'Input',
+          componentProps: {
+            placeholder: '如 18comic-mygo.vip',
+          },
+        },
+        {
+          field: 'jm.OUTPUT_DIR',
+          label: 'PDF 临时目录',
+          bottomHelpMessage: 'PDF 临时输出目录（相对云崽根目录，需已存在），默认 temp',
+          component: 'Input',
+          componentProps: {
+            placeholder: '如 temp',
+          },
+        },
+        {
+          field: 'jm.DEBUG',
+          label: '调试日志',
+          bottomHelpMessage: '开启后输出禁漫下载的调试日志',
+          component: 'Switch',
         },
       ],
       getConfigData() {
