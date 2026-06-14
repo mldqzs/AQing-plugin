@@ -16,79 +16,116 @@
             margin: 0;
             padding: 0;
             box-sizing: border-box;
-            font-family: 'tttgbnumber', Arial, "Microsoft YaHei", "WenQuanYi Micro Hei", "Droid Sans Fallback", sans-serif;
+            font-family: 'tttgbnumber', -apple-system, "PingFang SC", "Microsoft YaHei", "Droid Sans Fallback", sans-serif;
         }
 
         body {
             width: 600px;
-            background: linear-gradient(135deg, #6a5af9 0%, #8e6ad6 45%, #c86dd7 100%);
-            padding: 34px;
+            position: relative;
+            padding: 30px;
+            /* 与帮助图一致：初音背景 + 轻柔光遮罩，iOS 清透果冻质感 */
+            background:
+                linear-gradient(160deg, rgba(120, 170, 255, 0.30) 0%, rgba(180, 150, 240, 0.22) 50%, rgba(255, 180, 220, 0.28) 100%),
+                url("{{pluResPath}}/plugins/AQing-plugin/resources/html/help/img/bg-miku.png");
+            background-size: cover;
+            background-position: center top;
         }
 
+        /* 整张卡片：清透果冻玻璃 */
         .container {
-            background: rgba(255, 255, 255, 0.10);
-            border-radius: 26px;
-            padding: 32px;
-            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.28);
-            backdrop-filter: blur(8px);
-            border: 1px solid rgba(255, 255, 255, 0.18);
+            position: relative;
+            background: rgba(255, 255, 255, 0.12);
+            border-radius: 34px;
+            padding: 28px 26px;
+            border: 1.5px solid rgba(255, 255, 255, 0.45);
+            box-shadow:
+                0 18px 50px rgba(70, 90, 160, 0.26),
+                inset 0 1px 0 rgba(255, 255, 255, 0.6);
+            backdrop-filter: blur(5px) saturate(135%);
+            -webkit-backdrop-filter: blur(5px) saturate(135%);
         }
 
         .head_box {
             text-align: center;
-            margin-bottom: 26px;
-            padding-bottom: 20px;
-            border-bottom: 2px solid rgba(255, 255, 255, 0.25);
+            margin-bottom: 22px;
         }
 
         .head_box h1 {
-            font-size: 38px;
+            font-size: 42px;
             color: #ffffff;
-            letter-spacing: 3px;
-            text-shadow: 0 3px 10px rgba(0, 0, 0, 0.3);
+            letter-spacing: 4px;
+            text-shadow: 0 4px 14px rgba(70, 90, 170, 0.55);
         }
 
         .head_box .subtitle {
-            margin-top: 8px;
-            font-size: 17px;
-            color: rgba(255, 255, 255, 0.82);
+            display: inline-block;
+            margin-top: 14px;
+            font-size: 16px;
+            color: #5b4b8a;
             letter-spacing: 1px;
+            padding: 7px 20px;
+            border-radius: 999px;
+            background: linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(255, 255, 255, 0.72));
+            box-shadow:
+                0 6px 16px rgba(80, 100, 180, 0.22),
+                inset 0 1px 0 rgba(255, 255, 255, 0.9);
         }
 
+        /* 版本行：果冻药丸 */
         .ver-row {
+            position: relative;
             display: flex;
             align-items: center;
             justify-content: space-between;
-            background: rgba(255, 255, 255, 0.94);
-            border-radius: 16px;
+            overflow: hidden;
+            background: linear-gradient(145deg, rgba(255, 255, 255, 0.52), rgba(255, 255, 255, 0.26));
+            border: 1px solid rgba(255, 255, 255, 0.6);
+            border-radius: 20px;
             padding: 16px 22px;
             margin-bottom: 14px;
-            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.16);
-            border-left: 5px solid #8e6ad6;
+            box-shadow:
+                0 10px 22px rgba(60, 80, 160, 0.16),
+                inset 0 1px 0 rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(3px) saturate(130%);
+            -webkit-backdrop-filter: blur(3px) saturate(130%);
+        }
+
+        .ver-row::before {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 46%;
+            background: linear-gradient(180deg, rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0));
+            pointer-events: none;
         }
 
         .ver-row .name {
+            position: relative;
             font-size: 20px;
-            color: #2d2150;
+            color: #34286b;
             font-weight: bold;
+            text-shadow: 0 1px 0 rgba(255, 255, 255, 0.6);
         }
 
         .ver-row .ver {
+            position: relative;
             font-size: 20px;
-            color: #8e6ad6;
+            color: #7a59c2;
             font-weight: bold;
         }
 
         .changelog {
-            margin-top: 20px;
+            margin-top: 18px;
         }
 
         .changelog .clog-title {
-            font-size: 18px;
+            font-size: 17px;
             color: #ffffff;
             margin-bottom: 12px;
             letter-spacing: 1px;
-            text-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+            text-shadow: 0 2px 10px rgba(70, 90, 170, 0.55);
         }
 
         .changelog .clog-title b {
@@ -96,13 +133,32 @@
         }
 
         .changelog .clog-body {
-            background: rgba(255, 255, 255, 0.94);
-            border-radius: 16px;
+            position: relative;
+            overflow: hidden;
+            background: linear-gradient(145deg, rgba(255, 255, 255, 0.52), rgba(255, 255, 255, 0.26));
+            border: 1px solid rgba(255, 255, 255, 0.6);
+            border-radius: 20px;
             padding: 18px 22px;
-            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.16);
+            box-shadow:
+                0 10px 22px rgba(60, 80, 160, 0.16),
+                inset 0 1px 0 rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(3px) saturate(130%);
+            -webkit-backdrop-filter: blur(3px) saturate(130%);
+        }
+
+        .changelog .clog-body::before {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 38%;
+            background: linear-gradient(180deg, rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0));
+            pointer-events: none;
         }
 
         .changelog .clog-line {
+            position: relative;
             font-size: 15px;
             color: #4a4163;
             line-height: 1.7;
@@ -110,12 +166,25 @@
         }
 
         .footer {
-            margin-top: 26px;
-            padding-top: 18px;
-            border-top: 2px solid rgba(255, 255, 255, 0.25);
+            margin-top: 22px;
             text-align: center;
-            font-size: 13px;
-            color: rgba(255, 255, 255, 0.65);
+        }
+
+        .footer .version {
+            display: inline-block;
+            background: linear-gradient(180deg, rgba(60, 50, 110, 0.55), rgba(40, 35, 80, 0.45));
+            color: #ffffff;
+            font-size: 14px;
+            padding: 9px 24px;
+            border-radius: 999px;
+            letter-spacing: 1px;
+            box-shadow:
+                0 6px 16px rgba(40, 40, 90, 0.3),
+                inset 0 1px 0 rgba(255, 255, 255, 0.35);
+        }
+
+        .footer .version b {
+            color: #ffe27a;
         }
     </style>
 </head>
@@ -147,7 +216,11 @@
         </div>
         {{/if}}
 
-        <div class="footer">TRSS-Yunzai v{{yunzaiVersion}} · AQing-plugin v{{pluginVersion}}</div>
+        <div class="footer">
+            <div class="version">
+                TRSS-Yunzai <b>v{{yunzaiVersion}}</b> &nbsp;·&nbsp; AQing-plugin <b>v{{pluginVersion}}</b>
+            </div>
+        </div>
     </div>
 </body>
 
