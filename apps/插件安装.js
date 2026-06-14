@@ -35,15 +35,15 @@ export class AQPluginInstall extends plugin {
       priority: 50,
       rule: [
         {
-          reg: '^#?阿晴(安装|新增)插件\\s*(\\S+)?$',
+          reg: '^[#/]?阿晴(安装|新增)插件\\s*(.*)$',
           fnc: 'install',
         },
         {
-          reg: '^#?阿晴删除插件\\s*(\\S+)?$',
+          reg: '^[#/]?阿晴删除插件\\s*(.*)$',
           fnc: 'remove',
         },
         {
-          reg: '^#?阿晴(js)?插件列表$',
+          reg: '^[#/]?阿晴(js)?插件列表$',
           fnc: 'list',
         },
       ],
@@ -63,7 +63,7 @@ export class AQPluginInstall extends plugin {
   async install(e) {
     if (!this.isMaster(e)) return true
 
-    const url = (e.msg.match(/^#?阿晴(?:安装|新增)插件\s*(\S+)?$/)?.[1] || '').trim()
+    const url = (e.msg.match(/^[#/]?阿晴(?:安装|新增)插件\s*(.*)$/)?.[1] || '').trim()
 
     // 带链接：根据后缀判断单 js 还是完整插件
     if (url) {
@@ -247,7 +247,7 @@ export class AQPluginInstall extends plugin {
   /* ───────────── 删除 ───────────── */
   async remove(e) {
     if (!this.isMaster(e)) return true
-    let name = (e.msg.match(/^#?阿晴删除插件\s*(\S+)?$/)?.[1] || '').trim()
+    let name = (e.msg.match(/^[#/]?阿晴删除插件\s*(.*)$/)?.[1] || '').trim()
     if (!name) {
       await e.reply('请带上要删除的插件名，例如：#阿晴删除插件 example2')
       return true
