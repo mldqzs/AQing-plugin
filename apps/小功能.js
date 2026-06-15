@@ -116,6 +116,7 @@ export class example extends plugin {
       const sendFile = e.isGroup ? (e.group.sendFile || e.group.fs?.upload) : e.friend.sendFile
       if (sendFile) {
         await sendFile.call(target, filePath)
+        await e.reply(`本子 ${aid} 已上传~\nPDF 是加密的，打开密码：${CONFIG.PASSWORD}`, true)
       } else {
         await e.reply('当前适配器不支持发送文件，无法上传 PDF')
       }
