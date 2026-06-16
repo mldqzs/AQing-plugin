@@ -4,8 +4,11 @@ import Y from '../Yaml/y.js'
 
 /*
  * 涩图打分
- * - 百度图片审核 key 已迁移到 config/config/spdf.yaml，支持锅巴/手动修改、热生效
- * - 直接调用百度内容审核 REST API，免去 baidu-aip-sdk 依赖
+ * - 支持两个打分接口，用 PROVIDER 切换（锅巴有下拉框，热生效）：
+ *     baidu       百度图片审核（默认，真人照片较准）
+ *     sightengine Sightengine（区分插画/真人并分级，二次元更准，推荐）
+ * - key 均存于 config/config/spdf.yaml，支持锅巴/手动修改、热生效
+ * - 直接 REST 调用，免 SDK 依赖
  */
 
 const DEF_PATH = './plugins/AQing-plugin/config/defSet_config/spdf.yaml'
@@ -29,44 +32,23 @@ ensureCfg()
 const getCfg = (key) => new Y(CFG_PATH).get(key)
 
 // key 是否仍是占位默认值
-const isKeyReady = () => {
-  const id = getCfg('APP_ID')
-  const ak = getCfg('API_KEY')
-  const sk = getCfg('SECRET_KEY')
-  const bad = (v) => !v || /^你的/.test(String(v))
-  return !(bad(id) || bad(ak) || bad(sk))
-}
+const isPlaceholder = (v) => !v || /^你的/.test(String(v))
 
-// 配置帮助提示词
-const CFG_HELP = [
-  '【涩图打分 · key 配置说明】',
-  '需要先填入百度「图片内容审核」的 App ID / API Key / Secret Key。',
-  '',
-  '方式一【推荐】锅巴：',
-  '  安装锅巴插件后，打开锅巴管理面板 →',
-  '  AQing-plugin → 涩图打分，填入三个 key 即可。',
-  '',
-  '方式二【手动】编辑文件：',
-  '  plugins/AQing-plugin/config/config/spdf.yaml',
-  '  把 APP_ID / API_KEY / SECRET_KEY 改成你自己的，保存即生效。',
-  '',
-  '⚠ 若同时在用「色图监听」，请另建一个百度应用，勿复用同一 key。',
-].join('\n')
+/* ───────────── 百度图片审核 ───────────── */
 
-// 获取百度 access_token
-async function getAccessToken() {
+async function getBaiduToken() {
   const ak = getCfg('API_KEY')
   const sk = getCfg('SECRET_KEY')
   const url = `https://aip.baidubce.com/oauth/2.0/token?grant_type=client_credentials&client_id=${encodeURIComponent(ak)}&client_secret=${encodeURIComponent(sk)}`
   const res = await fetch(url, { method: 'POST' })
   const data = await res.json()
-  if (!data.access_token) throw new Error(data.error_description || data.error || '获取 access_token 失败，请检查 API Key / Secret Key')
+  if (!data.access_token) throw new Error(data.error_description || data.error || '获取百度 access_token 失败，请检查 API Key / Secret Key')
   return data.access_token
 }
 
-// 调用图片内容审核，返回结果对象
-async function censorImage(imgUrl) {
-  const token = await getAccessToken()
+// 返回统一结构 { ok, score, error }
+async function scoreByBaidu(imgUrl) {
+  const token = await getBaiduToken()
   const url = `https://aip.baidubce.com/rest/2.0/solution/v1/img_censor/v2/user_defined?access_token=${token}`
   const body = new URLSearchParams({ imgUrl })
   const res = await fetch(url, {
@@ -74,8 +56,142 @@ async function censorImage(imgUrl) {
     headers: { 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/json' },
     body,
   })
-  return res.json()
+  const data = await res.json()
+  if (data.error_code == 14) return { ok: false, error: 'IAM 认证失败，请确认百度 API Key / Secret Key 正确。' }
+  if (data.error_code == 18) return { ok: false, error: '触发百度 QPS 限制；可能是请求过快，或未在控制台开通「内容审核-图像」资源（开通后需≥15分钟生效）。' }
+  if (data.error_code) return { ok: false, error: `百度审核失败：${data.error_msg || data.error_code}` }
+
+  let score = 0
+  if (data.conclusionType == 2 || data.conclusionType == 3) {
+    const arr = (data.data || []).map(d => d.probability * 1).filter(p => p > 0.00001)
+    score = (arr.length ? Math.max(...arr) : 0) * 100
+  }
+  return { ok: true, score }
 }
+
+/* ───────────── Sightengine（nudity-2.1） ───────────── */
+
+// 把分级概率加权成 0~100 涩度。各档权重按「实际涩度」校准，
+// 低档（轻微暗示）权重压得很低，避免泳装/事业线就被判成「涩」：
+//   mildly_suggestive 露事业线/泳装/短裙  → 0.10（基本算清水）
+//   suggestive        艺术裸体/姿势示意    → 0.25
+//   very_suggestive   内衣/未露点的脱衣    → 0.45
+//   erotica           露胸/臀/私处         → 0.75
+//   sexual_display    露性器               → 0.90
+//   sexual_activity   性行为               → 1.00
+// 各档互斥且与 none 合计约为 1，故结果相当于加权平均（none 权重 0）。
+// 大致映射：泳装≈10% / 内衣≈45% / 露点≈75% / 露骨≈90%+
+// 这些权重可在锅巴「涩涩配置 → 涩度权重」里调，留空则用下面默认值。
+const DEFAULT_WEIGHTS = {
+  sexual_activity: 1.0,
+  sexual_display: 0.9,
+  erotica: 0.75,
+  very_suggestive: 0.45,
+  suggestive: 0.25,
+  mildly_suggestive: 0.1,
+}
+function calcSightengineScore(nudity) {
+  if (!nudity) return 0
+  const userW = getCfg('weights') || {}
+  let s = 0
+  // 只按已知档位累加，用户配置缺省的档位回退到默认值
+  for (const k in DEFAULT_WEIGHTS) {
+    const w = userW[k] === undefined || userW[k] === null ? DEFAULT_WEIGHTS[k] : Number(userW[k])
+    s += (Number(nudity[k]) || 0) * (Number.isFinite(w) ? w : DEFAULT_WEIGHTS[k])
+  }
+  return Math.max(0, Math.min(100, s * 100))
+}
+
+async function scoreBySightengine(imgUrl) {
+  const apiUser = getCfg('API_USER')
+  const apiSecret = getCfg('API_SECRET')
+  const url = `https://api.sightengine.com/1.0/check.json?url=${encodeURIComponent(imgUrl)}&models=nudity-2.1&api_user=${encodeURIComponent(apiUser)}&api_secret=${encodeURIComponent(apiSecret)}`
+  const res = await fetch(url)
+  const data = await res.json()
+  if (data.status !== 'success') {
+    const err = data?.error || {}
+    const msg = err.message || err.type || '未知错误'
+    let hint = ''
+    if (err.type === 'credentials_error') {
+      hint = '\n→ API user / API secret 不正确，请检查复制是否完整（注意别把网页上的「REVEAL」按钮文字也一起复制进来）'
+    } else if (err.type === 'usage_limit' || err.type === 'plan_limit') {
+      hint = '\n→ 免费额度已用尽（2000次/月、500次/天），请等额度重置或升级套餐'
+    }
+    return { ok: false, error: `${msg}${hint}` }
+  }
+  return { ok: true, score: calcSightengineScore(data.nudity) }
+}
+
+/* ───────────── 接口注册表 ───────────── */
+
+const PROVIDERS = {
+  baidu: {
+    label: '百度图片审核',
+    ready: () => !(isPlaceholder(getCfg('APP_ID')) || isPlaceholder(getCfg('API_KEY')) || isPlaceholder(getCfg('SECRET_KEY'))),
+    score: scoreByBaidu,
+  },
+  sightengine: {
+    label: 'Sightengine',
+    ready: () => !(isPlaceholder(getCfg('API_USER')) || isPlaceholder(getCfg('API_SECRET'))),
+    score: scoreBySightengine,
+  },
+}
+
+// 当前接口（非法值回退到 baidu）
+function getProvider() {
+  const p = String(getCfg('PROVIDER') || 'baidu').toLowerCase()
+  return PROVIDERS[p] ? p : 'baidu'
+}
+
+const isKeyReady = () => PROVIDERS[getProvider()].ready()
+
+// 从「引用/回复」的那条消息里取图片，兼容 NapCat/OneBot 与 icqq
+async function getReplyImg(e) {
+  const pick = (segs) => (segs || []).filter(v => v?.type === 'image').map(v => v.url || v.file).filter(Boolean)
+
+  // NapCat / OneBot v11：e.reply_id + e.getReply()（内部走 get_msg 拉原消息）
+  if (e.reply_id && typeof e.getReply === 'function') {
+    try {
+      const src = await e.getReply()
+      const imgs = pick(src?.message)
+      if (imgs.length) return imgs
+    } catch (err) {
+      logger.warn(`[涩图打分] getReply 取引用图片失败：${err?.message || err}`)
+    }
+  }
+
+  // icqq：e.source + 历史记录
+  if (e.source) {
+    try {
+      const history = e.isGroup
+        ? await e.group.getChatHistory(e.source.seq, 1)
+        : await e.friend.getChatHistory(e.source.time, 1)
+      const imgs = pick(history?.pop()?.message)
+      if (imgs.length) return imgs
+    } catch (err) {
+      logger.warn(`[涩图打分] getChatHistory 取引用图片失败：${err?.message || err}`)
+    }
+  }
+  return []
+}
+
+// 配置帮助提示词
+const CFG_HELP = [
+  '【涩图打分 · 接口配置说明】',
+  '支持两个接口，用 PROVIDER 切换（锅巴里是下拉框）：',
+  '  · baidu —— 百度图片审核（默认，真人照片较准）',
+  '  · sightengine —— Sightengine（二次元/插画更准，推荐）',
+  '',
+  '百度：在百度智能云开通「内容审核-图像」并建应用，',
+  '  获取 APP_ID / API_KEY / SECRET_KEY。',
+  '',
+  'Sightengine：注册 https://sightengine.com，在 Dashboard',
+  '  获取 API_USER / API_SECRET（免费额度 2000 次/月、500 次/天）。',
+  '',
+  '修改方式（任选其一）：',
+  '  1.【推荐】锅巴：管理面板 → AQing-plugin → 涩图打分，选接口并填对应 key。',
+  '  2.【手动】编辑 plugins/AQing-plugin/config/config/spdf.yaml，保存即热生效。',
+].join('\n')
 
 let markUser = {}
 
@@ -111,7 +227,7 @@ export class spdf extends plugin {
 
   async HpicMarker(e) {
     if (!isKeyReady()) {
-      await e.reply(['尚未配置百度审核 key，无法打分~\n', CFG_HELP])
+      await e.reply([`当前打分接口（${PROVIDERS[getProvider()].label}）尚未配置 key，无法打分~\n`, CFG_HELP])
       return true
     }
 
@@ -124,26 +240,10 @@ export class spdf extends plugin {
       return true
     }
 
-    // 取引用消息里的图片
-    if (e.source) {
-      let reply
-      try {
-        if (e.isGroup) {
-          reply = (await e.group.getChatHistory(e.source.seq, 1)).pop()?.message
-        } else {
-          reply = (await e.friend.getChatHistory(e.source.time, 1)).pop()?.message
-        }
-      } catch (err) {
-        logger.warn(`[涩图打分] 获取引用消息失败：${err?.message || err}`)
-      }
-      if (reply) {
-        for (let val of reply) {
-          if (val.type == 'image') {
-            e.img = [val.url]
-            break
-          }
-        }
-      }
+    // 取引用/回复消息里的图片（兼容 NapCat 与 icqq）
+    if (!e.img || !e.img.length) {
+      const replyImgs = await getReplyImg(e)
+      if (replyImgs.length) e.img = replyImgs
     }
 
     if (!e.img) {
@@ -168,42 +268,19 @@ export class spdf extends plugin {
 
     const CD = Math.max(1, parseInt(getCfg('CD')) || 60)
     const dic = getCfg('dic') || []
+    const provider = getProvider()
 
     try {
-      const data = await censorImage(e.img[0])
-      logger.info('【涩图打分】data:', data)
+      const ret = await PROVIDERS[provider].score(e.img[0])
+      logger.info('【涩图打分】provider:', provider, 'ret:', ret)
 
-      if (data.error_code == 14) {
-        e.reply('IAM认证失败，请确认你的百度 apikey 有效并且填写正确。')
-        await this.cancel(e)
-        return true
-      }
-      if (data.error_code == 18) {
-        e.reply('触发QPS限制。可能是请求频率过高，或你没有在百度云控制台开通“内容审核-图像”资源，或开通时间过短（小于15分钟）')
-        await this.cancel(e)
-        return true
-      }
-      if (data.error_code) {
-        e.reply(`审核失败：${data.error_msg || data.error_code}`)
+      if (!ret.ok) {
+        e.reply(`打分失败：${ret.error}`)
         await this.cancel(e)
         return true
       }
 
-      let score = 0.0
-      if (data.conclusionType == 2 || data.conclusionType == 3) {
-        let arr = []
-        for (let i = 0; i < data.data.length; i++) {
-          if (data.data[i].probability * 1 > 0.00001) arr.push(data.data[i].probability * 1)
-        }
-        const max = arr.length === 0 ? 0.0 : arr.sort((a, b) => b - a)[0]
-        logger.info('【涩图打分】max:', max)
-        score = max * 100
-      } else if (data.conclusionType == 1) {
-        score = 0
-      } else {
-        logger.info('【涩图打分】审核失败')
-      }
-
+      const score = ret.score
       const idx = Math.min(9, Math.max(0, parseInt(score / 10)))
       e.reply([`涩度：${score.toFixed(2)}%\n`, segment.at(e.user_id), ` ${dic[idx] || ''}`])
 

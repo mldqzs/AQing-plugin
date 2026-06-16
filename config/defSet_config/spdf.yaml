@@ -1,16 +1,34 @@
-# ============ 涩图打分 · 百度图片内容审核 key 配置 ============
-# 在百度智能云开通「内容审核-图像」并创建应用后，可获得下面三个 key。
-# 注意：若你同时在用「色图监听」，请勿直接复用它的 key，
-#       请另建一个百度应用，因为两者需要不同的审核策略。
+# ============ 涩图打分 · 接口配置 ============
+# 支持两个打分接口，用 PROVIDER 切换：
+#   baidu       —— 百度图片审核（默认；真人照片较准，对二次元/插画偏差较大）
+#   sightengine —— Sightengine（区分插画与真人并分级，二次元/插画更准，推荐）
 #
 # 修改方式（任选其一）：
-#   1.【推荐】锅巴：进入锅巴管理面板 → AQing-plugin → 涩图打分，填入三个 key
+#   1.【推荐】锅巴：管理面板 → AQing-plugin → 涩图打分，选接口并填对应 key
 #   2.【手动】直接编辑本文件（config/config/spdf.yaml）后保存即可，热生效无需重启
 # 群内发送「#涩图打分帮助」可随时查看以上说明。
 
+PROVIDER: 'baidu'   # baidu 或 sightengine
+
+# —— 百度图片审核：在百度智能云开通「内容审核-图像」并建应用后获取 ——
 APP_ID: '你的 App ID'
 API_KEY: '你的 Api Key'
 SECRET_KEY: '你的 Secret Key'
+
+# —— Sightengine：注册 https://sightengine.com 后在 Dashboard 获取（免费 2000次/月、500次/天）——
+API_USER: '你的 API user'
+API_SECRET: '你的 API secret'
+
+# ============ Sightengine 涩度权重（0~1，仅 sightengine 接口生效） ============
+# 数值越大该档越「涩」。默认把轻微暗示压得很低，避免泳装/事业线就被判成涩。
+# 大致映射：泳装≈10% / 内衣≈45% / 露点≈75% / 露骨≈90%+。可在锅巴里调。
+weights:
+  mildly_suggestive: 0.1    # 露事业线 / 泳装 / 短裙
+  suggestive: 0.25          # 艺术裸体 / 姿势示意
+  very_suggestive: 0.45     # 内衣 / 未露点的脱衣
+  erotica: 0.75             # 露胸 / 臀 / 私处
+  sexual_display: 0.9       # 露性器
+  sexual_activity: 1.0      # 性行为
 
 # ============ CD 设置 ============
 isCD: true   # true=有CD，false=无CD；主人始终不受 CD 限制

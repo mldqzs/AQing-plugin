@@ -185,9 +185,22 @@ export function supportGuoba() {
           label: '涩涩配置',
         },
         {
+          field: 'spdf.PROVIDER',
+          label: '打分接口',
+          bottomHelpMessage: '选择使用哪个接口打分：百度对真人照片较准，Sightengine 对二次元/插画更准（推荐）。切换后只需填对应接口的 key',
+          component: 'Select',
+          componentProps: {
+            placeholder: '请选择打分接口',
+            options: [
+              { label: '百度图片审核', value: 'baidu' },
+              { label: 'Sightengine（二次元更准）', value: 'sightengine' },
+            ],
+          },
+        },
+        {
           field: 'spdf.APP_ID',
-          label: '百度 App ID',
-          bottomHelpMessage: '百度「图片内容审核」应用的 App ID',
+          label: '百度 · App ID',
+          bottomHelpMessage: '百度「图片内容审核」应用的 App ID（PROVIDER 选 baidu 时使用）',
           component: 'Input',
           componentProps: {
             placeholder: '请输入 App ID',
@@ -195,8 +208,8 @@ export function supportGuoba() {
         },
         {
           field: 'spdf.API_KEY',
-          label: '百度 API Key',
-          bottomHelpMessage: '百度「图片内容审核」应用的 API Key',
+          label: '百度 · API Key',
+          bottomHelpMessage: '百度「图片内容审核」应用的 API Key（PROVIDER 选 baidu 时使用）',
           component: 'Input',
           componentProps: {
             placeholder: '请输入 API Key',
@@ -204,12 +217,73 @@ export function supportGuoba() {
         },
         {
           field: 'spdf.SECRET_KEY',
-          label: '百度 Secret Key',
-          bottomHelpMessage: '百度「图片内容审核」应用的 Secret Key',
+          label: '百度 · Secret Key',
+          bottomHelpMessage: '百度「图片内容审核」应用的 Secret Key（PROVIDER 选 baidu 时使用）',
           component: 'Input',
           componentProps: {
             placeholder: '请输入 Secret Key',
           },
+        },
+        {
+          field: 'spdf.API_USER',
+          label: 'Sightengine · API user',
+          bottomHelpMessage: '注册 sightengine.com 后在 Dashboard 获取（免费额度 2000次/月、500次/天；PROVIDER 选 sightengine 时使用）',
+          component: 'Input',
+          componentProps: {
+            placeholder: '请输入 API user',
+          },
+        },
+        {
+          field: 'spdf.API_SECRET',
+          label: 'Sightengine · API secret',
+          bottomHelpMessage: '注册 sightengine.com 后在 Dashboard 获取（PROVIDER 选 sightengine 时使用）',
+          component: 'Input',
+          componentProps: {
+            placeholder: '请输入 API secret',
+          },
+        },
+        { component: 'Divider', label: 'Sightengine 涩度权重（仅 sightengine 接口生效，0~1）' },
+        {
+          field: 'spdf.weights.mildly_suggestive',
+          label: '轻微暗示（泳装/事业线/短裙）',
+          bottomHelpMessage: '越大越「涩」。这是最常见的二次元 ecchi 档，默认很低（0.1），避免泳装就被判涩',
+          component: 'InputNumber',
+          componentProps: { min: 0, max: 1, step: 0.05, placeholder: '默认 0.1' },
+        },
+        {
+          field: 'spdf.weights.suggestive',
+          label: '一般暗示（艺术裸体/姿势示意）',
+          bottomHelpMessage: '默认 0.25',
+          component: 'InputNumber',
+          componentProps: { min: 0, max: 1, step: 0.05, placeholder: '默认 0.25' },
+        },
+        {
+          field: 'spdf.weights.very_suggestive',
+          label: '强烈暗示（内衣/未露点的脱衣）',
+          bottomHelpMessage: '默认 0.45',
+          component: 'InputNumber',
+          componentProps: { min: 0, max: 1, step: 0.05, placeholder: '默认 0.45' },
+        },
+        {
+          field: 'spdf.weights.erotica',
+          label: '色情（露胸/臀/私处）',
+          bottomHelpMessage: '默认 0.75',
+          component: 'InputNumber',
+          componentProps: { min: 0, max: 1, step: 0.05, placeholder: '默认 0.75' },
+        },
+        {
+          field: 'spdf.weights.sexual_display',
+          label: '露骨（露性器）',
+          bottomHelpMessage: '默认 0.9',
+          component: 'InputNumber',
+          componentProps: { min: 0, max: 1, step: 0.05, placeholder: '默认 0.9' },
+        },
+        {
+          field: 'spdf.weights.sexual_activity',
+          label: '性行为',
+          bottomHelpMessage: '默认 1.0',
+          component: 'InputNumber',
+          componentProps: { min: 0, max: 1, step: 0.05, placeholder: '默认 1.0' },
         },
         {
           field: 'spdf.isCD',
