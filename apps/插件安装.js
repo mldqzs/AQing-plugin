@@ -236,7 +236,11 @@ export class AQPluginInstall extends plugin {
     if (fs.existsSync(path.join(dest, 'package.json'))) {
       await e.reply('正在安装插件依赖，请稍候…')
       const res = await this.addPak(dest)
-      await e.reply(res.error ? `依赖安装失败：${(res.stderr || res.error).toString().slice(0, 200)}` : '依赖安装完成')
+      if (res.error) {
+        await e.reply(`依赖安装失败，插件可能无法正常载入，建议手动进入控制台安装依赖。\n错误信息：${(res.stderr || res.error).toString().slice(0, 200)}`)
+      } else {
+        await e.reply('依赖安装完成')
+      }
     }
 
     await e.reply(`插件「${name}」安装成功，即将重启生效~`)
