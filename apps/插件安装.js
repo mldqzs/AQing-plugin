@@ -74,7 +74,9 @@ export class AQPluginInstall extends plugin {
     // 不带链接：若消息已带 js 文件直接装，否则进入等待
     if (e.file) return this.installJsFromFile(e)
 
-    this.setContext('getJsFile', e.isGroup, 60)
+    // 第二参数必须为 false：按「用户」而非「群」存上下文，
+    // 否则群里其他人随后发的任意消息都会被当成本次安装的回复抢走
+    this.setContext('getJsFile', false, 60)
     await e.reply('请在 60 秒内发送要安装的 js 插件文件\n（或发送「#阿晴安装插件 仓库/文件链接」从链接安装）')
     return true
   }
@@ -83,7 +85,7 @@ export class AQPluginInstall extends plugin {
   async getJsFile() {
     const e = this.e
     if (/^#?取消(安装)?$/.test(e.msg || '')) {
-      this.finish('getJsFile', e.isGroup)
+      this.finish('getJsFile', false)
       await e.reply('已取消安装')
       return true
     }
@@ -91,7 +93,7 @@ export class AQPluginInstall extends plugin {
       await e.reply('没有检测到文件，请发送 js 文件，或发送「取消」结束')
       return false
     }
-    this.finish('getJsFile', e.isGroup)
+    this.finish('getJsFile', false)
     return this.installJsFromFile(e)
   }
 
