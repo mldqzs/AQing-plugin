@@ -255,9 +255,9 @@ async function parseKuaishou(rawUrl) {
 
 /* ───────────── 发送 ───────────── */
 
-// 不发视频本体时给用户一个可点链接：B站 CDN 直链需 Referer 不便打开，故给页面链接；其余给视频直链
+// 不发视频本体时给用户一个可点链接：优先给可直接播放的视频直链（B站 html5 渐进式
+// 直链实测免 Referer 可直接打开，只是有时效、约几小时后失效）；取不到直链再退回页面链接
 function pickUserLink(r) {
-  if (r.platform === 'B站') return r.pageUrl || ''
   return r.video?.url || r.pageUrl || ''
 }
 
