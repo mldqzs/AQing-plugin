@@ -193,6 +193,9 @@ const CFG_HELP = [
   '  2.【手动】编辑 plugins/AQing-plugin/config/config/spdf.yaml，保存即热生效。',
 ].join('\n')
 
+// 「先说有多涩、再发图」两步流程的等待态：user_id -> 超时计时器
+// 只在「用户发了触发词但没带图」时置位，带图（含引用图）直接打分、绝不置位，
+// 否则打完分后用户紧接着随手发的下一张图/表情包会被并发的兜底规则误打分
 let markUser = {}
 
 export class spdf extends plugin {
@@ -246,7 +249,8 @@ export class spdf extends plugin {
       if (replyImgs.length) e.img = replyImgs
     }
 
-    if (!e.img) {
+    // 本条消息没带图（也没引用图）：进入「等下一张图」的等待态，交给 Hpicmark 兜底
+    if (!e.img || !e.img.length) {
       if (markUser[e.user_id]) clearTimeout(markUser[e.user_id])
       markUser[e.user_id] = setTimeout(() => {
         if (markUser[e.user_id]) delete markUser[e.user_id]
@@ -255,17 +259,32 @@ export class spdf extends plugin {
       return true
     }
 
-    markUser[e.user_id] = true
-    return await this.Hpicmark(e)
+    // 本条消息已带图（含引用图）：清掉可能残留的等待态后直接打分，绝不进入等待态，
+    // 返回 true 让 loader 停止，避免再落到 reg:'' 的 Hpicmark 重复打分
+    await this.cancel(e)
+    await this.doScore(e)
+    return true
   }
 
+  // 兜底规则（reg:''）：只服务「先说有多涩、再发图」的两步流程
   async Hpicmark(e) {
     if (!markUser[e.user_id]) return false
-    if (!e.img) {
-      await this.cancel(e)
-      return false
-    }
+    // 命中后立刻解除等待态（同步删除），避免用户连发多张图时后面那张又被打分
+    await this.cancel(e)
 
+    // 两步流程下，这张「补发」的图也可能是引用图片
+    if (!e.img || !e.img.length) {
+      const replyImgs = await getReplyImg(e)
+      if (replyImgs.length) e.img = replyImgs
+    }
+    if (!e.img || !e.img.length) return false
+
+    await this.doScore(e)
+    return false
+  }
+
+  // 真正的打分逻辑，独立于 markUser 等待态，供「内联打分」与「两步流程」复用
+  async doScore(e) {
     const CD = Math.max(1, parseInt(getCfg('CD')) || 60)
     const dic = getCfg('dic') || []
     const provider = getProvider()
@@ -276,8 +295,7 @@ export class spdf extends plugin {
 
       if (!ret.ok) {
         e.reply(`打分失败：${ret.error}`)
-        await this.cancel(e)
-        return true
+        return
       }
 
       const score = ret.score
@@ -289,9 +307,6 @@ export class spdf extends plugin {
       logger.error('[涩图打分] error', err)
       e.reply(`error！\n${err?.message || err}`)
     }
-
-    await this.cancel(e)
-    return false
   }
 
   async cancel(e) {
