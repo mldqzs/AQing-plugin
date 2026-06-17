@@ -16,6 +16,7 @@
 | 娱乐 | 伪造消息 | 伪造一条消息，支持黑白名单与主人保护 |
 | 娱乐 | QQ 注册时间 | `#QQ注册时间` 查询 QQ 注册时间等信息，图片卡片展示 |
 | 娱乐 | 涩图打分 | 引用或发图给图片打分，百度 / Sightengine 双接口可切换（Sightengine 对二次元更准） |
+| 娱乐 | 短视频解析 | 发抖音 / 快手 / B站链接自动解析为视频（图文则发图片）；全程原生轻量解析、免 cookie，可选用 ffmpeg 抽背景音乐 |
 | 娱乐 | 塔罗牌 / 随机咖啵 | 每日塔罗牌、随机咖啵表情 |
 | 娱乐 | 禁漫天堂 | `#jm 漫画ID`（如 `#jm 350234`）下载整本为加密 PDF 发到群文件/私聊，需配置账号 AVS |
 | 调试 | 消息解剖台 | 引用一条消息后发 `取` / `解剖`，输出其消息段结构与元信息（仅主人，支持 NapCat 等 OneBot 适配器） |
@@ -70,10 +71,23 @@ pnpm install
 
 在锅巴「AQing-plugin → 涩涩配置」里选「打分接口」并填对应 key；Sightengine 还可在「涩度权重」逐档微调评分曲线（如嫌泳装判得太涩，调低 `mildly_suggestive` 即可）。
 
+### 短视频解析
+
+群里或私聊直接发分享链接（纯文本链接、复制带文案、QQ 卡片分享均可）即自动解析，无需指令。三家**全部走原生轻量解析、免 cookie、低配服务器也扛得住**：
+
+- **B站**：`b23.tv` 短链、`bilibili.com/video/BV…`、裸 `BV…` 号均可，走官方 API。
+- **抖音**：`v.douyin.com` 短链或作品链接，走移动分享页自解析，视频自动去水印，图文笔记则发图片。
+- **快手**：`v.kuaishou.com` 短链或作品链接，走移动分享页自解析，图集则发图片。
+
+解析结果为「标题 + 封面 + 视频」；当视频超过时长/体积上限（或下载失败、QQ 拒收大视频）时，**自动改发可点的视频直链**，不占机器人流量。相关开关、上限、CD 均可在锅巴「AQing-plugin → 短视频解析」或 `config/config/video.yaml` 调整，热生效。
+
+**背景音乐**（可选，默认关）：开启「提取背景音乐」后，机器人会用 ffmpeg 从视频抽出音轨，发一条语音条（点开就听）+ 一个 mp3 文件。需要系统装有 `ffmpeg`（多数云崽环境已自带；`ffmpeg -version` 可验证）。注意抽的是视频音轨——纯音乐视频即 BGM，带人声的视频会是「人声 + BGM」的混音。
+
 ## 友情链接
 
 - [TRSS-Yunzai](https://github.com/TimeRainStarSky/Yunzai) · [Gitee 镜像](https://gitee.com/TimeRainStarSky/Yunzai) —— 本插件所依赖的机器人框架
 - [戏天插件 xitian-plugin](https://github.com/XiTianGame/xitian-plugin) —— Yunzai 插件管理器，本插件的「安装 / 删除插件」功能参考了它的实现
+- [siliconflow-plugin](https://github.com/AIGC-Yunzai/siliconflow-plugin) —— SiliconFlow AI 插件，本插件的「短视频解析」参考了它的抖音 / 快手 / B站原生解析实现
 
 ## 声明
 

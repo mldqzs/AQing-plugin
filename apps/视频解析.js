@@ -1,0 +1,413 @@
+import plugin from '../../../lib/plugins/plugin.js'
+import setting from '../utils/setting.js'
+import fs from 'node:fs'
+import path from 'node:path'
+import { execFile } from 'node:child_process'
+import { Readable } from 'node:stream'
+import { pipeline } from 'node:stream/promises'
+
+/*
+ * 短视频解析（抖音 / 快手 / B站）
+ * - 被动触发：用 accept(e) 钩子扫每条消息，识别到分享链接就解析，无需指令。
+ *   （accept 能覆盖「JSON 卡片分享」——这类消息 e.msg 往往为空，靠 rule 正则匹配不到）
+ * - 全部走「原生轻量解析」，不依赖 yt-dlp、无需 cookie：
+ *     B站   官方 API（view 取信息 + playurl 取渐进式 MP4 直链）
+ *     抖音   iesdouyin 移动分享页 _ROUTER_DATA（自动去水印；图文则发图片）
+ *     快手   移动分享页 window.INIT_STATE（photo.mainMvUrls；图集走 atlas）
+ * - 可选：用 ffmpeg 从视频抽出音轨当背景音乐，发语音条 + mp3 文件（默认关）。
+ * - 配置存 config/config/video.yaml，支持锅巴/手动修改、热生效。
+ */
+
+const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36'
+// 抖音/快手分享页需移动端 UA 才返回内嵌数据
+const MOBILE_UA = 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1'
+const TMP_DIR = './data/aq/video'
+
+// 实时读取配置（getConfig = 默认配置 ∪ 用户配置，chokidar 热重载）
+const cfg = () => setting.getConfig('video') || {}
+
+/* ───────────── 工具 ───────────── */
+
+function ensureTmp() {
+  try { if (!fs.existsSync(TMP_DIR)) fs.mkdirSync(TMP_DIR, { recursive: true }) } catch {}
+}
+
+function fmtDur(sec) {
+  sec = parseInt(sec) || 0
+  const m = Math.floor(sec / 60)
+  const s = sec % 60
+  return `${m}:${String(s).padStart(2, '0')}`
+}
+
+async function fetchJson(url, extraHeaders = {}) {
+  const res = await fetch(url, { headers: { 'User-Agent': UA, ...extraHeaders } })
+  return res.json()
+}
+
+// 把一条消息里所有可能含链接的文本汇总（纯文本 + JSON/XML 卡片）
+function collectText(e) {
+  const parts = [e.msg || '', e.raw_message || '']
+  for (const seg of e.message || []) {
+    if (!seg) continue
+    if (seg.type === 'text') parts.push(seg.text || '')
+    else if (seg.type === 'json' || seg.type === 'xml') {
+      let raw = seg.data
+      if (raw && typeof raw === 'object') raw = raw.data || JSON.stringify(raw)
+      parts.push(String(raw || ''))
+    }
+  }
+  // 卡片里的链接常被转义成 https:\/\/ 和 &amp;
+  return parts.join('\n').replace(/\\\//g, '/').replace(/&amp;/g, '&')
+}
+
+// 识别平台与链接，返回 { platform, url } 或 null
+function detect(text) {
+  let m
+  // —— B站 ——
+  if ((m = text.match(/https?:\/\/(?:b23\.tv|bili2233\.cn)\/[A-Za-z0-9]+/i))) return { platform: 'bili', url: m[0] }
+  if ((m = text.match(/https?:\/\/(?:www\.|m\.)?bilibili\.com\/video\/(?:BV[0-9A-Za-z]{10}|av\d+)[^\s'"]*/i))) return { platform: 'bili', url: m[0] }
+  if ((m = text.match(/\bBV[0-9A-Za-z]{10}\b/))) return { platform: 'bili', url: `https://www.bilibili.com/video/${m[0]}` }
+  if ((m = text.match(/\bav(\d{6,})\b/i))) return { platform: 'bili', url: `https://www.bilibili.com/video/av${m[1]}` }
+  // —— 抖音 ——
+  if ((m = text.match(/https?:\/\/v\.douyin\.com\/[A-Za-z0-9_-]+/i))) return { platform: 'douyin', url: m[0] }
+  if ((m = text.match(/https?:\/\/(?:www\.)?(?:douyin|iesdouyin)\.com\/[^\s'"]+/i))) return { platform: 'douyin', url: m[0] }
+  // —— 快手 ——
+  if ((m = text.match(/https?:\/\/v\.kuaishou\.com\/[A-Za-z0-9_-]+/i))) return { platform: 'kuaishou', url: m[0] }
+  if ((m = text.match(/https?:\/\/(?:www\.|v\.m\.|m\.)?(?:kuaishou|chenzhongtech|gifshow)\.com\/[^\s'"]+/i))) return { platform: 'kuaishou', url: m[0] }
+  return null
+}
+
+const PLATFORM_CN = { bili: 'B站', douyin: '抖音', kuaishou: '快手' }
+const PLATFORM_SWITCH = { bili: 'parseBili', douyin: 'parseDouyin', kuaishou: 'parseKuaishou' }
+
+// 流式下载到本地文件（带自定义请求头，B站直链必须带 Referer），可按 maxMB 卡体积
+async function downloadToFile(url, headers, dest, maxMB) {
+  const res = await fetch(url, { headers: { 'User-Agent': UA, ...headers }, redirect: 'follow' })
+  if (!res.ok || !res.body) throw new Error(`下载失败 HTTP ${res.status}`)
+  const len = Number(res.headers.get('content-length') || 0)
+  if (maxMB && len && len / 1048576 > maxMB) {
+    try { await res.body.cancel() } catch {}
+    throw new Error(`视频体积 ${(len / 1048576).toFixed(1)}MB 超过上限 ${maxMB}MB`)
+  }
+  await pipeline(Readable.fromWeb(res.body), fs.createWriteStream(dest))
+  return dest
+}
+
+// 用 ffmpeg 从视频里抽出音轨为 mp3（背景音乐），失败返回 null
+function runFFmpeg(args, timeout = 120000) {
+  return new Promise((resolve) => {
+    execFile('ffmpeg', args, { timeout, maxBuffer: 1024 * 1024 * 16 }, (err) => resolve(!err))
+  })
+}
+async function extractAudio(videoFile) {
+  const mp3 = videoFile.replace(/\.[^.]+$/, '') + '_bgm.mp3'
+  const ok = await runFFmpeg(['-y', '-hide_banner', '-loglevel', 'error', '-i', videoFile, '-vn', '-acodec', 'libmp3lame', '-q:a', '4', mp3])
+  return ok && fs.existsSync(mp3) ? mp3 : null
+}
+
+/* ───────────── B站：官方 API 自解析 ───────────── */
+
+let buvidCache = { value: '', ts: 0 }
+async function getBuvid() {
+  if (buvidCache.value && Date.now() - buvidCache.ts < 3600_000) return buvidCache.value
+  try {
+    const j = await fetchJson('https://api.bilibili.com/x/frontend/finger/spi')
+    if (j?.data?.b_3) { buvidCache = { value: j.data.b_3, ts: Date.now() }; return j.data.b_3 }
+  } catch {}
+  try {
+    const r = await fetch('https://www.bilibili.com/', { headers: { 'User-Agent': UA } })
+    const cookies = typeof r.headers.getSetCookie === 'function' ? r.headers.getSetCookie() : []
+    for (const c of cookies) {
+      const m = c.match(/buvid3=([^;]+)/)
+      if (m) { buvidCache = { value: m[1], ts: Date.now() }; return m[1] }
+    }
+  } catch {}
+  return ''
+}
+
+async function parseBili(rawUrl) {
+  // 还原 b23.tv / bili2233.cn 短链
+  let url = rawUrl
+  if (/b23\.tv|bili2233\.cn/i.test(url)) {
+    try { url = (await fetch(url, { headers: { 'User-Agent': UA }, redirect: 'follow' })).url } catch {}
+  }
+  const bvid = (url.match(/BV[0-9A-Za-z]{10}/) || [])[0]
+  const aid = (url.match(/av(\d+)/i) || [])[1]
+  if (!bvid && !aid) throw new Error('未识别到 B 站视频 ID')
+
+  const view = await fetchJson(`https://api.bilibili.com/x/web-interface/view?${bvid ? `bvid=${bvid}` : `aid=${aid}`}`)
+  if (view.code !== 0) throw new Error(`B站接口返回：${view.message || view.code}`)
+  const d = view.data
+  const cid = d.cid || d.pages?.[0]?.cid
+  const avid = d.aid
+
+  // 渐进式 MP4（fnval=1 单文件，免 ffmpeg 合流）；platform=html5 免登录，画质约 360/480p、体积小适合发送
+  let video = null
+  try {
+    const buvid = await getBuvid()
+    const pu = await fetchJson(
+      `https://api.bilibili.com/x/player/playurl?avid=${avid}&cid=${cid}&qn=64&fnval=1&fnver=0&fourk=0&platform=html5&high_quality=1`,
+      { Referer: 'https://www.bilibili.com', Cookie: `buvid3=${buvid}` }
+    )
+    const durl = pu?.data?.durl?.[0]
+    if (pu.code === 0 && durl?.url) {
+      video = { url: durl.url, size: durl.size, headers: { Referer: 'https://www.bilibili.com' } }
+    }
+  } catch (err) {
+    logger.warn(`[短视频解析] B站 playurl 失败：${err?.message || err}`)
+  }
+
+  const pageUrl = `https://www.bilibili.com/video/${bvid || `av${avid}`}`
+  return { platform: 'B站', title: d.title, cover: d.pic, author: d.owner?.name, duration: d.duration, pageUrl, video, images: null }
+}
+
+/* ───────────── 抖音：分享页 _ROUTER_DATA 自解析 ───────────── */
+
+// 还原短链 / 从链接里取 aweme_id（19 位左右的纯数字）
+async function resolveDouyinId(rawUrl) {
+  let url = rawUrl
+  if (/v\.douyin\.com/i.test(url)) {
+    try { url = (await fetch(url, { headers: { 'User-Agent': MOBILE_UA }, redirect: 'follow' })).url } catch {}
+  }
+  const m = url.match(/(\d{17,21})/) || rawUrl.match(/(\d{17,21})/)
+  return m ? m[1] : null
+}
+
+async function parseDouyin(rawUrl) {
+  const id = await resolveDouyinId(rawUrl)
+  if (!id) throw new Error('未取到抖音作品 ID')
+
+  const html = await (await fetch(`https://www.iesdouyin.com/share/video/${id}/`, { headers: { 'User-Agent': MOBILE_UA } })).text()
+  const m = html.match(/_ROUTER_DATA\s*=\s*(\{[\s\S]*?\})\s*<\/script>/)
+  if (!m) throw new Error('抖音页面结构变化，解析失败')
+  let data
+  try { data = JSON.parse(m[1]) } catch { throw new Error('抖音页面数据解析失败') }
+
+  const ld = data.loaderData || {}
+  const key = Object.keys(ld).find(k => /\/page$/.test(k) && ld[k]?.videoInfoRes)
+  const item = ld[key]?.videoInfoRes?.item_list?.[0]
+  if (!item) throw new Error('抖音作品获取失败（可能已删除、私密或需要登录）')
+
+  const title = item.desc || ''
+  const author = item.author?.nickname || ''
+  const cover = item.video?.cover?.url_list?.[0] || item.video?.origin_cover?.url_list?.[0] || ''
+  const pageUrl = `https://www.douyin.com/video/${id}`
+  const bgmTitle = item.music?.title || ''
+
+  // 图文笔记：images 非空
+  if (Array.isArray(item.images) && item.images.length) {
+    const images = item.images.map(im => im?.url_list?.[im.url_list.length - 1] || im?.url_list?.[0]).filter(Boolean)
+    if (images.length) return { platform: '抖音', title, author, cover, duration: 0, pageUrl, video: null, images }
+  }
+
+  const duration = Math.round((item.video?.duration || 0) / 1000)
+  // play_addr 取直链，playwm → play 去水印
+  let vurl = item.video?.play_addr?.url_list?.[0] || ''
+  vurl = vurl.replace('playwm', 'play')
+  const video = vurl ? { url: vurl, headers: { 'User-Agent': MOBILE_UA, Referer: 'https://www.douyin.com' } } : null
+  if (!video) throw new Error('未取到抖音视频直链')
+  return { platform: '抖音', title, author, cover, duration, pageUrl, bgmTitle, video, images: null }
+}
+
+/* ───────────── 快手：移动分享页 INIT_STATE 自解析 ───────────── */
+
+async function parseKuaishou(rawUrl) {
+  // 还原短链；快手分享落到 m.chenzhongtech.com / m.gifshow.com 的 /fw/photo/ 页
+  const r = await fetch(rawUrl, { headers: { 'User-Agent': MOBILE_UA, Referer: 'https://v.kuaishou.com/' }, redirect: 'follow' })
+  const finalUrl = (r.url || rawUrl).replace('/fw/long-video/', '/fw/photo/')
+  let html
+  if (finalUrl !== r.url) {
+    html = await (await fetch(finalUrl, { headers: { 'User-Agent': MOBILE_UA, Referer: 'https://v.kuaishou.com/' } })).text()
+  } else {
+    html = await r.text()
+  }
+
+  const m = html.match(/window\.INIT_STATE\s*=\s*(.*?)<\/script>/s)
+  if (!m) throw new Error('快手页面结构变化，解析失败')
+  let data
+  try { data = JSON.parse(m[1].trim()) } catch { throw new Error('快手页面数据解析失败') }
+
+  // 动态找含 photo 的那一项
+  let photo = null
+  for (const k in data) {
+    if (data[k] && typeof data[k] === 'object' && data[k].photo) { photo = data[k].photo; break }
+  }
+  if (!photo) throw new Error('快手作品获取失败（可能已删除、需要登录，或页面已改版）')
+
+  const title = photo.caption || ''
+  const author = photo.userName || ''
+  const cover = photo.coverUrls?.[0]?.url || ''
+  const duration = Math.round((photo.duration || 0) / 1000)
+
+  // 图集（atlas）：cdnList 主机 + list 路径
+  const atlas = photo.ext_params?.atlas
+  if (atlas?.cdnList?.length && atlas?.list?.length) {
+    const host = atlas.cdnList[0]?.cdn || atlas.cdnList[0]
+    const images = atlas.list.map(route => `https://${host}/${route}`).filter(Boolean)
+    if (images.length) return { platform: '快手', title, author, cover, duration: 0, pageUrl: finalUrl, video: null, images }
+  }
+
+  const vurl = photo.mainMvUrls?.[0]?.url || ''
+  if (!vurl) throw new Error('未取到快手视频直链')
+  const video = { url: vurl, headers: { 'User-Agent': MOBILE_UA, Referer: 'https://v.kuaishou.com/' } }
+  return { platform: '快手', title, author, cover, duration, pageUrl: finalUrl, video, images: null }
+}
+
+/* ───────────── 发送 ───────────── */
+
+// 不发视频本体时给用户一个可点链接：B站 CDN 直链需 Referer 不便打开，故给页面链接；其余给视频直链
+function pickUserLink(r) {
+  if (r.platform === 'B站') return r.pageUrl || ''
+  return r.video?.url || r.pageUrl || ''
+}
+
+function buildHeader(r) {
+  return [
+    `📺 ${r.platform}解析`,
+    r.title ? `\n📝 ${r.title}` : '',
+    r.author ? `\n👤 ${r.author}` : '',
+    r.duration ? `\n⏱️ ${fmtDur(r.duration)}` : '',
+  ].join('')
+}
+
+// 从视频抽 BGM，发语音条 + mp3 文件
+async function sendBgmFromVideo(e, r, videoFile) {
+  const mp3 = await extractAudio(videoFile)
+  if (!mp3) { await e.reply('背景音乐提取失败（可能该视频没有音轨）'); return }
+  // 语音条
+  try { await e.reply(segment.record(path.resolve(mp3))) }
+  catch (err) { logger.warn(`[短视频解析] BGM 语音发送失败：${err?.message || err}`) }
+  // mp3 文件（用曲名/标题命名）
+  let named = mp3
+  try {
+    const base = (r.bgmTitle || r.title || `${r.platform}_BGM`).replace(/[\\/:*?"<>|\r\n]/g, '_').slice(0, 40) || 'BGM'
+    named = path.join(TMP_DIR, `${base}.mp3`)
+    if (named !== mp3) fs.copyFileSync(mp3, named)
+    const target = e.isGroup ? e.group : e.friend
+    const sendFile = e.isGroup ? (e.group.sendFile || e.group.fs?.upload) : e.friend.sendFile
+    if (sendFile) await sendFile.call(target, path.resolve(named))
+  } catch (err) {
+    logger.warn(`[短视频解析] BGM 文件发送失败：${err?.message || err}`)
+  } finally {
+    fs.unlink(mp3, () => {})
+    if (named !== mp3) fs.unlink(named, () => {})
+  }
+}
+
+async function sendResult(e, r) {
+  const c = cfg()
+  const header = buildHeader(r)
+
+  // 图文笔记 → 标题 + 图片
+  if (r.images?.length) {
+    await e.reply(header, true)
+    await e.reply(r.images.slice(0, 12).map(u => segment.image(u)))
+    return
+  }
+
+  const cover = r.cover ? segment.image(r.cover) : null
+  const maxMB = Number(c.maxSize) || 100
+
+  // 判断是否「不发视频本体」，并给出原因
+  let reason = ''
+  if (!r.video) reason = '未取到视频'
+  else if (c.sendVideo === false) reason = '已关闭视频发送'
+  else if (r.video.url) {
+    const overDur = r.duration && c.maxDuration && r.duration > Number(c.maxDuration)
+    const sizeMB = r.video.size ? r.video.size / 1048576 : 0
+    if (overDur) reason = '视频时长超限'
+    else if (sizeMB && sizeMB > maxMB) reason = '视频体积超限'
+  }
+
+  // 超限/关闭/取不到本体 → 标题 + 封面 + 直链
+  if (reason) {
+    const link = pickUserLink(r)
+    const tip = link ? `\n（${reason}，直接甩直链👇）` : `\n（${reason}）`
+    await e.reply([header, tip, cover ? '\n' : '', cover, link ? `\n🔗 ${link}` : ''].filter(Boolean), true)
+    return
+  }
+
+  // 标题 + 封面，再单独发视频
+  await e.reply([header, cover ? '\n' : '', cover].filter(Boolean), true)
+
+  let localFile = null
+  try {
+    ensureTmp()
+    localFile = path.join(TMP_DIR, `v_${Date.now()}_${Math.floor(Math.random() * 1e6)}.mp4`)
+    // downloadToFile 内部按 maxMB 卡 content-length，超限会抛错 → 落到 catch 甩直链
+    await downloadToFile(r.video.url, r.video.headers || {}, localFile, maxMB)
+    await e.reply(segment.video(path.resolve(localFile)))
+    // 背景音乐（默认关，锅巴可开）
+    if (c.sendBgm) await sendBgmFromVideo(e, r, localFile)
+  } catch (err) {
+    logger.error(`[短视频解析] 发送视频失败：${err?.message || err}`)
+    // 下载超限 / QQ 拒收大视频等：兜底甩直链
+    const link = pickUserLink(r)
+    await e.reply(link ? `视频体积过大或发送失败，直接甩直链👇\n🔗 ${link}` : `视频发送失败：${err?.message || err}`)
+  } finally {
+    if (localFile) fs.unlink(localFile, () => {})
+  }
+}
+
+/* ───────────── 路由 ───────────── */
+
+async function parse(platform, url) {
+  if (platform === 'bili') return parseBili(url)
+  if (platform === 'douyin') return parseDouyin(url)
+  if (platform === 'kuaishou') return parseKuaishou(url)
+  throw new Error('不支持的平台')
+}
+
+/* ───────────── 插件主体 ───────────── */
+
+const cdMap = {}           // 解析 CD：key → 到期时间戳
+const recent = new Set()   // 简单去重，避免同一条消息重复触发
+
+export class videoParser extends plugin {
+  constructor() {
+    super({
+      name: 'AQ：短视频解析',
+      dsc: '抖音/快手/B站 链接解析',
+      event: 'message',
+      priority: 4000,
+    })
+  }
+
+  // 被动钩子：对每条消息都会先于 rule 执行
+  async accept(e) {
+    if (e.post_type !== 'message') return
+    const c = cfg()
+    if (c.enable === false) return
+
+    const hit = detect(collectText(e))
+    if (!hit) return
+
+    // 平台分开关
+    if (c[PLATFORM_SWITCH[hit.platform]] === false) return
+
+    // 去重（同一条消息只处理一次）
+    const mid = e.message_id || `${e.user_id}:${e.raw_message}`
+    if (recent.has(mid)) return
+    recent.add(mid)
+    setTimeout(() => recent.delete(mid), 60000)
+
+    // CD（按群/私聊维度）
+    if (c.isCD && !e.isMaster) {
+      const key = e.isGroup ? `g${e.group_id}` : `u${e.user_id}`
+      const now = Date.now()
+      if (cdMap[key] && cdMap[key] > now) return  // 冷却中，静默跳过
+      cdMap[key] = now + Math.max(1, Number(c.CD) || 10) * 1000
+    }
+
+    try {
+      await e.reply(`🔍 正在解析${PLATFORM_CN[hit.platform]}链接…`, true, { recallMsg: 8 })
+      const r = await parse(hit.platform, hit.url)
+      await sendResult(e, r)
+    } catch (err) {
+      logger.error(`[短视频解析] ${hit.platform} 失败：`, err)
+      await e.reply(`解析失败：${err?.message || err}`)
+    }
+    // 解析类消息到此为止，阻断后续插件
+    return 'return'
+  }
+}
