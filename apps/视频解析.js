@@ -3,7 +3,7 @@ import setting from '../utils/setting.js'
 import fs from 'node:fs'
 import path from 'node:path'
 import { execFile } from 'node:child_process'
-import { Readable } from 'node:stream'
+import { Readable, Transform } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 
 /*
@@ -80,18 +80,39 @@ function detect(text) {
 const PLATFORM_CN = { bili: 'B站', douyin: '抖音', kuaishou: '快手' }
 const PLATFORM_SWITCH = { bili: 'parseBili', douyin: 'parseDouyin', kuaishou: 'parseKuaishou' }
 
-// 流式下载到本地文件（带自定义请求头，B站直链必须带 Referer），可按 maxMB 卡体积
+// 流式下载到本地文件（带自定义请求头，B站直链建议带 Referer），按 maxMB 卡体积
 async function downloadToFile(url, headers, dest, maxMB) {
   const res = await fetch(url, { headers: { 'User-Agent': UA, ...headers }, redirect: 'follow' })
   if (!res.ok || !res.body) throw new Error(`下载失败 HTTP ${res.status}`)
+  const limit = maxMB ? maxMB * 1048576 : 0
   const len = Number(res.headers.get('content-length') || 0)
-  if (maxMB && len && len / 1048576 > maxMB) {
+  // 有 content-length 时先按它快速拒掉，连下都不下
+  if (limit && len && len > limit) {
     try { await res.body.cancel() } catch {}
     throw new Error(`视频体积 ${(len / 1048576).toFixed(1)}MB 超过上限 ${maxMB}MB`)
   }
-  await pipeline(Readable.fromWeb(res.body), fs.createWriteStream(dest))
+  // 没有 content-length（分块传输）也要兜底：边下边数字节，一超限立刻中止，
+  // 避免把超大文件整个落到磁盘、再喂给 NapCat 撑爆内存（OOM「已杀死」）
+  let got = 0
+  const guard = new Transform({
+    transform(chunk, _enc, cb) {
+      got += chunk.length
+      if (limit && got > limit) return cb(new Error(`视频体积超过上限 ${maxMB}MB`))
+      cb(null, chunk)
+    },
+  })
+  try {
+    await pipeline(Readable.fromWeb(res.body), guard, fs.createWriteStream(dest))
+  } catch (err) {
+    fs.unlink(dest, () => {})   // 中止后清掉半截文件
+    throw err
+  }
   return dest
 }
+
+// 本机文件统一用 file:// URI 交给适配器：NapCat 直接从磁盘读，
+// 不在云崽进程里把整文件 base64 进内存，大幅降低发大视频时的内存峰值
+const fileUri = (p) => 'file://' + path.resolve(p)
 
 // 用 ffmpeg 从视频里抽出音轨为 mp3（背景音乐），失败返回 null
 function runFFmpeg(args, timeout = 120000) {
@@ -275,7 +296,7 @@ async function sendBgmFromVideo(e, r, videoFile) {
   const mp3 = await extractAudio(videoFile)
   if (!mp3) { await e.reply('背景音乐提取失败（可能该视频没有音轨）'); return }
   // 语音条
-  try { await e.reply(segment.record(path.resolve(mp3))) }
+  try { await e.reply(segment.record(fileUri(mp3))) }
   catch (err) { logger.warn(`[短视频解析] BGM 语音发送失败：${err?.message || err}`) }
   // mp3 文件（用曲名/标题命名）
   let named = mp3
@@ -336,7 +357,7 @@ async function sendResult(e, r) {
     localFile = path.join(TMP_DIR, `v_${Date.now()}_${Math.floor(Math.random() * 1e6)}.mp4`)
     // downloadToFile 内部按 maxMB 卡 content-length，超限会抛错 → 落到 catch 甩直链
     await downloadToFile(r.video.url, r.video.headers || {}, localFile, maxMB)
-    await e.reply(segment.video(path.resolve(localFile)))
+    await e.reply(segment.video(fileUri(localFile)))
     // 背景音乐（默认关，锅巴可开）
     if (c.sendBgm) await sendBgmFromVideo(e, r, localFile)
   } catch (err) {
