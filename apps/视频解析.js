@@ -215,10 +215,20 @@ async function parseDouyin(rawUrl) {
   const pageUrl = `https://www.douyin.com/video/${id}`
   const bgmTitle = item.music?.title || ''
 
-  // 图文笔记：images 非空
+  // 图文/图集笔记：images 非空。逐张区分——自带小视频的是「实况/动图」，按视频发；其余发静态图
   if (Array.isArray(item.images) && item.images.length) {
-    const images = item.images.map(im => im?.url_list?.[im.url_list.length - 1] || im?.url_list?.[0]).filter(Boolean)
-    if (images.length) return { platform: '抖音', title, author, cover, duration: 0, pageUrl, video: null, images }
+    const images = []
+    const liveVideos = []
+    for (const im of item.images) {
+      const v = im?.video?.play_addr?.url_list?.[0] || ''
+      if (v) {
+        liveVideos.push({ url: v.replace('playwm', 'play'), headers: { 'User-Agent': MOBILE_UA, Referer: 'https://www.douyin.com' } })
+      } else {
+        const u = im?.url_list?.[im.url_list.length - 1] || im?.url_list?.[0]
+        if (u) images.push(u)
+      }
+    }
+    if (images.length || liveVideos.length) return { platform: '抖音', title, author, cover, duration: 0, pageUrl, video: null, images, liveVideos }
   }
 
   const duration = Math.round((item.video?.duration || 0) / 1000)
@@ -319,10 +329,27 @@ async function sendResult(e, r) {
   const c = cfg()
   const header = buildHeader(r)
 
-  // 图文笔记 → 标题 + 图片
-  if (r.images?.length) {
+  // 图文/图集笔记 → 标题 + 图片；其中「实况/动图」那几张单独按视频发
+  if (r.images?.length || r.liveVideos?.length) {
     await e.reply(header, true)
-    await e.reply(r.images.slice(0, 12).map(u => segment.image(u)))
+    if (r.images?.length) await e.reply(r.images.slice(0, 12).map(u => segment.image(u)))
+    if (r.liveVideos?.length) {
+      const maxMB = Number(c.maxSize) || 100
+      for (const lv of r.liveVideos) {
+        let f = null
+        try {
+          ensureTmp()
+          f = path.join(TMP_DIR, `v_${Date.now()}_${Math.floor(Math.random() * 1e6)}.mp4`)
+          await downloadToFile(lv.url, lv.headers || {}, f, maxMB)
+          await e.reply(segment.video(fileUri(f)))
+        } catch (err) {
+          logger.error(`[短视频解析] 实况/动图发送失败：${err?.message || err}`)
+          await e.reply(lv.url ? `有张动图发送失败，直接甩直链👇\n🔗 ${lv.url}` : '动图发送失败')
+        } finally {
+          if (f) fs.unlink(f, () => {})
+        }
+      }
+    }
     return
   }
 
