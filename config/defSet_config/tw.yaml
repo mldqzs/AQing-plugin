@@ -1,0 +1,25 @@
+# 图文解析（小红书 / 小黑盒）配置
+# 总开关
+enable: true
+# 小红书解析开关
+xhsEnable: true
+# 小黑盒解析开关
+heyboxEnable: true
+# 小红书 cookie：公开笔记一般免 cookie；遇到登录态内容/视频拉不到时，填整段 cookie
+xhsCookie: ''
+# 小黑盒 cookie：强烈建议填「已登录账号」的整段 cookie。
+# 小黑盒对服务器/云主机 IP 风控较严，匿名访问可能频繁触发验证码——届时只发「标题+简介+封面+链接」预览卡片；
+# 填登录 cookie 能显著提升拿到全文/多图的成功率。
+heyboxCookie: ''
+# 多图最多发送张数
+maxImg: 18
+# 视频笔记：是否发送视频本体（关闭则只发封面+直链）
+sendVideo: true
+# 视频体积上限(MB)，超限改发直链
+maxSize: 100
+# 视频时长上限(秒)，0 为不限，超限改发直链
+maxDuration: 0
+# 解析 CD 开关
+isCD: false
+# CD 秒数
+CD: 10

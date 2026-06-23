@@ -49,7 +49,7 @@ export class example extends plugin {
       return false
     }
 
-    let user_id = e.at || e.msg.replace(/#增加主人/, '').trim() || e.user_id
+    let user_id = e.at || e.msg.replace(/^#增加主人/, '').trim() || e.user_id
     user_id = Number(user_id) || String(user_id)
 
     const cfg = new Y('./config/config/other.yaml')
@@ -65,7 +65,7 @@ export class example extends plugin {
       return false
     }
 
-    let user_id = e.at || e.msg.replace(/#|删除主人/g, '').trim()
+    let user_id = e.at || e.msg.replace(/^#删除主人/, '').trim()
     user_id = Number(user_id) || String(user_id)
 
     if (!user_id) return await e.reply('未识别到目标用户，请 @ 对方或附带其 QQ 号。')
@@ -94,7 +94,7 @@ export class example extends plugin {
   }
 
   async st (e) {
-    let user_id = e.at || e.msg.replace(/#设置绝对主人/, '').trim() || e.user_id
+    let user_id = e.at || e.msg.replace(/^#设置绝对主人/, '').trim() || e.user_id
     user_id = Number(user_id) || String(user_id)
 
     // 为他人设置绝对主人：仅现有绝对主人可操作
@@ -139,7 +139,7 @@ export class example extends plugin {
       return false
     }
 
-    let user_id = e.at || e.msg.replace(/#|删除绝对主人/g, '').trim()
+    let user_id = e.at || e.msg.replace(/^#删除绝对主人/, '').trim()
     user_id = Number(user_id) || String(user_id)
 
     if (!user_id) return await e.reply('未识别到目标用户，请 @ 对方或附带其 QQ 号。')
