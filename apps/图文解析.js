@@ -1,7 +1,7 @@
 import plugin from '../../../lib/plugins/plugin.js'
 import setting from '../utils/setting.js'
 import common from '../../../lib/common/common.js'
-import { parseBili } from './视频解析.js'
+import { parseBili } from '../utils/bili.js'
 import fs from 'node:fs'
 import path from 'node:path'
 import { Readable, Transform } from 'node:stream'
