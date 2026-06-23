@@ -1,6 +1,7 @@
 import plugin from '../../../lib/plugins/plugin.js'
 import setting from '../utils/setting.js'
 import common from '../../../lib/common/common.js'
+import { parseBili } from './视频解析.js'
 import fs from 'node:fs'
 import path from 'node:path'
 import { Readable, Transform } from 'node:stream'
@@ -35,6 +36,61 @@ function fmtDur(sec) {
 
 // 本机文件统一用 file:// 交给适配器，NapCat 直接从磁盘读，避免把大文件 base64 进内存
 const fileUri = (p) => 'file://' + path.resolve(p)
+
+/* ── HTML 富文本工具（小黑盒文章正文是一段 html，需要剥标签取纯文/图/嵌入视频）── */
+function decodeEntities(s) {
+  return String(s)
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, '&')
+}
+// 剥掉 html 标签取纯文本（块级标签转换行）
+function stripHtml(html) {
+  let s = String(html)
+  s = s.replace(/<\s*(script|style)[^>]*>[\s\S]*?<\/\s*\1\s*>/gi, '')
+  s = s.replace(/<\s*br\s*\/?>/gi, '\n')
+  s = s.replace(/<\/\s*(p|div|li|h[1-6])\s*>/gi, '\n')
+  s = s.replace(/<[^>]+>/g, '')
+  s = decodeEntities(s)
+  return s.replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim()
+}
+// 从 html 抽嵌入视频：B站 iframe → 还原 bilibili 链接；其它 iframe/<video> 保留直链
+function extractEmbedVideos(html) {
+  const out = []
+  let m
+  const reIframe = /<iframe[^>]*\bsrc=["']([^"']+)["'][^>]*>/gi
+  while ((m = reIframe.exec(html))) {
+    let src = decodeEntities(m[1])
+    if (src.startsWith('//')) src = 'https:' + src
+    const bv = src.match(/bvid=(BV[0-9A-Za-z]{10})/i)
+    const av = src.match(/[?&]aid=(\d+)/i)
+    if (/player\.bilibili\.com/i.test(src) && (bv || av)) {
+      out.push({ kind: 'bili', url: bv ? `https://www.bilibili.com/video/${bv[1]}` : `https://www.bilibili.com/video/av${av[1]}` })
+    } else {
+      out.push({ kind: 'iframe', url: src })
+    }
+  }
+  const reVideo = /<video[^>]*\bsrc=["']([^"']+)["'][^>]*>/gi
+  while ((m = reVideo.exec(html))) {
+    let src = decodeEntities(m[1])
+    if (src.startsWith('//')) src = 'https:' + src
+    if (src) out.push({ kind: 'video', url: src })
+  }
+  return out
+}
+// 从 html 抽真实图片（排除小黑盒的 mention-game 游戏卡，无真实 url）
+function extractHtmlImgs(html) {
+  const out = []
+  const re = /<img\b[^>]*>/gi
+  let m
+  while ((m = re.exec(html))) {
+    const tag = m[0]
+    if (/class=["'][^"']*mention-game/i.test(tag)) continue
+    const u = (tag.match(/data-original=["']([^"']+)["']/i) || tag.match(/\bsrc=["']([^"']+)["']/i))?.[1]
+    if (u) out.push(decodeEntities(u))
+  }
+  return out
+}
 
 // 把一条消息里所有可能含链接的文本汇总（纯文本 + JSON/XML 卡片分享）
 function collectText(e) {
@@ -261,30 +317,54 @@ async function parseHeybox(rawUrl) {
   const pageUrl = `https://www.xiaoheihe.cn/community/${linkId}`
   const stripCube = (s) => String(s || '').replace(/\[cube_[^\]]+\]/g, '')
 
-  // body.text 可能是「内容块数组的 JSON 字符串」（图文帖），也可能是纯文本（视频帖等）
+  // body.text 可能是「内容块数组的 JSON 字符串」（图文/文章帖），也可能是纯文本（部分视频帖）
   let blocks = null
   try { const p = JSON.parse(body.text); if (Array.isArray(p)) blocks = p } catch {}
 
   if (blocks) {
     const texts = []
-    const images = []
+    const imgBlocks = []
+    let embeds = []
+    let htmlImgs = []
     for (const b of blocks) {
-      if (b?.type === 'text' && b.text) texts.push(stripCube(b.text))
-      else if (b?.type === 'img' && b.url) images.push(b.url)
+      // 独立图片块：直接是 CDN 直链，最干净
+      if (b?.type === 'img' && b.url) { imgBlocks.push(b.url); continue }
+      const t = b?.text || ''
+      // 富文本块：type 可能是 'html'，正文+图片+嵌入视频都塞在这一段 html 里
+      if (/<[a-z!/]/i.test(t)) {
+        const plain = stripHtml(t)
+        if (plain) texts.push(stripCube(plain))
+        embeds = embeds.concat(extractEmbedVideos(t))
+        htmlImgs = htmlImgs.concat(extractHtmlImgs(t))
+      } else if (t.trim()) {
+        // 老格式纯文本块（type 'text'）
+        texts.push(stripCube(t.trim()))
+      }
     }
+    // 优先用独立 img 块（带缩放参数、更稳），没有再退回从 html 里抽的图
+    const images = imgBlocks.length ? imgBlocks : htmlImgs
     const desc = texts.join('\n').trim()
     const cover = images[0] || info.thumb || ''
+    const biliUrls = embeds.filter(v => v.kind === 'bili').map(v => v.url)
+    const extEmbeds = embeds.filter(v => v.kind !== 'bili').map(v => v.url)
+    // 有图/有正文/有视频都用「聊天记录」收纳，正文不会被吞
+    const hasContent = images.length || desc || biliUrls.length || extEmbeds.length
     return {
-      platform: '小黑盒', type: images.length ? 'normal' : 'card',
-      title, author, desc, cover, pageUrl, images, liveVideos: [], video: null,
+      platform: '小黑盒', type: hasContent ? 'normal' : 'card',
+      title, author, desc, cover, pageUrl, images, liveVideos: [],
+      video: null, biliUrls, extEmbeds,
     }
   }
 
-  // 纯文本（含视频帖）：小黑盒视频本体走风控接口，免登录拿不到，发标题+正文+封面+链接卡片
+  // 纯文本（含部分视频帖）：先尝试从中抽 B站等嵌入视频，再发标题+正文+封面+链接
+  const plain = body.text || info.description || ''
+  const embeds = /<[a-z!/]/i.test(plain) ? extractEmbedVideos(plain) : []
   return {
     platform: '小黑盒', type: 'card',
-    title, author, desc: stripCube(body.text || info.description || ''),
+    title, author, desc: stripCube(/<[a-z!/]/i.test(plain) ? stripHtml(plain) : plain),
     cover: info.thumb || '', pageUrl, images: [], liveVideos: [], video: null,
+    biliUrls: embeds.filter(v => v.kind === 'bili').map(v => v.url),
+    extEmbeds: embeds.filter(v => v.kind !== 'bili').map(v => v.url),
   }
 }
 
@@ -311,6 +391,29 @@ async function sendOneVideo(e, item, maxMB, label = '视频') {
     await e.reply(item.url ? `${label}发送失败，直接甩直链👇\n🔗 ${item.url}` : `${label}发送失败`)
   } finally {
     if (f) fs.unlink(f, () => {})
+  }
+}
+
+// 内容里嵌的视频：B站走本插件 B站解析下载发本体（失败甩链接）；其它站点只甩可点直链
+async function sendEmbeds(e, r, maxMB) {
+  const sendVideo = cfg().sendVideo !== false
+  for (const url of r.biliUrls || []) {
+    if (sendVideo) {
+      try {
+        const bili = await parseBili(url)
+        if (bili?.video) {
+          await e.reply(`🎬 文章内嵌 B站视频：${bili.title || ''}`.trim())
+          await sendOneVideo(e, bili.video, maxMB, 'B站视频')
+          continue
+        }
+      } catch (err) {
+        logger.warn(`[图文解析] 内嵌B站解析失败：${err?.message || err}`)
+      }
+    }
+    await e.reply(`🎬 文章内嵌 B站视频👇\n🔗 ${url}`)
+  }
+  for (const url of r.extEmbeds || []) {
+    await e.reply(`🎬 文章内嵌视频👇\n🔗 ${url}`)
   }
 }
 
@@ -348,6 +451,7 @@ async function sendResult(e, r) {
     const cover = r.cover ? segment.image(r.cover) : null
     const desc = r.desc ? `\n\n${r.desc.slice(0, 300)}` : ''
     await e.reply([header, desc, cover ? '\n' : '', cover, r.pageUrl ? `\n🔗 ${r.pageUrl}` : ''].filter(Boolean), true)
+    await sendEmbeds(e, r, maxMB)
     return
   }
 
@@ -371,6 +475,8 @@ async function sendResult(e, r) {
   if (r.liveVideos?.length) {
     for (const lv of r.liveVideos) await sendOneVideo(e, lv, maxMB, '动图')
   }
+  // 文章内嵌视频（B站等）：在图文之后单独发
+  await sendEmbeds(e, r, maxMB)
 }
 
 /* ───────────── 插件主体 ───────────── */

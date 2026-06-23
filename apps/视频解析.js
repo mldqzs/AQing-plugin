@@ -146,7 +146,7 @@ async function getBuvid() {
   return ''
 }
 
-async function parseBili(rawUrl) {
+export async function parseBili(rawUrl) {
   // 还原 b23.tv / bili2233.cn 短链
   let url = rawUrl
   if (/b23\.tv|bili2233\.cn/i.test(url)) {
