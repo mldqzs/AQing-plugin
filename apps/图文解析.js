@@ -17,6 +17,8 @@ import { pipeline } from 'node:stream/promises'
  */
 
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36'
+// 小红书 app_share 短链用 PC UA 会被踢到 /404，移动端 UA 才能正常拿到笔记页数据
+const MOBILE_UA = 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1'
 const TMP_DIR = './data/aq/tw'
 
 const cfg = () => setting.getConfig('tw') || {}
@@ -164,18 +166,28 @@ function pickStreamUrl(stream) {
   return ''
 }
 
+// 逐张取图：PC 结构用 urlDefault，移动端结构用 url / infoList
+const xhsImgUrl = (im) => im?.urlDefault || im?.url || im?.infoList?.[im.infoList.length - 1]?.url || im?.infoList?.[0]?.url || ''
+
 async function parseXhs(rawUrl) {
   const c = cfg()
-  const headers = { 'User-Agent': UA, Referer: 'https://www.xiaohongshu.com/' }
+  // 用移动端 UA：app_share（xhslink.com/o/…）短链用 PC UA 会被小红书踢到 /404，移动端正常
+  const headers = { 'User-Agent': MOBILE_UA, Referer: 'https://www.xiaohongshu.com/' }
   if (c.xhsCookie) headers.Cookie = c.xhsCookie
 
-  // 短链先还原成带 xsec_token 的笔记页
+  // 短链先跟随跳转，拿到带 noteId + xsec_token 的落地 URL（即便落到 /404，参数仍在 query 里）
   let url = rawUrl
   if (/xhslink\.com/i.test(url)) {
     try { url = (await fetch(url, { headers, redirect: 'follow' })).url } catch {}
   }
+  // 从 URL 抽 noteId(24位hex) 和 xsec_token，重建标准 explore 笔记页再请求（绕开 app_share 落地的 /404）
+  const noteId = (url.match(/(?:explore\/|discovery\/item\/|noteId=)([0-9a-fA-F]{24})/) || url.match(/([0-9a-fA-F]{24})/))?.[1]
+  const token = (url.match(/xsec_token=([^&]+)/) || [])[1] || ''
+  const pageUrl = noteId
+    ? `https://www.xiaohongshu.com/explore/${noteId}${token ? `?xsec_token=${token}&xsec_source=pc_share` : ''}`
+    : url
 
-  const html = await (await fetch(url, { headers, redirect: 'follow' })).text()
+  const html = await (await fetch(pageUrl, { headers, redirect: 'follow' })).text()
   const start = html.indexOf('window.__INITIAL_STATE__=')
   if (start < 0) throw new Error('小红书页面结构变化或需要登录（可在配置填 cookie）')
   let raw = html.slice(start + 'window.__INITIAL_STATE__='.length)
@@ -185,38 +197,48 @@ async function parseXhs(rawUrl) {
   let data
   try { data = JSON.parse(raw) } catch { throw new Error('小红书页面数据解析失败') }
 
-  const map = data?.note?.noteDetailMap || {}
-  const id = Object.keys(map).find(k => map[k]?.note)
-  const note = id ? map[id].note : null
+  // 兼容两套结构：PC 端 note.noteDetailMap[id].note；移动端 noteData.data.noteData
+  let note = null
+  let id = noteId
+  const map = data?.note?.noteDetailMap
+  if (map && typeof map === 'object') {
+    const k = Object.keys(map).find(x => map[x]?.note)
+    if (k) { note = map[k].note; id = k }
+  }
+  if (!note && data?.noteData?.data?.noteData) {
+    note = data.noteData.data.noteData
+    id = note.noteId || id
+  }
   if (!note) throw new Error('小红书笔记获取失败（可能已删除、私密，或 xsec_token 失效，重新复制分享链接）')
 
   const title = note.title || ''
   const desc = note.desc || ''
-  const author = note.user?.nickname || ''
+  const author = note.user?.nickname || note.user?.nickName || ''
   const imageList = Array.isArray(note.imageList) ? note.imageList : []
-  const cover = imageList[0]?.urlDefault || ''
-  const pageUrl = `https://www.xiaohongshu.com/discovery/item/${id}`
+  const cover = note.cover?.urlDefault || note.cover?.url || xhsImgUrl(imageList[0])
+  const pageOut = id ? `https://www.xiaohongshu.com/explore/${id}` : pageUrl
+  const vhead = { 'User-Agent': MOBILE_UA, Referer: 'https://www.xiaohongshu.com/' }
 
   // 视频笔记
   if (note.type === 'video' && note.video) {
     const vurl = pickStreamUrl(note.video?.media?.stream)
     const duration = Math.round(note.video?.capa?.duration || 0)
-    const video = vurl ? { url: vurl, headers: { 'User-Agent': UA, Referer: 'https://www.xiaohongshu.com/' } } : null
-    return { platform: '小红书', type: 'video', title, desc, author, cover, duration, pageUrl, video, images: null, liveVideos: [] }
+    const video = vurl ? { url: vurl, headers: vhead } : null
+    return { platform: '小红书', type: 'video', title, desc, author, cover, duration, pageUrl: pageOut, video, images: null, liveVideos: [] }
   }
 
   // 图文/多图笔记：逐张取图；带 livePhoto 的额外取实况小视频
   const images = []
   const liveVideos = []
   for (const im of imageList) {
-    const u = im?.urlDefault || im?.url || ''
+    const u = xhsImgUrl(im)
     if (u) images.push(u)
     if (im?.livePhoto) {
       const lv = pickStreamUrl(im?.stream)
-      if (lv) liveVideos.push({ url: lv, headers: { 'User-Agent': UA, Referer: 'https://www.xiaohongshu.com/' } })
+      if (lv) liveVideos.push({ url: lv, headers: vhead })
     }
   }
-  return { platform: '小红书', type: 'normal', title, desc, author, cover, duration: 0, pageUrl, video: null, images, liveVideos }
+  return { platform: '小红书', type: 'normal', title, desc, author, cover, duration: 0, pageUrl: pageOut, video: null, images, liveVideos }
 }
 
 /* ───────────── 小黑盒：app 接口 hkey 签名 + link/tree 自解析 ───────────── */
@@ -471,9 +493,11 @@ async function sendResult(e, r) {
     if (imgs.length) await e.reply(imgs.map(u => segment.image(u)))
   }
 
-  // 实况/动图：在图文之后单独按视频发
-  if (r.liveVideos?.length) {
-    for (const lv of r.liveVideos) await sendOneVideo(e, lv, maxMB, '动图')
+  // 实况/动图：在图文之后单独按视频发（小红书可能整篇都是实况图，按 maxLive 限量，避免刷屏）
+  if (r.liveVideos?.length && c.sendVideo !== false) {
+    const maxLive = Number(c.maxLive) || 6
+    const lives = r.liveVideos.slice(0, maxLive)
+    for (const lv of lives) await sendOneVideo(e, lv, maxMB, '动图')
   }
   // 文章内嵌视频（B站等）：在图文之后单独发
   await sendEmbeds(e, r, maxMB)

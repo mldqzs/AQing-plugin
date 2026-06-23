@@ -301,6 +301,13 @@ export function supportGuoba() {
           componentProps: { min: 1, max: 50, placeholder: '默认 18' },
         },
         {
+          field: 'tw.maxLive',
+          label: '实况图/动图最多条数',
+          bottomHelpMessage: '小红书有的笔记整篇都是实况图，限量避免刷屏，默认 6',
+          component: 'InputNumber',
+          componentProps: { min: 0, max: 30, placeholder: '默认 6' },
+        },
+        {
           field: 'tw.sendVideo',
           label: '发送视频本体',
           bottomHelpMessage: '视频笔记是否发送视频本体；关闭则只发封面+直链',
