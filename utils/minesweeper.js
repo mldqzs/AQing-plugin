@@ -142,6 +142,32 @@ export function parseCoord(g, raw) {
 }
 
 /**
+ * 从一句话里抓出所有坐标，支持「挖 A1 B2 C3」「A1,B2」「A1、B2」等连发写法。
+ * 返回去重后的 [{r,c}, ...]，只保留落在盘内的合法坐标，按出现顺序。
+ */
+export function parseCoords(g, raw) {
+  if (!raw) return []
+  const s = String(raw).toUpperCase()
+  const out = []
+  const seen = new Set()
+  // 一个坐标 = 字母+数字 或 数字+字母
+  const re = /([A-L])\s*(\d{1,2})|(\d{1,2})\s*([A-L])/g
+  let m
+  while ((m = re.exec(s))) {
+    const letter = m[1] || m[4]
+    const num = m[2] || m[3]
+    const c = COL_LETTERS.indexOf(letter)
+    const r = parseInt(num, 10) - 1
+    if (!inBounds(g, r, c)) continue
+    const key = `${r},${c}`
+    if (seen.has(key)) continue
+    seen.add(key)
+    out.push({ r, c })
+  }
+  return out
+}
+
+/**
  * 翻开一格。返回 { ok, reason, opened, boom }
  * reason: 'invalid' | 'opened' | 'flagged' | 'over'
  */

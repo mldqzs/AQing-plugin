@@ -2,7 +2,7 @@ import plugin from '../../../lib/plugins/plugin.js'
 import puppeteer from '../../../lib/puppeteer/puppeteer.js'
 import {
   PRESETS, normDifficulty, colLabel,
-  createGame, dig, toggleFlag, parseCoord,
+  createGame, dig, toggleFlag, parseCoords,
   renderGrid, flagCount, addContribution
 } from '../utils/minesweeper.js'
 
@@ -32,8 +32,8 @@ export class saolei extends plugin {
         { reg: '^#?(我的扫雷|扫雷战绩|扫雷统计)$', fnc: 'myStat' },
         { reg: '^#?扫雷(认输|投降|退出|结束|放弃|重开|重置)$', fnc: 'giveup' },
         { reg: '^#?扫雷(简单|中等|困难|初级|中级|高级|新手|普通|地狱)?$', fnc: 'start' },
-        { reg: '^(挖|点|翻|开|挖开|点开)\\s*[A-La-l]?\\s*\\d{1,2}\\s*[A-La-l]?$', fnc: 'dig' },
-        { reg: '^(旗|标|标记|插旗|拔旗|取消旗|去旗)\\s*[A-La-l]?\\s*\\d{1,2}\\s*[A-La-l]?$', fnc: 'flag' }
+        { reg: '^(挖|点|翻|开|挖开|点开)\\s*([A-La-l]?\\s*\\d{1,2}\\s*[A-La-l]?[\\s,，、]*)+$', fnc: 'dig' },
+        { reg: '^(旗|标|标记|插旗|拔旗|取消旗|去旗)\\s*([A-La-l]?\\s*\\d{1,2}\\s*[A-La-l]?[\\s,，、]*)+$', fnc: 'flag' }
       ]
     })
   }
@@ -71,7 +71,7 @@ export class saolei extends plugin {
     const p = PRESETS[diff]
     await e.reply([
       `🎮 扫雷开局！难度【${diff}】 ${p.rows}×${p.cols}，${p.mines} 颗雷`,
-      `\n挖格：发「挖 B3」；插旗：发「旗 B3」（列字母+行数字）`,
+      `\n挖格：发「挖 B3」（连挖发「挖 A1 B2」）；插旗：发「旗 B3」`,
       `\n大家一起挖，通关 ${p.reward} 分按各人出力分；发「扫雷排名」看排行`
     ])
     await this.sendBoard(e, gid, g)
@@ -83,21 +83,23 @@ export class saolei extends plugin {
     const gid = scope(e)
     const g = await this.loadGame(gid)
     if (!g || g.status !== 'playing') return false // 没在玩就别抢话
-    const co = parseCoord(g, e.msg)
-    if (!co) { await e.reply('坐标看不懂，发「挖 B3」这种：列字母(A-L)+行数字'); return true }
+    const coords = parseCoords(g, e.msg)
+    if (!coords.length) { await e.reply('坐标看不懂，发「挖 B3」这种：列字母(A-L)+行数字，连挖发「挖 A1 B2」'); return true }
 
-    const r = dig(g, co.r, co.c)
-    if (!r.ok) {
-      const tip = { opened: '这格已经翻开啦', flagged: '这格插着旗，先「拔旗 ' + e.msg.replace(/[^A-La-l0-9]/g, '') + '」再挖', over: '这局已经结束了' }
-      await e.reply(tip[r.reason] || '挖不了这格')
-      return true
-    }
     const uid = String(e.user_id)
     const nm = e.sender?.card || e.sender?.nickname || uid
-    g.lastId = uid
-    g.lastName = nm
-    // 记录出力：这一下挖开的安全格都算给点的人（踩雷那下 opened 为 0）
-    addContribution(g, uid, nm, r.opened || 0)
+    let dugAny = false
+    // 依次挖，踩雷/通关就停下后面的坐标
+    for (const co of coords) {
+      if (g.status !== 'playing') break
+      const r = dig(g, co.r, co.c)
+      if (!r.ok) continue // 已翻开/插旗的格子自动跳过
+      dugAny = true
+      g.lastId = uid
+      g.lastName = nm
+      // 记录出力：这一下挖开的安全格都算给点的人（踩雷那下 opened 为 0）
+      addContribution(g, uid, nm, r.opened || 0)
+    }
 
     if (g.status === 'lost') {
       await this.recordResult(e, gid, g, false)
@@ -116,6 +118,7 @@ export class saolei extends plugin {
       await this.sendBoard(e, gid, g)
       return true
     }
+    if (!dugAny) { await e.reply('这些格子都翻开过或插着旗，没挖动~'); return true }
     await this.saveGame(gid, g)
     await this.sendBoard(e, gid, g)
     return true
@@ -126,13 +129,14 @@ export class saolei extends plugin {
     const gid = scope(e)
     const g = await this.loadGame(gid)
     if (!g || g.status !== 'playing') return false
-    const co = parseCoord(g, e.msg)
-    if (!co) { await e.reply('坐标看不懂，发「旗 B3」这种'); return true }
-    const r = toggleFlag(g, co.r, co.c)
-    if (!r.ok) {
-      await e.reply(r.reason === 'opened' ? '这格已经翻开了，插不了旗' : '这里插不了旗')
-      return true
+    const coords = parseCoords(g, e.msg)
+    if (!coords.length) { await e.reply('坐标看不懂，发「旗 B3」这种，连标发「旗 A1 B2」'); return true }
+    let changed = false
+    for (const co of coords) {
+      const r = toggleFlag(g, co.r, co.c)
+      if (r.ok) changed = true
     }
+    if (!changed) { await e.reply('这些格子要么翻开了、要么不在盘里，没法插旗'); return true }
     await this.saveGame(gid, g)
     await this.sendBoard(e, gid, g)
     return true
@@ -269,8 +273,8 @@ export class saolei extends plugin {
     await e.reply([
       '🎮 扫雷玩法',
       '\n· 开始：发「扫雷」（默认中等），或「扫雷简单/中等/困难」',
-      '\n· 挖格：发「挖 B3」——列用字母 A-L，行用数字',
-      '\n· 插旗/拔旗：发「旗 B3」标记你怀疑的雷',
+      '\n· 挖格：发「挖 B3」——列用字母 A-L，行用数字；一次连挖多格发「挖 A1 B2 C3」',
+      '\n· 插旗/拔旗：发「旗 B3」标记你怀疑的雷（也可「旗 A1 B2」连标）',
       '\n· 认输：发「扫雷认输」结束本局',
       '\n· 一局棋全群共用，开局后大家都能一起挖，把非雷格全翻开就通关',
       '\n',
