@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="zh">
+
+<head>
+  <meta charset="UTF-8">
+  <title>扫雷</title>
+  <style>
+    @font-face {
+      font-family: "tttgbnumber";
+      src: url("{{pluResPath}}/plugins/AQing-plugin/resources/font/tttgbnumber.ttf");
+      font-weight: normal;
+      font-style: normal;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      font-family: 'tttgbnumber', -apple-system, "PingFang SC", "Microsoft YaHei", "Segoe UI Emoji", sans-serif;
+    }
+
+    body {
+      position: relative;
+      padding: 26px;
+      width: max-content;
+      background:
+        linear-gradient(160deg, rgba(120, 170, 255, 0.32) 0%, rgba(180, 150, 240, 0.24) 50%, rgba(255, 180, 220, 0.30) 100%),
+        url("{{pluResPath}}/plugins/AQing-plugin/resources/html/help/img/bg-miku.png");
+      background-size: cover;
+      background-position: center top;
+    }
+
+    .container {
+      position: relative;
+      background: rgba(255, 255, 255, 0.16);
+      border-radius: 30px;
+      padding: 24px 26px 26px;
+      border: 1.5px solid rgba(255, 255, 255, 0.5);
+      box-shadow: 0 10px 30px rgba(80, 90, 160, 0.25);
+      backdrop-filter: blur(6px);
+    }
+
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 24px;
+      margin-bottom: 18px;
+    }
+
+    .title {
+      font-size: 34px;
+      color: #2b2f55;
+      text-shadow: 0 2px 6px rgba(255, 255, 255, 0.6);
+    }
+
+    .status {
+      font-size: 22px;
+      color: #fff;
+      padding: 6px 16px;
+      border-radius: 16px;
+      background: rgba(110, 130, 220, 0.75);
+    }
+
+    .status.won { background: rgba(70, 180, 120, 0.85); }
+    .status.lost { background: rgba(225, 95, 95, 0.85); }
+
+    .meta {
+      display: flex;
+      gap: 14px;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+    }
+
+    .chip {
+      font-size: 19px;
+      color: #3a3f66;
+      background: rgba(255, 255, 255, 0.55);
+      border-radius: 13px;
+      padding: 6px 14px;
+      border: 1px solid rgba(255, 255, 255, 0.7);
+    }
+
+    /* ───── 棋盘 ───── */
+    .board { display: inline-block; }
+
+    .brow { display: flex; }
+
+    .hcell, .cell, .rlabel {
+      width: 52px;
+      height: 52px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 26px;
+      border-radius: 9px;
+      margin: 3px;
+    }
+
+    .hcell, .rlabel {
+      color: #4a4f7a;
+      font-size: 22px;
+      background: rgba(255, 255, 255, 0.35);
+    }
+    .corner { background: transparent; }
+
+    .cell {
+      border: 1px solid rgba(255, 255, 255, 0.6);
+    }
+
+    /* 未翻开：果冻凸起 */
+    .cell.covered {
+      background: linear-gradient(160deg, #c2cdf2 0%, #93a6e6 100%);
+      box-shadow: inset 0 2px 3px rgba(255, 255, 255, 0.7), inset 0 -3px 5px rgba(70, 90, 160, 0.35);
+    }
+
+    .cell.flag { color: #e23b3b; font-size: 27px; }
+    .cell.flag.wrong { background: linear-gradient(160deg, #f0c2c2 0%, #d98a8a 100%); }
+
+    /* 已翻开：凹陷浅底 */
+    .cell.open {
+      background: rgba(245, 247, 255, 0.92);
+      box-shadow: inset 0 2px 4px rgba(90, 100, 150, 0.18);
+      font-weight: bold;
+    }
+
+    .cell.mine { background: rgba(60, 66, 96, 0.9); }
+    .cell.boom { background: linear-gradient(160deg, #ff9d6c 0%, #f5563b 100%); }
+
+    .cell.n1 { color: #2b6cff; }
+    .cell.n2 { color: #1e9e57; }
+    .cell.n3 { color: #e23b3b; }
+    .cell.n4 { color: #7b2ff7; }
+    .cell.n5 { color: #b5651d; }
+    .cell.n6 { color: #1c9c9c; }
+    .cell.n7 { color: #444; }
+    .cell.n8 { color: #888; }
+
+    .footer {
+      margin-top: 16px;
+      font-size: 18px;
+      color: #3a3f66;
+      text-align: center;
+      opacity: 0.92;
+    }
+
+    /* ───── 排行榜 ───── */
+    .rank-wrap { width: 620px; }
+
+    .rank-row {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      background: rgba(255, 255, 255, 0.5);
+      border: 1px solid rgba(255, 255, 255, 0.7);
+      border-radius: 16px;
+      padding: 12px 18px;
+      margin-bottom: 11px;
+    }
+
+    .rank-row.top1 { background: linear-gradient(120deg, rgba(255, 222, 130, 0.85), rgba(255, 200, 90, 0.6)); }
+    .rank-row.top2 { background: linear-gradient(120deg, rgba(225, 230, 245, 0.9), rgba(190, 200, 225, 0.6)); }
+    .rank-row.top3 { background: linear-gradient(120deg, rgba(240, 205, 175, 0.85), rgba(215, 170, 130, 0.55)); }
+
+    .rank-idx {
+      width: 46px;
+      font-size: 28px;
+      color: #2b2f55;
+      text-align: center;
+    }
+
+    .rank-name {
+      flex: 1;
+      font-size: 24px;
+      color: #2b2f55;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+    }
+
+    .rank-pts {
+      font-size: 26px;
+      color: #e2731f;
+      min-width: 90px;
+      text-align: right;
+    }
+
+    .rank-sub {
+      font-size: 17px;
+      color: #5a5f86;
+      min-width: 150px;
+      text-align: right;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="container">
+    {{if mode === 'rank'}}
+    <div class="rank-wrap">
+      <div class="header">
+        <div class="title">🏆 {{rankTitle}}</div>
+        <div class="status">共 {{total}} 人</div>
+      </div>
+      {{each ranks r}}
+      <div class="rank-row {{r.idx === 1 ? 'top1' : r.idx === 2 ? 'top2' : r.idx === 3 ? 'top3' : ''}}">
+        <div class="rank-idx">{{r.idx === 1 ? '🥇' : r.idx === 2 ? '🥈' : r.idx === 3 ? '🥉' : r.idx}}</div>
+        <div class="rank-name">{{r.name}}</div>
+        <div class="rank-sub">通关 {{r.wins}}/{{r.games}} · {{r.rate}}% · {{r.best}}</div>
+        <div class="rank-pts">{{r.points}}分</div>
+      </div>
+      {{/each}}
+      <div class="footer">扫雷积分榜 · 通关得分，越快越稳越靠前</div>
+    </div>
+    {{else}}
+    <div class="header">
+      <div class="title">{{title}}</div>
+      <div class="status {{status}}">{{statusText}}</div>
+    </div>
+    <div class="meta">
+      <div class="chip">💣 雷 {{mineCount}}</div>
+      <div class="chip">🚩 旗 {{flagCount}}</div>
+      <div class="chip">剩余 {{minesLeft}}</div>
+      <div class="chip">⏱ {{elapsed}}s</div>
+    </div>
+    <div class="board">
+      <div class="brow">
+        <div class="hcell corner"></div>
+        {{each colLabels lb}}
+        <div class="hcell">{{lb}}</div>
+        {{/each}}
+      </div>
+      {{each grid row r}}
+      <div class="brow">
+        <div class="rlabel">{{r + 1}}</div>
+        {{each row cell c}}
+        <div class="cell {{cell.cls}}">{{cell.text}}</div>
+        {{/each}}
+      </div>
+      {{/each}}
+    </div>
+    <div class="footer">挖格「挖 B3」 · 插旗「旗 B3」 · 结束「扫雷认输」</div>
+    {{/if}}
+  </div>
+</body>
+
+</html>
