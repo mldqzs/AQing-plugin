@@ -3,7 +3,7 @@ import puppeteer from '../../../lib/puppeteer/puppeteer.js'
 import {
   PRESETS, normDifficulty, colLabel,
   createGame, dig, toggleFlag, parseCoord,
-  renderGrid, flagCount
+  renderGrid, flagCount, addContribution
 } from '../utils/minesweeper.js'
 
 const _path = process.cwd().replace(/\\/g, '/')
@@ -72,7 +72,7 @@ export class saolei extends plugin {
     await e.reply([
       `🎮 扫雷开局！难度【${diff}】 ${p.rows}×${p.cols}，${p.mines} 颗雷`,
       `\n挖格：发「挖 B3」；插旗：发「旗 B3」（列字母+行数字）`,
-      `\n通关 +${p.reward} 分，发「扫雷排名」看排行`
+      `\n大家一起挖，通关 ${p.reward} 分按各人出力分；发「扫雷排名」看排行`
     ])
     await this.sendBoard(e, gid, g)
     return true
@@ -92,20 +92,27 @@ export class saolei extends plugin {
       await e.reply(tip[r.reason] || '挖不了这格')
       return true
     }
-    g.lastId = String(e.user_id)
-    g.lastName = e.sender?.card || e.sender?.nickname || String(e.user_id)
+    const uid = String(e.user_id)
+    const nm = e.sender?.card || e.sender?.nickname || uid
+    g.lastId = uid
+    g.lastName = nm
+    // 记录出力：这一下挖开的安全格都算给点的人（踩雷那下 opened 为 0）
+    addContribution(g, uid, nm, r.opened || 0)
 
     if (g.status === 'lost') {
       await this.recordResult(e, gid, g, false)
       await this.clearGame(gid)
-      await e.reply(`💥 ${g.lastName} 踩雷了，游戏结束！再来一局发「扫雷」`)
+      await e.reply(`💥 ${g.lastName} 踩雷了，游戏结束！本局不计分，再来一局发「扫雷」`)
       await this.sendBoard(e, gid, g)
       return true
     }
     if (g.status === 'won') {
-      const sec = await this.recordResult(e, gid, g, true)
+      const res = await this.recordResult(e, gid, g, true)
       await this.clearGame(gid)
-      await e.reply(`🎉 ${g.lastName} 排掉了最后的安全格，通关！用时 ${sec}s，+${g.reward} 分`)
+      const awardStr = res.awards.length
+        ? res.awards.map(a => `${a.name} +${a.share}`).join('、')
+        : `${g.lastName} +${g.reward}`
+      await e.reply(`🎉 通关！用时 ${res.sec}s，奖励 ${g.reward} 分按各人出力分配：\n${awardStr}`)
       await this.sendBoard(e, gid, g)
       return true
     }
@@ -145,25 +152,57 @@ export class saolei extends plugin {
     return true
   }
 
-  /** ───────────── 战绩与积分记录 ───────────── */
+  /**
+   * 结算战绩与积分。
+   * 胜利时，奖励池（g.reward）按各人挖开的安全格数比例分配——挖得多分得多，
+   * 抢最后一刀只值那一下开的格子，基本拿不到分，从根上杜绝「抢尾刀」。
+   * 失败/认输时所有参与者都记一局（影响胜率），但不得分。
+   * 返回 { sec, awards:[{name,share}] } 供发消息展示。
+   */
   async recordResult(e, gid, g, win) {
     const sec = Math.max(1, Math.round((Date.now() - g.startTs) / 1000))
-    const uid = g.lastId || String(e.user_id)
-    const name = g.lastName || String(e.user_id)
-    let stat = { name, points: 0, wins: 0, games: 0, bestSec: 0 }
-    try {
-      const raw = await redis.hGet(rankKey(gid), uid)
-      if (raw) stat = { ...stat, ...JSON.parse(raw) }
-    } catch {}
-    stat.name = name
-    stat.games += 1
-    if (win) {
-      stat.wins += 1
-      stat.points += g.reward
-      if (!stat.bestSec || sec < stat.bestSec) stat.bestSec = sec
+    const players = g.players && Object.keys(g.players).length ? g.players : null
+    const awards = []
+    if (!players) return { sec, awards }
+
+    const entries = Object.entries(players) // [uid, {name, opened}]
+    const totalOpened = entries.reduce((s, [, p]) => s + (p.opened || 0), 0)
+
+    // 按出力把奖励池切成整数份，余数补给出力最高的人
+    const shareMap = {}
+    if (win && totalOpened > 0) {
+      const arr = entries
+        .map(([uid, p]) => ({ uid, name: p.name, opened: p.opened || 0 }))
+        .sort((a, b) => b.opened - a.opened)
+      let allocated = 0
+      for (const p of arr) {
+        p.share = Math.floor((g.reward * p.opened) / totalOpened)
+        allocated += p.share
+      }
+      let rem = g.reward - allocated
+      for (let i = 0; i < arr.length && rem > 0; i++) { arr[i].share++; rem-- }
+      for (const p of arr) {
+        shareMap[p.uid] = p.share
+        if (p.share > 0) awards.push({ name: p.name, share: p.share })
+      }
     }
-    try { await redis.hSet(rankKey(gid), uid, JSON.stringify(stat)) } catch {}
-    return sec
+
+    for (const [uid, p] of entries) {
+      let stat = { name: p.name, points: 0, wins: 0, games: 0, bestSec: 0 }
+      try {
+        const raw = await redis.hGet(rankKey(gid), uid)
+        if (raw) stat = { ...stat, ...JSON.parse(raw) }
+      } catch {}
+      stat.name = p.name
+      stat.games += 1
+      if (win) {
+        stat.wins += 1
+        stat.points += (shareMap[uid] || 0)
+        if (!stat.bestSec || sec < stat.bestSec) stat.bestSec = sec
+      }
+      try { await redis.hSet(rankKey(gid), uid, JSON.stringify(stat)) } catch {}
+    }
+    return { sec, awards }
   }
 
   /** ───────────── 排行榜 ───────────── */
@@ -236,9 +275,10 @@ export class saolei extends plugin {
       '\n· 一局棋全群共用，开局后大家都能一起挖，把非雷格全翻开就通关',
       '\n',
       '\n💰 积分规则',
-      '\n· 通关得分按难度：简单 +10 / 中等 +25 / 困难 +60',
-      '\n· 谁点开最后一格安全格通关，这局的分就记给谁（合作扫雷，看谁补最后一刀）',
-      '\n· 踩雷或认输不得分，但都算一局（影响胜率）',
+      '\n· 每局有奖励池，按难度定：简单 10 / 中等 25 / 困难 60',
+      '\n· 通关后奖励池按各人「挖开的格子数」分配——挖得多分得多',
+      '\n· 抢最后一刀没用：尾刀只算你那一下开的格，基本拿不到分',
+      '\n· 踩雷或认输不得分，但参与的人都算一局（影响胜率）',
       '\n· 排名按总积分高到低，同分先比通关数、再比最快用时',
       '\n· 积分按群各算各的；排行发「扫雷排名」，个人战绩发「我的扫雷」'
     ])

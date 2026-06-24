@@ -54,8 +54,18 @@ export function createGame(difficulty, starter = {}) {
     starterId: starter.id || '',
     starterName: starter.name || '',
     lastId: starter.id || '',
-    lastName: starter.name || ''
+    lastName: starter.name || '',
+    players: {}                    // uid -> { name, opened } 各人挖开的安全格数，用于按出力分配积分
   }
+}
+
+/** 记录某人这一下挖开了多少安全格（洪水展开都算给点的人），用于积分分配 */
+export function addContribution(g, id, name, opened) {
+  if (!id) return
+  if (!g.players) g.players = {}
+  if (!g.players[id]) g.players[id] = { name, opened: 0 }
+  g.players[id].name = name
+  g.players[id].opened += (opened || 0)
 }
 
 function makeGrid(rows, cols, fill) {
