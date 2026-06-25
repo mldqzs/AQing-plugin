@@ -34,9 +34,21 @@ const TPL = './plugins/AQing-plugin/resources/html/status/status.html'
 // 读取「可爱状态」开关
 const isOn = () => setting.getConfig('config')?.kawaiiStatus === true
 
-// ─── 背景图（每次触发重新拉取，URL 本身随机返回不同图片）────
+// ─── 背景图（每次触发重新拉取，接口随机返回不同二次元横屏壁纸）──
+// 按顺序尝试，任一成功即用；全部失败则返回 null，模板退回兜底渐变
+const BG_APIS = [
+  'https://www.loliapi.com/acg/',   // 主：精选二次元横屏
+  'https://www.dmoe.cc/random.php', // 备用
+  'https://t.mwm.moe/pc'            // 备用
+]
 async function getBg () {
-  try { return await fetchB64('https://t.mwm.moe/pc') } catch (_) { return null }
+  for (const u of BG_APIS) {
+    try {
+      const b64 = await fetchB64(u)
+      if (b64) return b64
+    } catch (_) {}
+  }
+  return null
 }
 
 // ─── 通用 HTTP/HTTPS 下载转 base64（支持重定向）──────────────
