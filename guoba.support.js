@@ -83,6 +83,15 @@ export function supportGuoba() {
           componentProps: { placeholder: '请输入文字' },
         },
 
+        // ───────────────── 可爱状态 ─────────────────
+        { component: 'SOFT_GROUP_BEGIN', label: '可爱状态' },
+        {
+          field: 'config.kawaiiStatus',
+          label: '可爱状态开关',
+          bottomHelpMessage: '开启后，群里/私聊发「#状态」由阿晴出猫爪果冻风格的可爱状态图（自带随机背景图），并接管（替换）云崽本体的「状态统计」；关闭则交还给云崽本体。主人也可发「#开启可爱状态 / #关闭可爱状态」热切换',
+          component: 'Switch',
+        },
+
         // ───────────────── 涩图打分 ─────────────────
         { component: 'SOFT_GROUP_BEGIN', label: '涩图打分' },
         {
