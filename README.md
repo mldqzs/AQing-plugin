@@ -8,7 +8,7 @@
 [![Yunzai](https://img.shields.io/badge/TRSS--Yunzai-V3-66ccff?style=flat-square)](https://github.com/TimeRainStarSky/Yunzai)
 [![Gitee](https://img.shields.io/badge/Gitee-aayhg-c71d23?style=flat-square&logo=gitee)](https://gitee.com/aayhg/AQing-plugin)
 [![GitHub](https://img.shields.io/badge/GitHub-mldqzs-181717?style=flat-square&logo=github)](https://github.com/mldqzs/AQing-plugin)
-[![QQ群](https://img.shields.io/badge/QQ%E7%BE%A4-912363090-12b7f5?style=flat-square&logo=tencentqq)](https://qm.qq.com/q/)
+[![QQ群](https://img.shields.io/badge/QQ%E7%BE%A4-%E5%A4%A7%E6%99%B4%E7%8E%8B%E6%9C%9D%20912363090-12b7f5?style=flat-square&logo=tencentqq)](https://qun.qq.com/universal-share/share?ac=1&authKey=vaayVDiP9soOVbKeG0YpOEy%2FXXOynz%2Bv%2BH8%2F2FTHKgT6prWnzNJObfjLa3z5I73T&busi_data=eyJncm91cENvZGUiOiI5MTIzNjMwOTAiLCJ0b2tlbiI6ImdlSFFhMnlydkFEZWV5M3FIVnhWNFRSSGVwWndySnNkTmRXdUhaRXcxaFMvUk9mWWpOeUMxR0o3VEtpcXZ3bGUiLCJ1aW4iOiIzMTcxNDE5NzA2In0%3D&data=2bE0k_euv8SPtnSWv8Ph6ZWuC8uU4R_YxH4b0ojn5uUSejkqPKbgBnLDxjcQExxlsRdh3Uc0EnuGp701zD0Gmw&svctype=4&tempid=h5_group_info)
 
 </div>
 
@@ -16,7 +16,7 @@
 
 阿晴插件是一个基于云崽（Yunzai-Bot V3）的自用插件，集合了群管理、娱乐互动等一些小功能。作者是小白，部分功能参考/借鉴了各位大佬的实现，欢迎提 issue 或 PR。
 
-> 有问题、想反馈或一起玩？欢迎加交流群 **912363090** 🎈
+> 有问题、想反馈或一起玩？欢迎加交流群 **大晴王朝（912363090）** 🎈
 
 ## ✨ 功能简介
 
@@ -122,9 +122,9 @@ pnpm install
 
 <div align="center">
 
-**QQ 群：912363090**
+**大晴王朝 · QQ 群 912363090**
 
-[![加入QQ群](https://img.shields.io/badge/点击加入-912363090-12b7f5?style=for-the-badge&logo=tencentqq)](https://qm.qq.com/q/)
+[![加入QQ群](https://img.shields.io/badge/点击加入-大晴王朝%20912363090-12b7f5?style=for-the-badge&logo=tencentqq)](https://qun.qq.com/universal-share/share?ac=1&authKey=vaayVDiP9soOVbKeG0YpOEy%2FXXOynz%2Bv%2BH8%2F2FTHKgT6prWnzNJObfjLa3z5I73T&busi_data=eyJncm91cENvZGUiOiI5MTIzNjMwOTAiLCJ0b2tlbiI6ImdlSFFhMnlydkFEZWV5M3FIVnhWNFRSSGVwWndySnNkTmRXdUhaRXcxaFMvUk9mWWpOeUMxR0o3VEtpcXZ3bGUiLCJ1aW4iOiIzMTcxNDE5NzA2In0%3D&data=2bE0k_euv8SPtnSWv8Ph6ZWuC8uU4R_YxH4b0ojn5uUSejkqPKbgBnLDxjcQExxlsRdh3Uc0EnuGp701zD0Gmw&svctype=4&tempid=h5_group_info)
 
 </div>
 
