@@ -4,7 +4,7 @@
 
 **基于 [TRSS-Yunzai](https://github.com/TimeRainStarSky/Yunzai) 的自用娱乐插件，功能杂、偏练手，欢迎尝鲜**
 
-[![version](https://img.shields.io/badge/version-1.6.1-9b8cff?style=flat-square)](./CHANGELOG.md)
+[![version](https://img.shields.io/badge/version-1.6.2-9b8cff?style=flat-square)](./CHANGELOG.md)
 [![Yunzai](https://img.shields.io/badge/TRSS--Yunzai-V3-66ccff?style=flat-square)](https://github.com/TimeRainStarSky/Yunzai)
 [![Gitee](https://img.shields.io/badge/Gitee-aayhg-c71d23?style=flat-square&logo=gitee)](https://gitee.com/aayhg/AQing-plugin)
 [![GitHub](https://img.shields.io/badge/GitHub-mldqzs-181717?style=flat-square&logo=github)](https://github.com/mldqzs/AQing-plugin)

@@ -72,7 +72,7 @@ export class saolei extends plugin {
     await e.reply([
       `🎮 扫雷开局！难度【${diff}】 ${p.rows}×${p.cols}，${p.mines} 颗雷`,
       `\n挖格：发「挖 B3」（连挖发「挖 A1 B2」）；插旗：发「旗 B3」`,
-      `\n大家一起挖，通关 ${p.reward} 分按各人出力分；发「扫雷排名」看排行`
+      `\n大家一起挖，通关 ${p.reward} 分参与的人平分；发「扫雷排名」看排行`
     ])
     await this.sendBoard(e, gid, g)
     return true
@@ -114,7 +114,7 @@ export class saolei extends plugin {
       const awardStr = res.awards.length
         ? res.awards.map(a => `${a.name} +${a.share}`).join('、')
         : `${g.lastName} +${g.reward}`
-      await e.reply(`🎉 通关！用时 ${res.sec}s，奖励 ${g.reward} 分按各人出力分配：\n${awardStr}`)
+      await e.reply(`🎉 通关！用时 ${res.sec}s，奖励 ${g.reward} 分由参与的人平分：\n${awardStr}`)
       await this.sendBoard(e, gid, g)
       return true
     }
@@ -158,8 +158,8 @@ export class saolei extends plugin {
 
   /**
    * 结算战绩与积分。
-   * 胜利时，奖励池（g.reward）按各人挖开的安全格数比例分配——挖得多分得多，
-   * 抢最后一刀只值那一下开的格子，基本拿不到分，从根上杜绝「抢尾刀」。
+   * 胜利时，奖励池（g.reward）由「所有挖过格子的人平分」——只要参与就有分，人人有份；
+   * 平分除不尽的余数，优先补给出力多（挖开格子多）的人，让多挖的略占优。
    * 失败/认输时所有参与者都记一局（影响胜率），但不得分。
    * 返回 { sec, awards:[{name,share}] } 供发消息展示。
    */
@@ -170,21 +170,19 @@ export class saolei extends plugin {
     if (!players) return { sec, awards }
 
     const entries = Object.entries(players) // [uid, {name, opened}]
-    const totalOpened = entries.reduce((s, [, p]) => s + (p.opened || 0), 0)
 
-    // 按出力把奖励池切成整数份，余数补给出力最高的人
+    // 奖励池在参与者之间平分；余数按出力高低优先 +1
     const shareMap = {}
-    if (win && totalOpened > 0) {
+    if (win && entries.length) {
       const arr = entries
         .map(([uid, p]) => ({ uid, name: p.name, opened: p.opened || 0 }))
         .sort((a, b) => b.opened - a.opened)
-      let allocated = 0
+      const base = Math.floor(g.reward / arr.length)
+      let rem = g.reward - base * arr.length
       for (const p of arr) {
-        p.share = Math.floor((g.reward * p.opened) / totalOpened)
-        allocated += p.share
+        p.share = base + (rem > 0 ? 1 : 0)
+        if (rem > 0) rem--
       }
-      let rem = g.reward - allocated
-      for (let i = 0; i < arr.length && rem > 0; i++) { arr[i].share++; rem-- }
       for (const p of arr) {
         shareMap[p.uid] = p.share
         if (p.share > 0) awards.push({ name: p.name, share: p.share })
@@ -280,8 +278,8 @@ export class saolei extends plugin {
       '\n',
       '\n💰 积分规则',
       '\n· 每局有奖励池，按难度定：简单 10 / 中等 25 / 困难 60',
-      '\n· 通关后奖励池按各人「挖开的格子数」分配——挖得多分得多',
-      '\n· 抢最后一刀没用：尾刀只算你那一下开的格，基本拿不到分',
+      '\n· 通关后奖励池由「参与过的人平分」——只要挖过格子就有份，人人有分',
+      '\n· 平分除不尽的零头优先给挖得多的人，多挖的略占便宜',
       '\n· 踩雷或认输不得分，但参与的人都算一局（影响胜率）',
       '\n· 排名按总积分高到低，同分先比通关数、再比最快用时',
       '\n· 积分按群各算各的；排行发「扫雷排名」，个人战绩发「我的扫雷」'

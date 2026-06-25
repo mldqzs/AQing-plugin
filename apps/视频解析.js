@@ -1,5 +1,6 @@
 import plugin from '../../../lib/plugins/plugin.js'
 import setting from '../utils/setting.js'
+import common from '../../../lib/common/common.js'
 import { parseBili } from '../utils/bili.js'
 import fs from 'node:fs'
 import path from 'node:path'
@@ -273,8 +274,21 @@ async function sendResult(e, r) {
 
   // 图文/图集笔记 → 标题 + 图片；其中「实况/动图」那几张单独按视频发
   if (r.images?.length || r.liveVideos?.length) {
-    await e.reply(header, true)
-    if (r.images?.length) await e.reply(r.images.slice(0, 12).map(u => segment.image(u)))
+    const imgs = (r.images || []).slice(0, 12)
+    // 图集用「聊天记录」（合并转发）折叠，标题+多图收成一条，避免刷屏
+    if (imgs.length) {
+      const nodes = [header, ...imgs.map(u => segment.image(u))]
+      try {
+        const forward = await common.makeForwardMsg(e, nodes, r.title || `${r.platform}图集`)
+        await e.reply(forward)
+      } catch (err) {
+        logger.error(`[短视频解析] 合并转发失败，改为直接发送：${err?.message || err}`)
+        await e.reply(header, true)
+        await e.reply(imgs.map(u => segment.image(u)))
+      }
+    } else {
+      await e.reply(header, true)
+    }
     if (r.liveVideos?.length) {
       const maxMB = Number(c.maxSize) || 100
       for (const lv of r.liveVideos) {
