@@ -1,12 +1,24 @@
-# AQing-plugin
+<div align="center">
 
-> 基于 [TRSS-Yunzai](https://github.com/TimeRainStarSky/Yunzai) 的自用娱乐插件，功能杂、偏练手，欢迎尝鲜。
+# 🌌 AQing-plugin · 阿晴插件
 
-## 介绍
+**基于 [TRSS-Yunzai](https://github.com/TimeRainStarSky/Yunzai) 的自用娱乐插件，功能杂、偏练手，欢迎尝鲜**
+
+[![version](https://img.shields.io/badge/version-1.6.1-9b8cff?style=flat-square)](./CHANGELOG.md)
+[![Yunzai](https://img.shields.io/badge/TRSS--Yunzai-V3-66ccff?style=flat-square)](https://github.com/TimeRainStarSky/Yunzai)
+[![Gitee](https://img.shields.io/badge/Gitee-aayhg-c71d23?style=flat-square&logo=gitee)](https://gitee.com/aayhg/AQing-plugin)
+[![GitHub](https://img.shields.io/badge/GitHub-mldqzs-181717?style=flat-square&logo=github)](https://github.com/mldqzs/AQing-plugin)
+[![QQ群](https://img.shields.io/badge/QQ%E7%BE%A4-912363090-12b7f5?style=flat-square&logo=tencentqq)](https://qm.qq.com/q/)
+
+</div>
+
+## 📖 介绍
 
 阿晴插件是一个基于云崽（Yunzai-Bot V3）的自用插件，集合了群管理、娱乐互动等一些小功能。作者是小白，部分功能参考/借鉴了各位大佬的实现，欢迎提 issue 或 PR。
 
-## 功能简介
+> 有问题、想反馈或一起玩？欢迎加交流群 **912363090** 🎈
+
+## ✨ 功能简介
 
 | 分类 | 功能 | 说明 |
 | --- | --- | --- |
@@ -17,6 +29,8 @@
 | 娱乐 | QQ 注册时间 | `#QQ注册时间` 查询 QQ 注册时间等信息，图片卡片展示 |
 | 娱乐 | 涩图打分 | 引用或发图给图片打分，百度 / Sightengine 双接口可切换（Sightengine 对二次元更准） |
 | 娱乐 | 短视频解析 | 发抖音 / 快手 / B站链接自动解析为视频（图文则发图片）；全程原生轻量解析、免 cookie，可选用 ffmpeg 抽背景音乐 |
+| 娱乐 | 图文解析 | 发小红书 / 小黑盒链接自动解析，图文用「聊天记录」折叠卡片发送，视频笔记发本体 |
+| 娱乐 | 扫雷小游戏 | 群里发 `扫雷` 开局，`挖 B3` 翻格、`旗 B3` 插旗（支持 `挖 A1 B2` 连发），通关按出力攒积分，`扫雷排名` 看榜 |
 | 娱乐 | 塔罗牌 / 随机咖啵 | 每日塔罗牌、随机咖啵表情 |
 | 娱乐 | 禁漫天堂 | `#jm 漫画ID`（如 `#jm 350234`）下载整本为加密 PDF 发到群文件/私聊，需配置账号 AVS |
 | 调试 | 消息解剖台 | 引用一条消息后发 `取` / `解剖`，输出其消息段结构与元信息（仅主人，支持 NapCat 等 OneBot 适配器） |
@@ -27,7 +41,7 @@
 
 > 大部分配置均支持锅巴面板可视化修改与热加载。
 
-## 安装方式
+## 📦 安装方式
 
 进入云崽根目录，任选 Gitee 或 GitHub 其一克隆：
 
@@ -49,7 +63,7 @@ pnpm install
 > 云崽为 pnpm workspace（`plugins/**`），在根目录执行一次 `pnpm install` 即会一并装好；
 > 若个别包构建报错，可在命令末尾加 `-w` 重试。
 
-## 使用说明
+## 📚 使用说明
 
 发送 `#阿晴帮助` 查看全部功能；发送 `#阿晴更新` 更新插件，`#阿晴版本` 查看版本信息。
 
@@ -83,13 +97,44 @@ pnpm install
 
 **背景音乐**（可选，默认关）：开启「提取背景音乐」后，机器人会用 ffmpeg 从视频抽出音轨，发一条语音条（点开就听）+ 一个 mp3 文件。需要系统装有 `ffmpeg`（多数云崽环境已自带；`ffmpeg -version` 可验证）。注意抽的是视频音轨——纯音乐视频即 BGM，带人声的视频会是「人声 + BGM」的混音。
 
-## 友情链接
+### 图文解析
+
+群里或私聊直接发**小红书 / 小黑盒**链接（纯文本、复制带文案、QQ 卡片分享均可）即自动解析，无需指令：
+
+- **图文 / 多图笔记** → 用「聊天记录」（合并转发）折叠卡片发送，标题、作者、正文、多图一条收纳；
+- **视频笔记** → 标题 + 封面 + 视频本体（沿用短视频的体积/时长上限与直链兜底）。
+
+小红书公开笔记一般免 cookie（分享链接里带 `xsec_token` 即可）；遇到登录态内容或小黑盒风控，可在锅巴「AQing-plugin → 图文解析」或 `config/config/tw.yaml` 填登录 cookie 提升成功率，热生效。
+
+### 扫雷小游戏
+
+群里发 `扫雷` 开一局（默认中等，也可 `扫雷简单 / 中等 / 困难`），**整群共用一局、人人都能挖**：
+
+- 翻格：`挖 B3`（列字母 A-L + 行数字），一条消息连挖多格发 `挖 A1 B2 C3`；
+- 插旗 / 拔旗：`旗 B3`（再发一次取消），也可 `旗 A1 B2` 连标；
+- 认输：`扫雷认输` 结束本局。
+
+通关后奖励池（简单 10 / 中等 25 / 困难 60）**按各人挖开的格子数分配**，挖得多分得多、抢尾刀拿不到分；`扫雷排名` 看本群积分榜，`我的扫雷` 查个人战绩，`扫雷帮助` 看玩法。对局与积分按群隔离、存 redis，无操作 2 小时自动失效。
+
+## 💬 交流群
+
+欢迎加群一起玩、提需求、反馈 bug：
+
+<div align="center">
+
+**QQ 群：912363090**
+
+[![加入QQ群](https://img.shields.io/badge/点击加入-912363090-12b7f5?style=for-the-badge&logo=tencentqq)](https://qm.qq.com/q/)
+
+</div>
+
+## 🔗 友情链接
 
 - [TRSS-Yunzai](https://github.com/TimeRainStarSky/Yunzai) · [Gitee 镜像](https://gitee.com/TimeRainStarSky/Yunzai) —— 本插件所依赖的机器人框架
 - [戏天插件 xitian-plugin](https://github.com/XiTianGame/xitian-plugin) —— Yunzai 插件管理器，本插件的「安装 / 删除插件」功能参考了它的实现
 - [siliconflow-plugin](https://github.com/AIGC-Yunzai/siliconflow-plugin) —— SiliconFlow AI 插件，本插件的「短视频解析」参考了它的抖音 / 快手 / B站原生解析实现
 
-## 声明
+## 📑 声明
 
 - 本插件仅供学习与个人娱乐使用，请勿用于任何商业或违规用途。
 - 插件部分内容（如随机图、QQ 信息查询等）来源于网络第三方接口，其数据准确性与可用性由对应来源决定，本插件不对其内容负责。

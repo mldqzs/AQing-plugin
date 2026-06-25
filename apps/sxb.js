@@ -7,10 +7,14 @@ const CFG_PATH = './plugins/AQing-plugin/config/config/config.yaml'
 // botname、提示语均实时读取，锅巴/配置改动即时生效（无需重启）
 const getCfg = (key) => new Y(CFG_PATH).get(key)
 
+// 插件名统一用这个常量：下班时要把它写进群白名单（只放行本插件）。
+// ⚠️ 名字与白名单必须逐字一致（含全角冒号），否则下班后连「上班」都会被一起禁掉。
+const PLUGIN_NAME = 'AQ：机器人群开关'
+
 export class jinyong extends plugin {
     constructor() {
         super({
-            name: "AQ：机器人群开关",
+            name: PLUGIN_NAME,
             dsc: "上下班",
             event: "message",
             priority: -10,
@@ -37,7 +41,7 @@ export class jinyong extends plugin {
         if (!e.isGroup) { e.reply('请在群聊中使用'); return true }
         this.file = './config/config/group.yaml'
         const data = YAML.parse(fs.readFileSync(this.file, 'utf8'))
-        data[e.group_id] = { enable: ["AQ:机器人群开关"] }
+        data[e.group_id] = { enable: [PLUGIN_NAME] }
         fs.writeFileSync(this.file, YAML.stringify(data), "utf8")
         e.reply(getCfg('close_tip') || `${getCfg('botname') || '我'}下班啦，开溜~`)
         return true
