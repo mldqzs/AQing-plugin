@@ -36,7 +36,7 @@ export class gomoku extends plugin {
         { reg: '^#?五子棋(排名|排行|排行榜|榜|战绩)$', fnc: 'rank' },
         { reg: '^#?(五子棋人机|人机五子棋|和ai下五子棋|五子棋ai|ai五子棋)(先手|后手|执黑|执白)?$', fnc: 'startAI' },
         { reg: '^#?五子棋(对战|双人|联机|pk|对决)$', fnc: 'startPvP' },
-        { reg: '^#?(应战|接受挑战|我应战|接招|我来下)$', fnc: 'accept' },
+        { reg: '^#?(五子棋)?应战$', fnc: 'accept' },
         { reg: '^#?五子棋$', fnc: 'howto' },
         { reg: '^(落子?|下|走|放)\\s*([A-Oa-o]\\s*\\d{1,2}|\\d{1,2}\\s*[A-Oa-o])$', fnc: 'move' }
       ]
