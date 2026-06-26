@@ -35,8 +35,7 @@ export class gomoku extends plugin {
         { reg: '^#?五子棋(认输|投降|结束|退出|放弃|重开|不下了)$', fnc: 'giveup' },
         { reg: '^#?五子棋(排名|排行|排行榜|榜|战绩)$', fnc: 'rank' },
         { reg: '^#?(五子棋人机|人机五子棋|和ai下五子棋|五子棋ai|ai五子棋)(先手|后手|执黑|执白)?$', fnc: 'startAI' },
-        { reg: '^#?五子棋(对战|双人|联机|pk|对决)$', fnc: 'startPvP' },
-        { reg: '^#?(五子棋)?应战$', fnc: 'accept' },
+        { reg: '^#?五子棋(对战|双人|联机|pk|对决)', fnc: 'startPvP' },
         { reg: '^#?五子棋$', fnc: 'howto' },
         { reg: '^(落子?|下|走|放)\\s*([A-Oa-o]\\s*\\d{1,2}|\\d{1,2}\\s*[A-Oa-o])$', fnc: 'move' }
       ]
@@ -91,46 +90,51 @@ export class gomoku extends plugin {
     return true
   }
 
-  /* ───────────── 群友对战开局（开放挑战） ───────────── */
+  /* ───────────── 群友对战开局（@ 指定对手） ───────────── */
   async startPvP (e) {
     if (!this.isOn()) return false
     if (!e.group_id) { await e.reply('群友对战要在群里玩哦，私聊可以发「五子棋人机」和我下~'); return true }
     const gid = scope(e)
     const exist = await this.loadGame(gid)
     if (exist && exist.status !== 'won' && exist.status !== 'draw') {
-      await e.reply('本群已经有一局在进行/等应战啦，先发「五子棋认输」结束当前这局~')
+      await e.reply('本群已经有一局在进行啦，先发「五子棋认输」结束当前这局~')
       return true
     }
-    const me = { id: String(e.user_id), name: uname(e) }
-    const g = createGame('pvp', me, null) // 发起人执黑先手，等人应战
-    await this.saveGame(gid, g)
-    await e.reply([
-      `⚔️ ${me.name} 发起五子棋对战！执⚫黑先手`,
-      `\n群友发「应战」即可加入执⚪白；落子发「落 H8」`
-    ])
-    return true
-  }
-
-  /* ───────────── 应战（加入为白方） ───────────── */
-  async accept (e) {
-    if (!this.isOn()) return false
-    const gid = scope(e)
-    const g = await this.loadGame(gid)
-    if (!g || g.status !== 'waiting') return false // 没有待应战的局就别抢话
-    if (String(e.user_id) === g.players[1]?.id) {
-      await e.reply('自己不能应战自己啦，等别的群友来~'); return true
+    // 取被 @ 的对手（排除机器人自己和发起人自己）
+    const ats = (e.message || []).filter(m => m.type === 'at' &&
+      String(m.qq) !== String(e.self_id) && String(m.qq) !== String(e.user_id))
+    if (!ats.length) {
+      await e.reply('群友对战请 @ 一位对手，例如「五子棋对战 @某人」；想和我下发「五子棋人机」')
+      return true
     }
-    g.players[2] = { id: String(e.user_id), name: uname(e) }
-    g.status = 'playing'
-    g.turn = 1
+    const oppId = String(ats[0].qq)
+    const me = { id: String(e.user_id), name: uname(e) }
+    const opp = { id: oppId, name: await this.memberName(e, oppId, ats[0]) }
+    const g = createGame('pvp', me, opp) // 发起人执黑先手，被@者执白
     await this.saveGame(gid, g)
     await e.reply([
-      `🔥 ${g.players[2].name} 应战！对局开始`,
-      `\n⚫黑 ${g.players[1].name}　vs　⚪白 ${g.players[2].name}`,
-      `\n${g.players[1].name} 先手，落子发「落 H8」`
+      `⚔️ 五子棋对战开始！`,
+      `\n⚫黑 ${me.name}（先手）　vs　⚪白 ${opp.name}`,
+      `\n${me.name} 先落子，发「落 H8」（列 A-O，行 1-15）`
     ])
     await this.sendBoard(e, gid, g)
     return true
+  }
+
+  /** 取群成员昵称：优先群名片/昵称，拿不到就用 @ 段文字或 QQ 号兜底 */
+  async memberName (e, qq, atSeg) {
+    try {
+      if (e.group?.pickMember) {
+        const info = await e.group.pickMember(Number(qq)).getInfo?.()
+        if (info?.card || info?.nickname) return info.card || info.nickname
+      }
+      if (Bot.getGroupMemberInfo) {
+        const m = await Bot.getGroupMemberInfo(e.group_id, Number(qq))
+        if (m?.card || m?.nickname) return m.card || m.nickname
+      }
+    } catch {}
+    const t = String(atSeg?.text || '').replace(/^@/, '').trim()
+    return t || String(qq)
   }
 
   /* ───────────── 落子 ───────────── */
@@ -138,17 +142,18 @@ export class gomoku extends plugin {
     const gid = scope(e)
     const g = await this.loadGame(gid)
     if (!g) return false // 没在玩，放行给别的功能
-    if (g.status === 'waiting') { await e.reply('还没有人应战呢，等群友发「应战」再开下~'); return true }
     if (g.status !== 'playing') return false
 
     const co = parseCoord(e.msg)
     if (!co) { await e.reply('坐标看不懂，发「落 H8」这种：列字母 A-O + 行数字 1-15'); return true }
 
     const uid = String(e.user_id)
+    const isPlayer = g.players[1]?.id === uid || g.players[2]?.id === uid
     const mover = g.players[g.turn]
-    // 人机模式：只有那个人能下；pvp：必须轮到你
+    // 人机模式：只有那个人能下；pvp：必须是本局双方、且轮到你
     if (!mover || mover.id !== uid) {
       if (g.mode === 'ai') { await e.reply('这是你和我的对局，轮到你执子时再落~'); return true }
+      if (!isPlayer) return false // 不是本局两位玩家，别抢话、放行给别的功能
       const other = g.players[g.turn]
       await e.reply(`还没轮到你哦，现在该 ${other?.name || '对手'}（执${stoneCn(g.turn)}）落子~`)
       return true
@@ -230,18 +235,13 @@ export class gomoku extends plugin {
   async giveup (e) {
     const gid = scope(e)
     const g = await this.loadGame(gid)
-    if (!g || (g.status !== 'playing' && g.status !== 'waiting')) {
-      await e.reply('当前没有进行中的五子棋~ 发「五子棋人机」或「五子棋对战」开一局'); return true
+    if (!g || g.status !== 'playing') {
+      await e.reply('当前没有进行中的五子棋~ 发「五子棋人机」或「五子棋对战 @某人」开一局'); return true
     }
     const uid = String(e.user_id)
     const isPlayer = g.players[1]?.id === uid || g.players[2]?.id === uid
     if (!isPlayer && e.group_id) { await e.reply('只有对局里的人能结束这局哦~'); return true }
 
-    if (g.status === 'waiting') {
-      await this.clearGame(gid)
-      await e.reply('🏳️ 已取消本局五子棋邀战~')
-      return true
-    }
     // 进行中认输：认输者判负，对手判胜
     const loser = g.players[1]?.id === uid ? 1 : 2
     const winner = loser === 1 ? 2 : 1
@@ -339,7 +339,7 @@ export class gomoku extends plugin {
     await e.reply([
       '⚫⚪ 五子棋玩法',
       '\n· 人机对战：发「五子棋人机」（你执黑先手）；想后手发「五子棋人机后手」',
-      '\n· 群友对战：发「五子棋对战」发起，另一位群友发「应战」加入，发起方执黑先手',
+      '\n· 群友对战：发「五子棋对战 @某人」指定对手，发起方执黑先手、被@者执白',
       '\n· 落子：发「落 H8」——列用字母 A-O，行用数字 1-15（也可「落子 H8 / 下 H8」）',
       '\n· 认输：发「五子棋认输」结束本局',
       '\n· 战绩：发「五子棋排名」看本群榜单',
@@ -414,7 +414,7 @@ export class gomoku extends plugin {
       title: g.mode === 'ai' ? '五子棋 · 人机' : '五子棋 · 对战',
       statusText, statusCls,
       blackName: p1?.name || '—',
-      whiteName: p2?.name || '等应战…',
+      whiteName: p2?.name || '—',
       turnColor: g.turn === 1 ? 'black' : 'white',
       moves: g.moves,
       cell, pad, innerPx, boardPx,
