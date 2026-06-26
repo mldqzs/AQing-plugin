@@ -323,9 +323,130 @@ function negamax (b, depth, alpha, beta, side) {
   return best
 }
 
+/* ═══════════════ 进攻强化：棋型识别 + 连续冲四杀(VCF) ═══════════════
+ * 单靠静态评估线性相加，认不出「一手做两个威胁」的杀力（双活三/四三）。
+ * 这里补一套主动进攻搜索：识别活四/双威胁，并做 VCF（只走冲四的强制杀），
+ * 能算到几步外的必杀，让地狱 AI 不只会堵、还会主动逼杀。
+ * ───────────────────────────────────────────────────────────── */
+
+const VCF_DEPTH = 10 // 连续冲四搜索最大层数（我方冲四步数 ×2），有限所以很快
+
+/** 以 (r,c) 为中心沿某方向取局部线串：1=color、0=空、2=墙/对手 */
+function lineStr (b, color, r, c, dr, dc) {
+  const N = b.length
+  let s = ''
+  for (let o = -5; o <= 5; o++) {
+    const nr = r + dr * o, nc = c + dc * o
+    if (!inN(N, nr, nc)) s += '2'
+    else s += b[nr][nc] === color ? '1' : b[nr][nc] === 0 ? '0' : '2'
+  }
+  return s
+}
+
+/** 在 (r,c) 落 color 后形成的棋型：成五 / 活四 / 冲四数 / 活三数 */
+function classifyMove (b, color, r, c) {
+  b[r][c] = color
+  let five = false, openFour = false, fours = 0, threes = 0
+  for (const [dr, dc] of DIRS) {
+    const s = lineStr(b, color, r, c, dr, dc)
+    if (/11111/.test(s)) five = true
+    else if (/011110/.test(s)) { openFour = true; fours++ }
+    else if (/11110|01111|11011|10111|11101/.test(s)) fours++       // 冲四
+    else if (/011100|001110|010110|011010/.test(s)) threes++        // 活三
+  }
+  b[r][c] = 0
+  return { five, openFour, fours, threes }
+}
+
+/** 一手做成「挡不住的双威胁」：活四 / 双冲四 / 四三 / 双活三 */
+function isWinningDouble (cl) {
+  if (cl.openFour) return true
+  if (cl.fours >= 2) return true
+  if (cl.fours >= 1 && cl.threes >= 1) return true
+  if (cl.threes >= 2) return true
+  return false
+}
+
+/** color 已落在 (r,c) 后，能一步成五的空点（冲四=1个、活四≥2个） */
+function fiveGainCells (b, color, r, c) {
+  const N = b.length
+  const out = []
+  const seen = new Set()
+  for (const [dr, dc] of DIRS) {
+    for (let o = -4; o <= 4; o++) {
+      const nr = r + dr * o, nc = c + dc * o
+      if (!inN(N, nr, nc) || b[nr][nc] !== 0) continue
+      const k = nr * N + nc
+      if (seen.has(k)) continue
+      b[nr][nc] = color
+      const ok = makesFive(b, nr, nc, color)
+      b[nr][nc] = 0
+      if (ok) { seen.add(k); out.push([nr, nc]) }
+    }
+  }
+  return out
+}
+
+/** 棋盘上 color 是否存在「一步成五」的点（判断对手能否立刻取胜） */
+function anyImmediateFive (b, color) {
+  const N = b.length
+  for (let r = 0; r < N; r++) {
+    for (let c = 0; c < N; c++) {
+      if (b[r][c] !== 0 || !near(b, r, c, 1)) continue
+      b[r][c] = color
+      const ok = makesFive(b, r, c, color)
+      b[r][c] = 0
+      if (ok) return true
+    }
+  }
+  return false
+}
+
+/** 所有能形成「冲四/活四（威胁成五）」的落点，附其成五点 */
+function fourMoves (b, color) {
+  const N = b.length
+  const out = []
+  for (let r = 0; r < N; r++) {
+    for (let c = 0; c < N; c++) {
+      if (b[r][c] !== 0 || !near(b, r, c, 1)) continue
+      b[r][c] = color
+      const win = makesFive(b, r, c, color)
+      const gain = win ? [] : fiveGainCells(b, color, r, c)
+      b[r][c] = 0
+      if (win) out.push({ r, c, gain: [], win: true })
+      else if (gain.length) out.push({ r, c, gain, win: false })
+    }
+  }
+  out.sort((a, b) => b.gain.length - a.gain.length) // 活四(多成五点)优先
+  return out
+}
+
+/**
+ * VCF：只走「冲四/活四」这类强制手，逼对手必须堵，层层推进找必杀。
+ * 返回制胜第一手 [r,c]，找不到返回 null。深度有限、很快。
+ */
+function vcf (b, me, depth) {
+  if (depth <= 0) return null
+  const opp = me === 1 ? 2 : 1
+  for (const m of fourMoves(b, me)) {
+    b[m.r][m.c] = me
+    if (m.win || m.gain.length >= 2) { b[m.r][m.c] = 0; return [[m.r, m.c]] } // 成五 / 活四=必胜
+    // 对手此刻若能自己成五，我的冲四就不强制了，放弃这条线
+    if (anyImmediateFive(b, opp)) { b[m.r][m.c] = 0; continue }
+    const [er, ec] = m.gain[0]   // 冲四唯一堵点，替对手堵上
+    b[er][ec] = opp
+    const sub = vcf(b, me, depth - 1)
+    b[er][ec] = 0
+    b[m.r][m.c] = 0
+    if (sub) return [[m.r, m.c], ...sub]
+  }
+  return null
+}
+
 /**
  * 地狱模式落子。color 为 AI 颜色。
- * 先处理「能赢就赢、对手要赢就堵」的硬棋，再用前瞻搜索选最稳的一手。
+ * 顺序：能赢就赢 → 必堵 → 主动逼杀（活四/VCF/双威胁）→ 拆对手杀 → 前瞻定位。
+ * 进攻层让它不只会防守，会主动做四三、连续冲四逼死你。
  */
 export function hardMove (g, color) {
   const b = g.board
@@ -339,29 +460,79 @@ export function hardMove (g, color) {
   // 1) 自己能一步连五 → 直接赢
   for (const { r, c } of cands) if (makesFive(b, r, c, color)) return { r, c }
 
-  // 2) 对手能一步连五 → 必须堵（堵不完就先堵一个）
-  const mustBlock = []
+  // 2) 对手能一步连五 → 必堵
+  const oppFive = []
   for (let r = 0; r < N; r++) {
     for (let c = 0; c < N; c++) {
-      if (b[r][c] !== 0) continue
-      if (makesFive(b, r, c, opp)) mustBlock.push({ r, c })
+      if (b[r][c] === 0 && makesFive(b, r, c, opp)) oppFive.push({ r, c })
     }
   }
-  if (mustBlock.length) return mustBlock[0]
+  if (oppFive.length) return oppFive[0]
 
-  // 3) 前瞻搜索：选让对手后续最难受的一手
+  // 3) 我能走出活四 → 必胜，直接下
+  for (const { r, c } of cands) {
+    if (classifyMove(b, color, r, c).openFour) return { r, c }
+  }
+
+  // 4) 连续冲四杀（VCF）：有强制杀就果断进攻
+  const kill = vcf(b, color, VCF_DEPTH)
+  if (kill) return { r: kill[0][0], c: kill[0][1] }
+
+  // 5) 对手能走出活四 → 提前占掉那个要点
+  for (let r = 0; r < N; r++) {
+    for (let c = 0; c < N; c++) {
+      if (b[r][c] !== 0 || !near(b, r, c, 1)) continue
+      if (classifyMove(b, opp, r, c).openFour) return { r, c }
+    }
+  }
+
+  // 6) 对手有 VCF 杀 → 占掉其第一手，拆掉连续冲四
+  const oppKill = vcf(b, opp, VCF_DEPTH)
+  if (oppKill) return { r: oppKill[0][0], c: oppKill[0][1] }
+
+  // 7) 我能一手做出双威胁（四三 / 双活三）→ 制胜手
+  let dbl = null, dblScore = -1
+  for (const { r, c } of cands) {
+    const cl = classifyMove(b, color, r, c)
+    if (!isWinningDouble(cl)) continue
+    b[r][c] = color
+    const safe = !anyImmediateFive(b, opp) // 确认对手回应里没法直接成五
+    b[r][c] = 0
+    if (safe) {
+      const sc = cl.fours * 2 + cl.threes
+      if (sc > dblScore) { dblScore = sc; dbl = { r, c } }
+    }
+  }
+  if (dbl) return dbl
+
+  // 8) 对手能一手做双威胁 → 抢先占掉，别让他四三
+  let oppDbl = null, oppDblScore = -1
+  for (let r = 0; r < N; r++) {
+    for (let c = 0; c < N; c++) {
+      if (b[r][c] !== 0 || !near(b, r, c, 1)) continue
+      const cl = classifyMove(b, opp, r, c)
+      if (!isWinningDouble(cl)) continue
+      const sc = cl.fours * 2 + cl.threes
+      if (sc > oppDblScore) { oppDblScore = sc; oppDbl = { r, c } }
+    }
+  }
+  if (oppDbl) return oppDbl
+
+  // 9) 前瞻搜索 + 进攻倾向定位（平稳局面也主动做攻势）
   let best = cands[0]
-  let bestVal = -Infinity
+  let bestRank = -Infinity
   let alpha = -Infinity
   const beta = Infinity
   for (const { r, c } of cands) {
     b[r][c] = color
-    const val = makesFive(b, r, c, color)
+    const raw = makesFive(b, r, c, color)
       ? WIN_SCORE
       : -negamax(b, HELL_DEPTH - 1, -beta, -alpha, opp)
     b[r][c] = 0
-    if (val > bestVal) { bestVal = val; best = { r, c } }
-    if (bestVal > alpha) alpha = bestVal
+    if (raw > alpha) alpha = raw // α-β 用真实分，保证剪枝正确
+    const cl = classifyMove(b, color, r, c)
+    const rank = raw + cl.fours * 1500 + cl.threes * 600 // 主动攻势的小加权
+    if (rank > bestRank) { bestRank = rank; best = { r, c } }
   }
   return best
 }
