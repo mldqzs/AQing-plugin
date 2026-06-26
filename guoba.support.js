@@ -97,7 +97,7 @@ export function supportGuoba() {
         {
           field: 'gomoku.enable',
           label: '五子棋总开关',
-          bottomHelpMessage: '群里发「五子棋人机」和 AI 对战、「五子棋对战 @某人」邀人对战（对方发「接受」才开局）；「落 H8」落子，「五子棋排名」看榜',
+          bottomHelpMessage: '群里发「五子棋人机」和 AI 对战（发「五子棋人机地狱」开地狱模式，AI 会算棋、很难赢）、「五子棋对战 @某人」邀人对战（对方发「接受」才开局）；「落 H8」落子，「五子棋排名」看榜',
           component: 'Switch',
         },
         {

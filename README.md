@@ -4,7 +4,7 @@
 
 **基于 [TRSS-Yunzai](https://github.com/TimeRainStarSky/Yunzai) 的自用娱乐插件，功能杂、偏练手，欢迎尝鲜**
 
-[![version](https://img.shields.io/badge/version-1.8.0-9b8cff?style=flat-square)](./CHANGELOG.md)
+[![version](https://img.shields.io/badge/version-1.8.1-9b8cff?style=flat-square)](./CHANGELOG.md)
 [![Yunzai](https://img.shields.io/badge/TRSS--Yunzai-V3-66ccff?style=flat-square)](https://github.com/TimeRainStarSky/Yunzai)
 [![Gitee](https://img.shields.io/badge/Gitee-aayhg-c71d23?style=flat-square&logo=gitee)](https://gitee.com/aayhg/AQing-plugin)
 [![GitHub](https://img.shields.io/badge/GitHub-mldqzs-181717?style=flat-square&logo=github)](https://github.com/mldqzs/AQing-plugin)
@@ -31,7 +31,7 @@
 | 娱乐 | 短视频解析 | 发抖音 / 快手 / B站链接自动解析为视频（图文则发图片）；全程原生轻量解析、免 cookie，可选用 ffmpeg 抽背景音乐 |
 | 娱乐 | 图文解析 | 发小红书 / 小黑盒链接自动解析，图文用「聊天记录」折叠卡片发送，视频笔记发本体 |
 | 娱乐 | 扫雷小游戏 | 群里发 `扫雷` 开局，`挖 B3` 翻格、`旗 B3` 插旗（支持 `挖 A1 B2` 连发），通关按出力攒积分，`扫雷排名` 看榜 |
-| 娱乐 | 五子棋 | `五子棋人机` 和 AI 对战、`五子棋对战 @某人` 邀人对战（对方发 `接受`），`落 H8` 落子；AI 可在锅巴自配接口/Key/模型，未配置用内置 AI，`五子棋排名` 看榜 |
+| 娱乐 | 五子棋 | `五子棋人机`（加 `地狱` 更难）和 AI 对战、`五子棋对战 @某人` 邀人对战（对方发 `接受`），`落 H8` 落子；AI 可在锅巴自配接口/Key/模型，未配置用内置 AI，`五子棋排名` 看榜 |
 | 娱乐 | 塔罗牌 / 随机咖啵 | 每日塔罗牌、随机咖啵表情 |
 | 状态 | 可爱状态 | `#状态` 出猫爪果冻风状态图（自带随机背景图），带开关，开启后替换云崽本体状态；`#开启/关闭可爱状态` 或锅巴切换 |
 | 娱乐 | 禁漫天堂 | `#jm 漫画ID`（如 `#jm 350234`）下载整本为加密 PDF 发到群文件/私聊，需配置账号 AVS |
@@ -123,6 +123,7 @@ pnpm install
 15×15 木纹棋盘，两种玩法：
 
 - **人机对战**：发 `五子棋人机`（默认你执黑先手，`五子棋人机后手` 改执白）；
+- **地狱模式**：发 `五子棋人机地狱`（或 `地狱五子棋`），AI 换成带前瞻搜索（α-β 剪枝、看 4 层）的强引擎，会算棋、识破「双活三/四三」逼杀这类先手必赢套路，很难赢；不走外部接口，棋力稳定且低配也扛得住；
 - **群友对战**：发 `五子棋对战 @某人` 发起邀请，对方发 `接受` 才开局（发 `拒绝` 回绝）；发起方执黑先手、对方执白；
 - **落子**：`落 H8`（列字母 A-O + 行数字 1-15，也可 `落子 H8 / 下 H8`）；
 - **认输**：`五子棋认输` 结束本局；`五子棋排名` 看本群胜场榜，`五子棋帮助` 看玩法。

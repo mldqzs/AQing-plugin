@@ -3,7 +3,7 @@ import puppeteer from '../../../lib/puppeteer/puppeteer.js'
 import axios from 'axios'
 import setting from '../utils/setting.js'
 import {
-  SIZE, colLabel, createGame, parseCoord, place, boardAscii, heuristicMove
+  SIZE, colLabel, createGame, parseCoord, place, boardAscii, heuristicMove, hardMove
 } from '../utils/gomoku.js'
 
 const _path = process.cwd().replace(/\\/g, '/')
@@ -34,7 +34,7 @@ export class gomoku extends plugin {
         { reg: '^#?五子棋(帮助|玩法|规则|怎么玩)$', fnc: 'howto' },
         { reg: '^#?五子棋(认输|投降|结束|退出|放弃|重开|不下了)$', fnc: 'giveup' },
         { reg: '^#?五子棋(排名|排行|排行榜|榜|战绩)$', fnc: 'rank' },
-        { reg: '^#?(五子棋人机|人机五子棋|和ai下五子棋|五子棋ai|ai五子棋)(先手|后手|执黑|执白)?$', fnc: 'startAI' },
+        { reg: '^#?(五子棋人机|人机五子棋|和ai下五子棋|五子棋ai|ai五子棋|地狱五子棋|五子棋地狱)(地狱|先手|后手|执黑|执白)*$', fnc: 'startAI' },
         { reg: '^#?五子棋(对战|双人|联机|pk|对决)', fnc: 'startPvP' },
         { reg: '^#?(接受|应战|同意|接受对战)$', fnc: 'respond' },
         { reg: '^#?(拒绝|不玩|不下|拒绝对战)$', fnc: 'decline' },
@@ -71,18 +71,22 @@ export class gomoku extends plugin {
       await e.reply('这里已经有一局在下啦，先发「五子棋认输」结束当前这局~')
       return true
     }
+    // 地狱模式：用带前瞻搜索的强引擎，会算几步、识破先手必赢套路
+    const hell = /地狱/.test(e.msg)
     // 后手/执白：人执白(2)，AI 执黑(1) 先走天元；否则人执黑(1) 先手
     const wantWhite = /后手|执白/.test(e.msg)
     const me = { id: String(e.user_id), name: uname(e) }
+    const aiName = hell ? '地狱AI' : this.aiName()
     let g
     if (wantWhite) {
       g = createGame('ai', null, me, { aiColor: 1 })
-      g.players[1] = { id: 'AI', name: this.aiName() }
+      g.players[1] = { id: 'AI', name: aiName }
     } else {
-      g = createGame('ai', me, { id: 'AI', name: this.aiName() }, { aiColor: 2 })
+      g = createGame('ai', me, { id: 'AI', name: aiName }, { aiColor: 2 })
     }
+    g.level = hell ? 'hell' : 'normal'
     await e.reply([
-      `🎯 五子棋人机开局！你执${wantWhite ? '⚪白' : '⚫黑'}，${this.aiName()}执${wantWhite ? '⚫黑' : '⚪白'}`,
+      `🎯 五子棋人机开局！${hell ? '【地狱模式·会算棋，很难赢】\n' : ''}你执${wantWhite ? '⚪白' : '⚫黑'}，${aiName}执${wantWhite ? '⚫黑' : '⚪白'}`,
       `\n落子发「落 H8」（列 A-O，行 1-15）；认输发「五子棋认输」`
     ])
     // AI 执黑先走
@@ -234,10 +238,18 @@ export class gomoku extends plugin {
     return true
   }
 
-  /* ───────────── AI 落子（先问大模型，失败/非法用内置AI兜底） ───────────── */
+  /* ───────────── AI 落子 ─────────────
+   * 地狱模式：用带前瞻搜索的强引擎（不走大模型，保证棋力）；
+   * 普通模式：优先大模型（配了接口），失败/非法用内置启发式兜底。
+   */
   async doAiMove (g) {
-    let co = await this.llmMove(g, g.aiColor)
-    if (!co || g.board[co.r][co.c] !== 0) co = heuristicMove(g, g.aiColor)
+    let co
+    if (g.level === 'hell') {
+      co = hardMove(g, g.aiColor)
+    } else {
+      co = await this.llmMove(g, g.aiColor)
+      if (!co || g.board[co.r][co.c] !== 0) co = heuristicMove(g, g.aiColor)
+    }
     if (co) place(g, co.r, co.c, g.aiColor)
   }
 
@@ -392,6 +404,7 @@ export class gomoku extends plugin {
     await e.reply([
       '⚫⚪ 五子棋玩法',
       '\n· 人机对战：发「五子棋人机」（你执黑先手）；想后手发「五子棋人机后手」',
+      '\n· 地狱模式：发「五子棋人机地狱」（或「地狱五子棋」），AI 会算棋、识破先手必赢套路，很难赢',
       '\n· 群友对战：发「五子棋对战 @某人」发邀请，对方发「接受」才开局（发「拒绝」可回绝）；发起方执黑先手、对方执白',
       '\n· 落子：发「落 H8」——列用字母 A-O，行用数字 1-15（也可「落子 H8 / 下 H8」）',
       '\n· 认输：发「五子棋认输」结束本局',
