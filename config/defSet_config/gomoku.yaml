@@ -1,0 +1,5 @@
+enable: true        #五子棋总开关,默认开启,改成false关闭
+aiBaseUrl: ''       #AI接口地址(OpenAI兼容的 chat/completions),如 https://api.openai.com/v1 ;留空则人机用内置AI
+aiKey: ''           #AI接口的API Key(Bearer),留空则人机用内置AI
+aiModel: gpt-4o-mini #AI模型名,如 gpt-4o-mini / deepseek-chat 等
+aiTimeout: 30       #AI思考超时(秒),超时自动用内置AI兜底

@@ -4,7 +4,7 @@
 
 **基于 [TRSS-Yunzai](https://github.com/TimeRainStarSky/Yunzai) 的自用娱乐插件，功能杂、偏练手，欢迎尝鲜**
 
-[![version](https://img.shields.io/badge/version-1.7.0-9b8cff?style=flat-square)](./CHANGELOG.md)
+[![version](https://img.shields.io/badge/version-1.8.0-9b8cff?style=flat-square)](./CHANGELOG.md)
 [![Yunzai](https://img.shields.io/badge/TRSS--Yunzai-V3-66ccff?style=flat-square)](https://github.com/TimeRainStarSky/Yunzai)
 [![Gitee](https://img.shields.io/badge/Gitee-aayhg-c71d23?style=flat-square&logo=gitee)](https://gitee.com/aayhg/AQing-plugin)
 [![GitHub](https://img.shields.io/badge/GitHub-mldqzs-181717?style=flat-square&logo=github)](https://github.com/mldqzs/AQing-plugin)
@@ -31,6 +31,7 @@
 | 娱乐 | 短视频解析 | 发抖音 / 快手 / B站链接自动解析为视频（图文则发图片）；全程原生轻量解析、免 cookie，可选用 ffmpeg 抽背景音乐 |
 | 娱乐 | 图文解析 | 发小红书 / 小黑盒链接自动解析，图文用「聊天记录」折叠卡片发送，视频笔记发本体 |
 | 娱乐 | 扫雷小游戏 | 群里发 `扫雷` 开局，`挖 B3` 翻格、`旗 B3` 插旗（支持 `挖 A1 B2` 连发），通关按出力攒积分，`扫雷排名` 看榜 |
+| 娱乐 | 五子棋 | `五子棋人机` 和 AI 对战、`五子棋对战`+`应战` 群友互搏，`落 H8` 落子；AI 可在锅巴自配接口/Key/模型，未配置用内置 AI，`五子棋排名` 看榜 |
 | 娱乐 | 塔罗牌 / 随机咖啵 | 每日塔罗牌、随机咖啵表情 |
 | 状态 | 可爱状态 | `#状态` 出猫爪果冻风状态图（自带随机背景图），带开关，开启后替换云崽本体状态；`#开启/关闭可爱状态` 或锅巴切换 |
 | 娱乐 | 禁漫天堂 | `#jm 漫画ID`（如 `#jm 350234`）下载整本为加密 PDF 发到群文件/私聊，需配置账号 AVS |
@@ -116,6 +117,17 @@ pnpm install
 - 认输：`扫雷认输` 结束本局。
 
 通关后奖励池（简单 10 / 中等 25 / 困难 60）**按各人挖开的格子数分配**，挖得多分得多、抢尾刀拿不到分；`扫雷排名` 看本群积分榜，`我的扫雷` 查个人战绩，`扫雷帮助` 看玩法。对局与积分按群隔离、存 redis，无操作 2 小时自动失效。
+
+### 五子棋
+
+15×15 木纹棋盘，两种玩法：
+
+- **人机对战**：发 `五子棋人机`（默认你执黑先手，`五子棋人机后手` 改执白）；
+- **群友对战**：发 `五子棋对战` 发起，另一位群友发 `应战` 加入，发起方执黑先手；
+- **落子**：`落 H8`（列字母 A-O + 行数字 1-15，也可 `落子 H8 / 下 H8`）；
+- **认输**：`五子棋认输` 结束本局；`五子棋排名` 看本群胜场榜，`五子棋帮助` 看玩法。
+
+AI 对手默认用**内置启发式 AI**，开箱即玩；在锅巴「AQing-plugin → 五子棋」填好 **接口地址 / API Key / 模型**（任何 OpenAI 兼容接口均可，如 OpenAI、DeepSeek 等）后，人机对手会换成你配置的大模型来下，接口异常时自动退回内置 AI 兜底。一个群同时只进行一局，按群隔离存 redis，无操作 2 小时自动失效。
 
 ## 💬 交流群
 

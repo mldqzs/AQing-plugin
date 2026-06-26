@@ -190,7 +190,8 @@
             {{each helpList.list list}}
             <div class="card">
                 <div class="icon-bubble">
-                    <img src="{{pluResPath}}/plugins/AQing-plugin/resources/html/help/img/{{list.icon}}.png">
+                    <img src="{{pluResPath}}/plugins/AQing-plugin/resources/html/help/img/{{list.icon}}.png"
+                         onerror="this.onerror=null;this.src='{{pluResPath}}/plugins/AQing-plugin/resources/html/help/img/16.png'">
                 </div>
                 <div class="text">
                     <div class="title">{{list.title}}</div>

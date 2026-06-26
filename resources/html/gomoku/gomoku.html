@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="zh">
+
+<head>
+  <meta charset="UTF-8">
+  <title>五子棋</title>
+  <style>
+    @font-face {
+      font-family: "tttgbnumber";
+      src: url("{{pluResPath}}/plugins/AQing-plugin/resources/font/tttgbnumber.ttf");
+      font-weight: normal;
+      font-style: normal;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      font-family: 'tttgbnumber', -apple-system, "PingFang SC", "Microsoft YaHei", "Segoe UI Emoji", sans-serif;
+    }
+
+    body {
+      position: relative;
+      padding: 26px;
+      width: max-content;
+      background:
+        linear-gradient(160deg, rgba(120, 170, 255, 0.32) 0%, rgba(180, 150, 240, 0.24) 50%, rgba(255, 180, 220, 0.30) 100%),
+        url("{{pluResPath}}/plugins/AQing-plugin/resources/html/help/img/bg-miku.png");
+      background-size: cover;
+      background-position: center top;
+    }
+
+    .container {
+      position: relative;
+      background: rgba(255, 255, 255, 0.16);
+      border-radius: 30px;
+      padding: 22px 24px 24px;
+      border: 1.5px solid rgba(255, 255, 255, 0.5);
+      box-shadow: 0 10px 30px rgba(80, 90, 160, 0.25);
+      backdrop-filter: blur(6px);
+    }
+
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 24px;
+      margin-bottom: 14px;
+    }
+
+    .title {
+      font-size: 34px;
+      color: #2b2f55;
+      text-shadow: 0 2px 6px rgba(255, 255, 255, 0.6);
+    }
+
+    .status {
+      font-size: 22px;
+      color: #fff;
+      padding: 6px 16px;
+      border-radius: 16px;
+      background: rgba(110, 130, 220, 0.78);
+      white-space: nowrap;
+    }
+    .status.won { background: rgba(70, 180, 120, 0.88); }
+    .status.draw { background: rgba(150, 150, 170, 0.85); }
+
+    .meta {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+    }
+    .chip {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      font-size: 20px;
+      color: #3a3f66;
+      background: rgba(255, 255, 255, 0.55);
+      border-radius: 14px;
+      padding: 7px 15px;
+      border: 1px solid rgba(255, 255, 255, 0.7);
+    }
+    .chip.active { background: rgba(255, 236, 180, 0.85); border-color: rgba(240, 200, 110, 0.9); }
+    .dot {
+      width: 22px; height: 22px; border-radius: 50%;
+      display: inline-block; flex: 0 0 auto;
+    }
+    .dot.black { background: radial-gradient(circle at 35% 30%, #6a6f86 0%, #1c2030 70%); }
+    .dot.white { background: radial-gradient(circle at 35% 30%, #ffffff 0%, #d4d8e6 80%); border: 1px solid #b7bccf; }
+
+    /* ───── 棋盘 ───── */
+    .board {
+      position: relative;
+      border-radius: 18px;
+      background: linear-gradient(160deg, #f3d9a6 0%, #e9c483 100%);
+      box-shadow: inset 0 2px 6px rgba(255, 255, 255, 0.55), 0 6px 16px rgba(120, 90, 40, 0.28);
+    }
+    .ln {
+      position: absolute;
+      background: rgba(90, 64, 30, 0.55);
+    }
+    .ln.h { height: 2px; }
+    .ln.v { width: 2px; }
+    .star {
+      position: absolute;
+      width: 10px; height: 10px;
+      background: rgba(70, 48, 20, 0.85);
+      border-radius: 50%;
+      transform: translate(-50%, -50%);
+    }
+    .clab, .rlab {
+      position: absolute;
+      font-size: 18px;
+      color: rgba(90, 64, 30, 0.85);
+      transform: translate(-50%, -50%);
+    }
+
+    .stone {
+      position: absolute;
+      width: 36px; height: 36px;
+      border-radius: 50%;
+      transform: translate(-50%, -50%);
+      box-shadow: 0 2px 4px rgba(40, 30, 10, 0.35);
+    }
+    .stone.black { background: radial-gradient(circle at 34% 30%, #707690 0%, #20243a 62%, #0c0e18 100%); }
+    .stone.white { background: radial-gradient(circle at 34% 30%, #ffffff 0%, #e3e7f2 60%, #c2c7da 100%); }
+    /* 最后一手：红点标记 */
+    .stone.last::after {
+      content: '';
+      position: absolute;
+      left: 50%; top: 50%;
+      width: 10px; height: 10px;
+      border-radius: 50%;
+      background: #ff4d4f;
+      transform: translate(-50%, -50%);
+      box-shadow: 0 0 4px rgba(255, 77, 79, 0.8);
+    }
+    /* 连成五子：金色光圈 */
+    .stone.win {
+      box-shadow: 0 0 0 4px rgba(255, 196, 0, 0.95), 0 2px 5px rgba(40, 30, 10, 0.4);
+    }
+
+    .footer {
+      margin-top: 14px;
+      font-size: 18px;
+      color: #3a3f66;
+      text-align: center;
+      opacity: 0.92;
+    }
+
+    /* ───── 排行榜 ───── */
+    .rank-wrap { width: 620px; }
+    .rank-row {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      background: rgba(255, 255, 255, 0.5);
+      border: 1px solid rgba(255, 255, 255, 0.7);
+      border-radius: 16px;
+      padding: 12px 18px;
+      margin-bottom: 11px;
+    }
+    .rank-row.top1 { background: linear-gradient(120deg, rgba(255, 222, 130, 0.85), rgba(255, 200, 90, 0.6)); }
+    .rank-row.top2 { background: linear-gradient(120deg, rgba(225, 230, 245, 0.9), rgba(190, 200, 225, 0.6)); }
+    .rank-row.top3 { background: linear-gradient(120deg, rgba(240, 205, 175, 0.85), rgba(215, 170, 130, 0.55)); }
+    .rank-idx { width: 46px; font-size: 28px; color: #2b2f55; text-align: center; }
+    .rank-name { flex: 1; font-size: 24px; color: #2b2f55; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+    .rank-sub { font-size: 17px; color: #5a5f86; min-width: 140px; text-align: right; }
+    .rank-pts { font-size: 26px; color: #e2731f; min-width: 96px; text-align: right; }
+  </style>
+</head>
+
+<body>
+  <div class="container">
+    {{if mode === 'rank'}}
+    <div class="rank-wrap">
+      <div class="header">
+        <div class="title">🏆 {{rankTitle}}</div>
+        <div class="status">共 {{total}} 人</div>
+      </div>
+      {{each ranks r}}
+      <div class="rank-row {{r.idx === 1 ? 'top1' : r.idx === 2 ? 'top2' : r.idx === 3 ? 'top3' : ''}}">
+        <div class="rank-idx">{{r.idx === 1 ? '🥇' : r.idx === 2 ? '🥈' : r.idx === 3 ? '🥉' : r.idx}}</div>
+        <div class="rank-name">{{r.name}}</div>
+        <div class="rank-sub">{{r.games}} 局 · 胜率 {{r.rate}}%</div>
+        <div class="rank-pts">胜 {{r.wins}}</div>
+      </div>
+      {{/each}}
+      <div class="footer">五子棋积分榜 · 按胜场排名，越赢越靠前</div>
+    </div>
+    {{else}}
+    <div class="header">
+      <div class="title">{{title}}</div>
+      <div class="status {{statusCls}}">{{statusText}}</div>
+    </div>
+    <div class="meta">
+      <div class="chip {{turnColor === 'black' ? 'active' : ''}}"><span class="dot black"></span>黑 · {{blackName}}</div>
+      <div class="chip {{turnColor === 'white' ? 'active' : ''}}"><span class="dot white"></span>白 · {{whiteName}}</div>
+      <div class="chip">🪶 第 {{moves}} 手</div>
+    </div>
+    <div class="board" style="width: {{boardPx}}px; height: {{boardPx}}px;">
+      {{each linesH l}}<div class="ln h" style="top: {{l.pos}}px; left: {{pad}}px; width: {{innerPx}}px;"></div>{{/each}}
+      {{each linesV l}}<div class="ln v" style="left: {{l.pos}}px; top: {{pad}}px; height: {{innerPx}}px;"></div>{{/each}}
+      {{each stars s}}<div class="star" style="left: {{s.x}}px; top: {{s.y}}px;"></div>{{/each}}
+      {{each colLabels lb}}<div class="clab" style="left: {{lb.x}}px; top: {{pad - 26}}px;">{{lb.label}}</div>{{/each}}
+      {{each rowLabels lb}}<div class="rlab" style="top: {{lb.y}}px; left: {{pad - 26}}px;">{{lb.label}}</div>{{/each}}
+      {{each stones st}}<div class="stone {{st.color}} {{st.last ? 'last' : ''}} {{st.win ? 'win' : ''}}" style="left: {{st.x}}px; top: {{st.y}}px;"></div>{{/each}}
+    </div>
+    <div class="footer">落子「落 H8」 · 认输「五子棋认输」 · 战绩「五子棋排名」</div>
+    {{/if}}
+  </div>
+</body>
+
+</html>

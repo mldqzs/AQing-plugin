@@ -92,6 +92,43 @@ export function supportGuoba() {
           component: 'Switch',
         },
 
+        // ───────────────── 五子棋 ─────────────────
+        { component: 'SOFT_GROUP_BEGIN', label: '五子棋' },
+        {
+          field: 'gomoku.enable',
+          label: '五子棋总开关',
+          bottomHelpMessage: '群里发「五子棋人机」和 AI 对战、「五子棋对战」+「应战」群友互搏；「落 H8」落子，「五子棋排名」看榜',
+          component: 'Switch',
+        },
+        {
+          field: 'gomoku.aiBaseUrl',
+          label: 'AI 接口地址',
+          bottomHelpMessage: 'OpenAI 兼容的接口地址（到 /v1 即可，如 https://api.openai.com/v1）。留空则人机用内置 AI，开箱即玩',
+          component: 'Input',
+          componentProps: { placeholder: '如 https://api.openai.com/v1' },
+        },
+        {
+          field: 'gomoku.aiKey',
+          label: 'AI · API Key',
+          bottomHelpMessage: '接口的 API Key（作为 Bearer 令牌）。和接口地址一起填好后，人机对手换成你配置的大模型',
+          component: 'Input',
+          componentProps: { placeholder: '请输入 API Key' },
+        },
+        {
+          field: 'gomoku.aiModel',
+          label: 'AI · 模型名',
+          bottomHelpMessage: '调用的模型名，如 gpt-4o-mini、deepseek-chat 等',
+          component: 'Input',
+          componentProps: { placeholder: '如 gpt-4o-mini' },
+        },
+        {
+          field: 'gomoku.aiTimeout',
+          label: 'AI 思考超时（秒）',
+          bottomHelpMessage: '等待大模型返回的超时时间，超时或接口异常会自动退回内置 AI 兜底，默认 30',
+          component: 'InputNumber',
+          componentProps: { min: 5, max: 120, placeholder: '默认 30' },
+        },
+
         // ───────────────── 涩图打分 ─────────────────
         { component: 'SOFT_GROUP_BEGIN', label: '涩图打分' },
         {
