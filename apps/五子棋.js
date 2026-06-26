@@ -36,6 +36,8 @@ export class gomoku extends plugin {
         { reg: '^#?五子棋(排名|排行|排行榜|榜|战绩)$', fnc: 'rank' },
         { reg: '^#?(五子棋人机|人机五子棋|和ai下五子棋|五子棋ai|ai五子棋)(先手|后手|执黑|执白)?$', fnc: 'startAI' },
         { reg: '^#?五子棋(对战|双人|联机|pk|对决)', fnc: 'startPvP' },
+        { reg: '^#?(接受|应战|同意|接受对战)$', fnc: 'respond' },
+        { reg: '^#?(拒绝|不玩|不下|拒绝对战)$', fnc: 'decline' },
         { reg: '^#?五子棋$', fnc: 'howto' },
         { reg: '^(落子?|下|走|放)\\s*([A-Oa-o]\\s*\\d{1,2}|\\d{1,2}\\s*[A-Oa-o])$', fnc: 'move' }
       ]
@@ -110,15 +112,59 @@ export class gomoku extends plugin {
     const oppId = String(ats[0].qq)
     const me = { id: String(e.user_id), name: uname(e) }
     const opp = { id: oppId, name: await this.memberName(e, oppId, ats[0]) }
-    const g = createGame('pvp', me, opp) // 发起人执黑先手，被@者执白
+    const g = createGame('pvp', me, opp) // 发起人执黑先手，被@者执白（待确认）
+    g.status = 'inviting' // 等被邀请者点头才开局，对方不同意就不会开始
+    g.inviteTs = Date.now()
+    await this.saveGame(gid, g)
+    await e.reply([
+      segment.at(oppId),
+      ` ${me.name} 邀请你下五子棋⚫⚪\n`,
+      '想下就发「接受」，不想下发「拒绝」（只有你能回应，其他人发啥都不算）'
+    ])
+    return true
+  }
+
+  /* ───────────── 被邀请者：接受对战 ───────────── */
+  async respond (e) {
+    if (!this.isOn()) return false
+    const gid = scope(e)
+    const g = await this.loadGame(gid)
+    if (!g || g.status !== 'inviting') return false // 没有待确认的邀请，放行给别的功能
+    if (String(e.user_id) !== g.players[2]?.id) {
+      // 不是被邀请的那个人，别抢话；但如果是邀请者自己点接受，提示一下
+      if (String(e.user_id) === g.players[1]?.id) { await e.reply('在等对方接受呢，你不能替对方答应哦~'); return true }
+      return false
+    }
+    g.status = 'playing'
+    g.turn = 1
     await this.saveGame(gid, g)
     await e.reply([
       `⚔️ 五子棋对战开始！`,
-      `\n⚫黑 ${me.name}（先手）　vs　⚪白 ${opp.name}`,
-      `\n${me.name} 先落子，发「落 H8」（列 A-O，行 1-15）`
+      `\n⚫黑 ${g.players[1].name}（先手）　vs　⚪白 ${g.players[2].name}`,
+      `\n${g.players[1].name} 先落子，发「落 H8」（列 A-O，行 1-15）`
     ])
     await this.sendBoard(e, gid, g)
     return true
+  }
+
+  /* ───────────── 拒绝 / 撤销邀请 ───────────── */
+  async decline (e) {
+    if (!this.isOn()) return false
+    const gid = scope(e)
+    const g = await this.loadGame(gid)
+    if (!g || g.status !== 'inviting') return false // 没有待确认的邀请，放行
+    const uid = String(e.user_id)
+    if (uid === g.players[2]?.id) {
+      await this.clearGame(gid)
+      await e.reply(`${g.players[2].name} 婉拒了这局五子棋，下次再约~`)
+      return true
+    }
+    if (uid === g.players[1]?.id) {
+      await this.clearGame(gid)
+      await e.reply('已撤销这次五子棋邀请~')
+      return true
+    }
+    return false // 与邀请双方无关，放行
   }
 
   /** 取群成员昵称：优先群名片/昵称，拿不到就用 @ 段文字或 QQ 号兜底 */
@@ -235,12 +281,19 @@ export class gomoku extends plugin {
   async giveup (e) {
     const gid = scope(e)
     const g = await this.loadGame(gid)
-    if (!g || g.status !== 'playing') {
+    if (!g || (g.status !== 'playing' && g.status !== 'inviting')) {
       await e.reply('当前没有进行中的五子棋~ 发「五子棋人机」或「五子棋对战 @某人」开一局'); return true
     }
     const uid = String(e.user_id)
     const isPlayer = g.players[1]?.id === uid || g.players[2]?.id === uid
     if (!isPlayer && e.group_id) { await e.reply('只有对局里的人能结束这局哦~'); return true }
+
+    // 还在邀请、没开局：直接取消
+    if (g.status === 'inviting') {
+      await this.clearGame(gid)
+      await e.reply('已取消这次五子棋邀请~')
+      return true
+    }
 
     // 进行中认输：认输者判负，对手判胜
     const loser = g.players[1]?.id === uid ? 1 : 2
@@ -339,7 +392,7 @@ export class gomoku extends plugin {
     await e.reply([
       '⚫⚪ 五子棋玩法',
       '\n· 人机对战：发「五子棋人机」（你执黑先手）；想后手发「五子棋人机后手」',
-      '\n· 群友对战：发「五子棋对战 @某人」指定对手，发起方执黑先手、被@者执白',
+      '\n· 群友对战：发「五子棋对战 @某人」发邀请，对方发「接受」才开局（发「拒绝」可回绝）；发起方执黑先手、对方执白',
       '\n· 落子：发「落 H8」——列用字母 A-O，行用数字 1-15（也可「落子 H8 / 下 H8」）',
       '\n· 认输：发「五子棋认输」结束本局',
       '\n· 战绩：发「五子棋排名」看本群榜单',
