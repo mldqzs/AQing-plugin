@@ -4,3 +4,4 @@ externalProvider: auto #外部图床: auto=自动兜底, catbox=Catbox, litterbo
 maxMB: 12             #输入图片最大体积(MB),太大容易占内存
 localExpireMin: 10    #本地图链有效期(分钟),linkMode=local或外部图床失败兜底时使用
 localMaxViews: 3      #本地图链最大访问次数,linkMode=local或外部图床失败兜底时使用
+localPublicBaseUrl: '' #本地图链公网地址,如 http://1.2.3.4:2536 ;留空则用云崽自带 Bot.fileToUrl 返回值(很多环境默认 localhost)

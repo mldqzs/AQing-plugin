@@ -61,6 +61,21 @@ function pickUrl (msg = '') {
   return (String(msg).match(/https?:\/\/[^\s\]"'<>]+/i) || [])[0] || ''
 }
 
+function rewriteLocalUrl (rawUrl, publicBaseUrl) {
+  const base = String(publicBaseUrl || '').trim().replace(/\/+$/, '')
+  if (!base) return String(rawUrl)
+  try {
+    const src = new URL(String(rawUrl))
+    const dst = new URL(base)
+    dst.pathname = src.pathname
+    dst.search = src.search
+    dst.hash = src.hash
+    return dst.toString()
+  } catch {
+    return String(rawUrl)
+  }
+}
+
 async function bufferToImageUrl (buf, prefix = 'hideimg') {
   const c = cfg()
   const filename = `${prefix}-${Date.now()}.jpg`
@@ -107,11 +122,11 @@ async function bufferToImageUrl (buf, prefix = 'hideimg') {
   if (typeof Bot?.fileToUrl === 'function') {
     const expire = Math.max(1, Math.min(1440, Number(c.localExpireMin) || 10))
     const views = Math.max(1, Math.min(100, Number(c.localMaxViews) || 3))
-    const url = await Bot.fileToUrl({
+    const rawUrl = await Bot.fileToUrl({
       name: filename,
       buffer: buf
     }, { time: expire * 60000, times: views })
-    return { url: String(url), source: 'local' }
+    return { url: rewriteLocalUrl(rawUrl, c.localPublicBaseUrl), source: 'local' }
   }
 
   throw new Error('外部图床上传失败，且当前环境没有可用的本地图链服务')
@@ -179,6 +194,7 @@ export class hideImg extends plugin {
       `\n· 链接模式：${mode}`,
       `\n· 外部图床：${provider === 'auto' ? '自动（Catbox → Litterbox）' : provider}`,
       `\n· 图片上限：${Number(c.maxMB) || DEFAULT_MAX_MB}MB`,
+      `\n· 本地公网地址：${c.localPublicBaseUrl || '未设置（使用云崽原始地址）'}`,
       '\n\n可在锅巴：AQing-plugin → 小番茄图片混淆 里修改。'
     ])
     return true

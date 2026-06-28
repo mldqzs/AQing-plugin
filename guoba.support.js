@@ -185,6 +185,13 @@ export function supportGuoba() {
           component: 'InputNumber',
           componentProps: { min: 1, max: 100, placeholder: '默认 3' },
         },
+        {
+          field: 'hideImg.localPublicBaseUrl',
+          label: '本地图链公网地址',
+          bottomHelpMessage: '云崽 server.url 很多环境默认是 localhost，别人打不开；这里填你的公网地址，如 http://1.2.3.4:2536 或 https://你的域名。留空则使用云崽原始地址',
+          component: 'Input',
+          componentProps: { placeholder: '如 http://1.2.3.4:2536' },
+        },
 
         // ───────────────── 涩图打分 ─────────────────
         { component: 'SOFT_GROUP_BEGIN', label: '涩图打分' },
