@@ -125,8 +125,7 @@ async function bufferToImageUrl (buf, prefix = 'hideimg') {
     const views = Number.isFinite(viewsRaw) && viewsRaw > 0
       ? Math.min(1000, Math.floor(viewsRaw))
       : false // false=不传 times，云崽不会扣次数，只靠有效期过期
-    const opts = { time: expire * 60000 }
-    if (views) opts.times = views
+    const opts = { time: expire * 60000, times: views || false }
     const rawUrl = await Bot.fileToUrl({
       name: filename,
       buffer: buf
