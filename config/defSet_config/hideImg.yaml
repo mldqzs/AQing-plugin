@@ -1,0 +1,6 @@
+enable: true          #小番茄图片混淆总开关,默认开启
+linkMode: external    #结果链接模式: external=外部图床链接, local=机器人本地图链
+externalProvider: auto #外部图床: auto=自动兜底, catbox=Catbox, litterbox=Litterbox临时图床
+maxMB: 12             #输入图片最大体积(MB),太大容易占内存
+localExpireMin: 10    #本地图链有效期(分钟),linkMode=local或外部图床失败兜底时使用
+localMaxViews: 3      #本地图链最大访问次数,linkMode=local或外部图床失败兜底时使用

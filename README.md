@@ -4,7 +4,7 @@
 
 **基于 [TRSS-Yunzai](https://github.com/TimeRainStarSky/Yunzai) 的自用娱乐插件，功能杂、偏练手，欢迎尝鲜**
 
-[![version](https://img.shields.io/badge/version-1.8.1-9b8cff?style=flat-square)](./CHANGELOG.md)
+[![version](https://img.shields.io/badge/version-1.9.0-9b8cff?style=flat-square)](./CHANGELOG.md)
 [![Yunzai](https://img.shields.io/badge/TRSS--Yunzai-V3-66ccff?style=flat-square)](https://github.com/TimeRainStarSky/Yunzai)
 [![Gitee](https://img.shields.io/badge/Gitee-aayhg-c71d23?style=flat-square&logo=gitee)](https://gitee.com/aayhg/AQing-plugin)
 [![GitHub](https://img.shields.io/badge/GitHub-mldqzs-181717?style=flat-square&logo=github)](https://github.com/mldqzs/AQing-plugin)
@@ -32,6 +32,7 @@
 | 娱乐 | 图文解析 | 发小红书 / 小黑盒链接自动解析，图文用「聊天记录」折叠卡片发送，视频笔记发本体 |
 | 娱乐 | 扫雷小游戏 | 群里发 `扫雷` 开局，`挖 B3` 翻格、`旗 B3` 插旗（支持 `挖 A1 B2` 连发），通关按出力攒积分，`扫雷排名` 看榜 |
 | 娱乐 | 五子棋 | `五子棋人机`（加 `地狱` 更难）和 AI 对战、`五子棋对战 @某人` 邀人对战（对方发 `接受`），`落 H8` 落子；AI 可在锅巴自配接口/Key/模型，未配置用内置 AI，`五子棋排名` 看榜 |
+| 娱乐 | 小番茄图片混淆 | `小番茄混图` 混淆图片、`小番茄解图` 解混淆还原；支持发图、引用图、图片链接，结果直接返回临时图片链接 |
 | 娱乐 | 塔罗牌 / 随机咖啵 | 每日塔罗牌、随机咖啵表情 |
 | 状态 | 可爱状态 | `#状态` 出猫爪果冻风状态图（自带随机背景图），带开关，开启后替换云崽本体状态；`#开启/关闭可爱状态` 或锅巴切换 |
 | 娱乐 | 禁漫天堂 | `#jm 漫画ID`（如 `#jm 350234`）下载整本为加密 PDF 发到群文件/私聊，需配置账号 AVS |
@@ -129,6 +130,17 @@ pnpm install
 - **认输**：`五子棋认输` 结束本局；`五子棋排名` 看本群胜场榜，`五子棋帮助` 看玩法。
 
 AI 对手默认用**内置启发式 AI**，开箱即玩；在锅巴「AQing-plugin → 五子棋」填好 **接口地址 / API Key / 模型**（任何 OpenAI 兼容接口均可，如 OpenAI、DeepSeek 等）后，人机对手会换成你配置的大模型来下，接口异常时自动退回内置 AI 兜底。一个群同时只进行一局，按群隔离存 redis，无操作 2 小时自动失效。
+
+### 小番茄图片混淆
+
+复刻 [小番茄图片混淆](https://singularpoint.cn/hideImg1.html) 的本地算法：
+
+- **混淆图片**：发图/引用图/图片链接后发送 `小番茄混图`，或先发 `小番茄混图` 再补图；
+- **解混淆**：发图/引用图/图片链接后发送 `小番茄解图`，或先发 `小番茄解图` 再补图；
+- 算法走 Gilbert 空间填充曲线 + 黄金比例偏移重排像素，本地处理，不上传第三方；
+- 输出会直接返回一个 `http...` 临时图片链接，不再把结果作为 QQ 图片消息发出去，避免 QQ 图片风控拦截。
+
+图片大小限制 12MB，超大图会拒绝处理，避免低配服务器炸内存。
 
 ## 💬 交流群
 

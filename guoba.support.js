@@ -129,6 +129,63 @@ export function supportGuoba() {
           componentProps: { min: 5, max: 120, placeholder: '默认 30' },
         },
 
+        // ───────────────── 小番茄图片混淆 ─────────────────
+        { component: 'SOFT_GROUP_BEGIN', label: '小番茄图片混淆' },
+        {
+          field: 'hideImg.enable',
+          label: '小番茄总开关',
+          bottomHelpMessage: '开启后支持「小番茄混图 / 小番茄解图」，可发图、引用图或图片链接；结果默认上传外部图床并返回纯文本链接',
+          component: 'Switch',
+        },
+        {
+          field: 'hideImg.linkMode',
+          label: '结果链接模式',
+          bottomHelpMessage: 'external=外部图床（默认，返回公网链接）；local=机器人本地图链（不出站，但公网访问取决于你的云崽 server.url 配置）',
+          component: 'Select',
+          componentProps: {
+            placeholder: '请选择链接模式',
+            options: [
+              { label: '外部图床（默认）', value: 'external' },
+              { label: '本地图链', value: 'local' },
+            ],
+          },
+        },
+        {
+          field: 'hideImg.externalProvider',
+          label: '外部图床',
+          bottomHelpMessage: 'auto=自动兜底（Catbox → Litterbox）；Catbox 为长期图床，Litterbox 为约 1 小时临时图床',
+          component: 'Select',
+          componentProps: {
+            placeholder: '请选择外部图床',
+            options: [
+              { label: '自动（Catbox → Litterbox）', value: 'auto' },
+              { label: 'Catbox', value: 'catbox' },
+              { label: 'Litterbox（临时）', value: 'litterbox' },
+            ],
+          },
+        },
+        {
+          field: 'hideImg.maxMB',
+          label: '输入图片上限（MB）',
+          bottomHelpMessage: '图片越大越吃内存，默认 12MB；低配服务器不建议调太高',
+          component: 'InputNumber',
+          componentProps: { min: 1, max: 50, placeholder: '默认 12' },
+        },
+        {
+          field: 'hideImg.localExpireMin',
+          label: '本地图链有效期（分钟）',
+          bottomHelpMessage: '仅 linkMode=local 或外部图床失败兜底时使用，默认 10 分钟',
+          component: 'InputNumber',
+          componentProps: { min: 1, max: 1440, placeholder: '默认 10' },
+        },
+        {
+          field: 'hideImg.localMaxViews',
+          label: '本地图链访问次数',
+          bottomHelpMessage: '仅 linkMode=local 或外部图床失败兜底时使用，默认最多访问 3 次',
+          component: 'InputNumber',
+          componentProps: { min: 1, max: 100, placeholder: '默认 3' },
+        },
+
         // ───────────────── 涩图打分 ─────────────────
         { component: 'SOFT_GROUP_BEGIN', label: '涩图打分' },
         {
