@@ -181,9 +181,9 @@ export function supportGuoba() {
         {
           field: 'hideImg.localMaxViews',
           label: '本地图链访问次数',
-          bottomHelpMessage: '仅 linkMode=local 或外部图床失败兜底时使用，默认最多访问 3 次',
+          bottomHelpMessage: '仅 linkMode=local 或外部图床失败兜底时使用；填 0 表示不限次数，只按有效期过期。默认 0，避免点开一次/预览一次就失效',
           component: 'InputNumber',
-          componentProps: { min: 1, max: 100, placeholder: '默认 3' },
+          componentProps: { min: 0, max: 1000, placeholder: '默认 0（不限次数）' },
         },
         {
           field: 'hideImg.localPublicBaseUrl',

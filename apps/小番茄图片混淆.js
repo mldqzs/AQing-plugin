@@ -121,11 +121,16 @@ async function bufferToImageUrl (buf, prefix = 'hideimg') {
 
   if (typeof Bot?.fileToUrl === 'function') {
     const expire = Math.max(1, Math.min(1440, Number(c.localExpireMin) || 10))
-    const views = Math.max(1, Math.min(100, Number(c.localMaxViews) || 3))
+    const viewsRaw = Number(c.localMaxViews)
+    const views = Number.isFinite(viewsRaw) && viewsRaw > 0
+      ? Math.min(1000, Math.floor(viewsRaw))
+      : false // false=不传 times，云崽不会扣次数，只靠有效期过期
+    const opts = { time: expire * 60000 }
+    if (views) opts.times = views
     const rawUrl = await Bot.fileToUrl({
       name: filename,
       buffer: buf
-    }, { time: expire * 60000, times: views })
+    }, opts)
     return { url: rewriteLocalUrl(rawUrl, c.localPublicBaseUrl), source: 'local' }
   }
 
@@ -194,6 +199,8 @@ export class hideImg extends plugin {
       `\n· 链接模式：${mode}`,
       `\n· 外部图床：${provider === 'auto' ? '自动（Catbox → Litterbox）' : provider}`,
       `\n· 图片上限：${Number(c.maxMB) || DEFAULT_MAX_MB}MB`,
+      `\n· 本地图链有效期：${Number(c.localExpireMin) || 10}分钟`,
+      `\n· 本地图链访问次数：${Number(c.localMaxViews) > 0 ? `${Number(c.localMaxViews)}次` : '不限次数'}`,
       `\n· 本地公网地址：${c.localPublicBaseUrl || '未设置（使用云崽原始地址）'}`,
       '\n\n可在锅巴：AQing-plugin → 小番茄图片混淆 里修改。'
     ])
