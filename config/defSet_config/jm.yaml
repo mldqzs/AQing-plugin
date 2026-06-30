@@ -17,3 +17,8 @@ BASE_URL: 18comic-mygo.vip # 站点域名
 OUTPUT_DIR: temp           # PDF 临时输出目录（相对云崽根目录，需已存在）
 PASSWORD: cikeyqi          # 生成 PDF 的通用打开密码
 PROXY_URL: ''              # JM专用代理,默认空=不走代理;如 http://127.0.0.1:7890 或 http://user:pass@host:port
+SEND_MODE: auto            # PDF发送方式:auto=小文件上传/大文件发链接, upload=总是上传, link=总是发临时下载链接
+UPLOAD_LIMIT_MB: 80        # auto模式下超过多少MB改发临时链接,避免群文件上传超时
+LINK_EXPIRE_MIN: 60        # 临时下载链接有效期(分钟)
+LINK_MAX_VIEWS: 0          # 临时下载链接访问次数,0=不限次数直到过期
+FILE_PUBLIC_BASE_URL: ''   # 临时下载链接公网地址,如 http://1.2.3.4:2536 ;留空用云崽原始地址

@@ -24,10 +24,44 @@ const CONFIG = {
   BASE_URL: '18comic-mygo.vip',
   OUTPUT_DIR: 'temp',
   PASSWORD: 'cikeyqi',
-  PROXY_URL: ''
+  PROXY_URL: '',
+  SEND_MODE: 'auto',
+  UPLOAD_LIMIT_MB: 80,
+  LINK_EXPIRE_MIN: 60,
+  LINK_MAX_VIEWS: 0,
+  FILE_PUBLIC_BASE_URL: ''
 }
 
 let axios = baseAxios
+
+
+function rewritePublicFileUrl (rawUrl, publicBaseUrl) {
+  const base = String(publicBaseUrl || '').trim().replace(/\/+$/, '')
+  if (!base) return String(rawUrl)
+  try {
+    const src = new URL(String(rawUrl))
+    const dst = new URL(base)
+    dst.pathname = src.pathname
+    dst.search = src.search
+    dst.hash = src.hash
+    return dst.toString()
+  } catch {
+    return String(rawUrl)
+  }
+}
+
+async function makeLocalFileLink (filePath, filename) {
+  if (typeof Bot?.fileToUrl !== 'function') return ''
+  const buf = await fs.readFile(filePath)
+  const expire = Math.max(1, Math.min(1440, Number(CONFIG.LINK_EXPIRE_MIN) || 60))
+  const viewsRaw = Number(CONFIG.LINK_MAX_VIEWS)
+  const views = Number.isFinite(viewsRaw) && viewsRaw > 0
+    ? Math.min(1000, Math.floor(viewsRaw))
+    : false
+  const opts = { time: expire * 60000, times: views || false }
+  const rawUrl = await Bot.fileToUrl({ name: filename, buffer: buf }, opts)
+  return rewritePublicFileUrl(rawUrl, CONFIG.FILE_PUBLIC_BASE_URL)
+}
 
 function refreshJmAxios () {
   const proxyUrl = String(CONFIG.PROXY_URL || '').trim()
@@ -137,13 +171,37 @@ export class example extends plugin {
     try {
       const file = await new ComicPDFGenerator().create(aid)
       const filePath = path.join(path.resolve(), file)
+      const stat = await fs.stat(filePath)
+      const sizeMB = stat.size / 1024 / 1024
+      const mode = String(CONFIG.SEND_MODE || 'auto').toLowerCase()
+      const limitMB = Math.max(1, Number(CONFIG.UPLOAD_LIMIT_MB) || 80)
+      const shouldLink = mode === 'link' || (mode === 'auto' && sizeMB > limitMB)
       const target = e.isGroup ? e.group : e.friend
       const sendFile = e.isGroup ? (e.group.sendFile || e.group.fs?.upload) : e.friend.sendFile
-      if (sendFile) {
-        await sendFile.call(target, filePath)
-        await e.reply(`本子 ${aid} 已上传~\nPDF 是加密的，打开密码：${CONFIG.PASSWORD}`, true)
+
+      if (shouldLink) {
+        const url = await makeLocalFileLink(filePath, path.basename(file))
+        if (url) {
+          await e.reply(`本子 ${aid} 已生成，但文件较大（${sizeMB.toFixed(1)}MB），已改发临时下载链接：\n${url}\n\nPDF 打开密码：${CONFIG.PASSWORD}`, true)
+        } else if (sendFile) {
+          await sendFile.call(target, filePath)
+          await e.reply(`本子 ${aid} 已上传~\nPDF 是加密的，打开密码：${CONFIG.PASSWORD}`, true)
+        } else {
+          await e.reply('当前环境无法上传文件，也无法生成临时下载链接')
+        }
+      } else if (sendFile) {
+        try {
+          await sendFile.call(target, filePath)
+          await e.reply(`本子 ${aid} 已上传~\nPDF 是加密的，打开密码：${CONFIG.PASSWORD}`, true)
+        } catch (err) {
+          const url = await makeLocalFileLink(filePath, path.basename(file))
+          if (!url) throw err
+          await e.reply(`文件上传超时/失败，已改发临时下载链接：\n${url}\n\nPDF 打开密码：${CONFIG.PASSWORD}`, true)
+        }
       } else {
-        await e.reply('当前适配器不支持发送文件，无法上传 PDF')
+        const url = await makeLocalFileLink(filePath, path.basename(file))
+        if (url) await e.reply(`当前适配器不支持发送文件，已改发临时下载链接：\n${url}\n\nPDF 打开密码：${CONFIG.PASSWORD}`, true)
+        else await e.reply('当前适配器不支持发送文件，无法上传 PDF')
       }
       await fs.unlink(file).catch(err => logger.error('[禁漫天堂] 文件清理失败：', err))
     } catch (err) {

@@ -503,6 +503,48 @@ export function supportGuoba() {
           componentProps: { placeholder: '留空直连，如 http://127.0.0.1:7890' },
         },
         {
+          field: 'jm.SEND_MODE',
+          label: 'PDF 发送方式',
+          bottomHelpMessage: 'auto=小文件正常上传、大文件自动改发临时链接；upload=总是上传群文件；link=总是发临时下载链接，适合上传总超时的适配器',
+          component: 'Select',
+          componentProps: {
+            placeholder: '请选择发送方式',
+            options: [
+              { label: '自动（大文件发链接）', value: 'auto' },
+              { label: '总是上传群文件', value: 'upload' },
+              { label: '总是发临时链接', value: 'link' },
+            ],
+          },
+        },
+        {
+          field: 'jm.UPLOAD_LIMIT_MB',
+          label: '自动发链接阈值（MB）',
+          bottomHelpMessage: 'SEND_MODE=auto 时，PDF 超过该大小就不上传群文件，直接发临时链接，默认 80MB',
+          component: 'InputNumber',
+          componentProps: { min: 1, max: 2048, placeholder: '默认 80' },
+        },
+        {
+          field: 'jm.LINK_EXPIRE_MIN',
+          label: '临时链接有效期（分钟）',
+          bottomHelpMessage: '发临时下载链接时使用，默认 60 分钟',
+          component: 'InputNumber',
+          componentProps: { min: 1, max: 1440, placeholder: '默认 60' },
+        },
+        {
+          field: 'jm.LINK_MAX_VIEWS',
+          label: '临时链接访问次数',
+          bottomHelpMessage: '0 表示不限次数，只按有效期过期；大于 0 则限制访问次数',
+          component: 'InputNumber',
+          componentProps: { min: 0, max: 1000, placeholder: '默认 0（不限次数）' },
+        },
+        {
+          field: 'jm.FILE_PUBLIC_BASE_URL',
+          label: '临时链接公网地址',
+          bottomHelpMessage: '云崽 server.url 若是 localhost，群友打不开；这里填公网地址，如 http://1.2.3.4:2536 或你的域名。留空则使用云崽原始地址',
+          component: 'Input',
+          componentProps: { placeholder: '如 http://1.2.3.4:2536' },
+        },
+        {
           field: 'jm.OUTPUT_DIR',
           label: 'PDF 临时目录',
           bottomHelpMessage: 'PDF 临时输出目录（相对云崽根目录，需已存在），默认 temp',
