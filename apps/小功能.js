@@ -1,7 +1,8 @@
 import plugin from '../../../lib/plugins/plugin.js'
 import common from '../../../lib/common/common.js'
 import setting from '../utils/setting.js'
-import axios from 'axios'
+import baseAxios from 'axios'
+import { HttpsProxyAgent } from 'https-proxy-agent'
 import { PDFDocument } from '@cantoo/pdf-lib'
 import sharp from 'sharp'
 import fs from 'fs/promises'
@@ -22,7 +23,30 @@ const CONFIG = {
   DEBUG: true,
   BASE_URL: '18comic-mygo.vip',
   OUTPUT_DIR: 'temp',
-  PASSWORD: 'cikeyqi'
+  PASSWORD: 'cikeyqi',
+  PROXY_URL: ''
+}
+
+let axios = baseAxios
+
+function refreshJmAxios () {
+  const proxyUrl = String(CONFIG.PROXY_URL || '').trim()
+  if (!proxyUrl) {
+    axios = baseAxios
+    return
+  }
+  try {
+    const agent = new HttpsProxyAgent(proxyUrl)
+    axios = baseAxios.create({
+      proxy: false,
+      httpAgent: agent,
+      httpsAgent: agent
+    })
+    logger?.mark?.(`[禁漫天堂] 已启用 JM 专用代理：${proxyUrl.replace(/:\/\/[^:@/]+:[^@/]+@/, '://***:***@')}`)
+  } catch (err) {
+    axios = baseAxios
+    logger?.error?.(`[禁漫天堂] PROXY_URL 配置无效，已回退直连：${err?.message || err}`)
+  }
 }
 
 // ===== 以下为禁漫天堂下载实现（来自原 JMComic 插件，混淆压缩，保持原样） =====
@@ -103,6 +127,7 @@ export class example extends plugin {
 
     // 用 jm.yaml 的最新配置刷新 CONFIG（锅巴修改 / 手改配置文件均热生效）
     Object.assign(CONFIG, setting.getConfig('jm') || {})
+    refreshJmAxios()
     if (!CONFIG.AVS) {
       await e.reply('未配置禁漫账号 AVS，请在锅巴「AQing-plugin → 禁漫天堂」或 config/config/jm.yaml 中填写 AVS 后再试~', true)
       return true

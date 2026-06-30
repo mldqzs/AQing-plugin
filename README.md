@@ -4,7 +4,7 @@
 
 **基于 [TRSS-Yunzai](https://github.com/TimeRainStarSky/Yunzai) 的自用娱乐插件，功能杂、偏练手，欢迎尝鲜**
 
-[![version](https://img.shields.io/badge/version-1.9.0-9b8cff?style=flat-square)](./CHANGELOG.md)
+[![version](https://img.shields.io/badge/version-1.9.1-9b8cff?style=flat-square)](./CHANGELOG.md)
 [![Yunzai](https://img.shields.io/badge/TRSS--Yunzai-V3-66ccff?style=flat-square)](https://github.com/TimeRainStarSky/Yunzai)
 [![Gitee](https://img.shields.io/badge/Gitee-aayhg-c71d23?style=flat-square&logo=gitee)](https://gitee.com/aayhg/AQing-plugin)
 [![GitHub](https://img.shields.io/badge/GitHub-mldqzs-181717?style=flat-square&logo=github)](https://github.com/mldqzs/AQing-plugin)
@@ -62,7 +62,7 @@ git clone --depth=1 https://github.com/mldqzs/AQing-plugin ./plugins/AQing-plugi
 pnpm install
 ```
 
-> 依赖（`axios`、`cheerio`、`@cantoo/pdf-lib`、`sharp`、`p-limit`）已写入本插件 `package.json`，
+> 依赖（`axios`、`cheerio`、`https-proxy-agent`、`@cantoo/pdf-lib`、`sharp`、`p-limit`）已写入本插件 `package.json`，
 > 云崽为 pnpm workspace（`plugins/**`），在根目录执行一次 `pnpm install` 即会一并装好；
 > 若个别包构建报错，可在命令末尾加 `-w` 重试。
 
@@ -78,6 +78,7 @@ pnpm install
    - **手动**：编辑 `config/config/jm.yaml`。
    - AVS 获取：浏览器打开 `18comic-mygo.vip` 并登录 → F12 →「应用程序」→ Cookie 中名为 `AVS` 的值。
 3. 发送 `#jm 漫画ID`（如 `#jm 350234`），机器人会把整本下载为加密 PDF 上传到群文件/私聊（PDF 默认密码见 `jm.yaml` 的 `PASSWORD`）。
+4. 如遇部分服务器/IP 下载时报 `403`（可能被 CF/站点风控拦截），可在锅巴「禁漫天堂」里填写 **JM 专用代理**（如 `http://127.0.0.1:7890` 或 `http://user:pass@host:port`）。该代理只作用于禁漫天堂下载，不会修改全局 axios，也不会影响其它功能。
 
 ### 涩图打分
 

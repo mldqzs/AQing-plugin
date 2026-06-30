@@ -16,3 +16,4 @@ DEBUG: true                # 是否输出调试日志
 BASE_URL: 18comic-mygo.vip # 站点域名
 OUTPUT_DIR: temp           # PDF 临时输出目录（相对云崽根目录，需已存在）
 PASSWORD: cikeyqi          # 生成 PDF 的通用打开密码
+PROXY_URL: ''              # JM专用代理,默认空=不走代理;如 http://127.0.0.1:7890 或 http://user:pass@host:port

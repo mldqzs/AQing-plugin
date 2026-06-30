@@ -496,6 +496,13 @@ export function supportGuoba() {
           componentProps: { placeholder: '如 18comic-mygo.vip' },
         },
         {
+          field: 'jm.PROXY_URL',
+          label: 'JM 专用代理',
+          bottomHelpMessage: '默认留空=不走代理。部分 IP 被 CF/站点 403 时可填代理，只作用于禁漫天堂下载，不污染全局 axios；例如 http://127.0.0.1:7890 或 http://user:pass@host:port',
+          component: 'Input',
+          componentProps: { placeholder: '留空直连，如 http://127.0.0.1:7890' },
+        },
+        {
           field: 'jm.OUTPUT_DIR',
           label: 'PDF 临时目录',
           bottomHelpMessage: 'PDF 临时输出目录（相对云崽根目录，需已存在），默认 temp',
