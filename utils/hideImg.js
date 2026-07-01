@@ -3,7 +3,8 @@
  * 算法来源：https://singularpoint.cn/hideImg1.html
  *
  * 核心：按 generalized Hilbert（gilbert）空间填充曲线重排像素，
- * 再用黄金比例偏移打乱/复原。输出 JPEG 最高质量，方便 QQ 直接发图。
+ * 再用黄金比例偏移打乱/复原。默认混图输出 JPEG、解图输出 PNG，
+ * 尽量减少解图后二次有损压缩导致的模糊。
  * ───────────────────────────────────────────────────────────── */
 
 import sharp from 'sharp'
@@ -75,19 +76,36 @@ function generate2d (x, y, ax, ay, bx, by, coordinates) {
   }
 }
 
-async function loadRaw (input) {
-  const img = sharp(input, { limitInputPixels: MAX_PIXELS })
+async function loadRaw (input, opts = {}) {
+  let img = sharp(input, { limitInputPixels: MAX_PIXELS }).rotate()
   const meta = await img.metadata()
-  const width = meta.width || 0
-  const height = meta.height || 0
+  let width = meta.width || 0
+  let height = meta.height || 0
   if (!width || !height) throw new Error('图片尺寸读取失败')
+
+  const maxSide = Math.max(0, Number(opts.maxSide) || 0)
+  if (maxSide && Math.max(width, height) > maxSide) {
+    const ratio = maxSide / Math.max(width, height)
+    width = Math.max(1, Math.round(width * ratio))
+    height = Math.max(1, Math.round(height * ratio))
+    img = img.resize(width, height, { fit: 'fill' })
+  }
+
+  const upscale = Math.max(1, Math.min(4, Number(opts.upscale) || 1))
+  if (upscale > 1) {
+    width *= upscale
+    height *= upscale
+    // QQ 会压缩图片。先把每个像素放大成色块，再混淆，压缩后解出来会更稳，代价是图更大/略像素风。
+    img = img.resize(width, height, { fit: 'fill', kernel: 'nearest' })
+  }
+
   if (width * height > MAX_PIXELS) throw new Error(`图片太大啦，最多支持 ${MAX_PIXELS} 像素以内`)
   return img.ensureAlpha().raw().toBuffer({ resolveWithObject: true })
 }
 
-/** mode: 'encrypt' 混淆；'decrypt' 解混淆 */
-export async function hideImgTransform (input, mode = 'decrypt') {
-  const { data, info } = await loadRaw(input)
+/** mode: 'encrypt' 混淆；'decrypt' 解混淆。format: 'auto' | 'jpg' | 'png' */
+export async function hideImgTransform (input, mode = 'decrypt', format = 'auto', opts = {}) {
+  const { data, info } = await loadRaw(input, mode === 'encrypt' ? opts : {})
   const { width, height } = info
   const total = width * height
   const out = Buffer.allocUnsafe(total * 4)
@@ -105,7 +123,10 @@ export async function hideImgTransform (input, mode = 'decrypt') {
     else data.copy(out, newP, oldP, oldP + 4)
   }
 
-  return sharp(out, { raw: { width, height, channels: 4 } })
-    .jpeg({ quality: 100, mozjpeg: true })
-    .toBuffer()
+  const img = sharp(out, { raw: { width, height, channels: 4 } })
+  const outFormat = String(format || 'auto').toLowerCase()
+  if (outFormat === 'png' || (outFormat === 'auto' && decrypt)) {
+    return { buffer: await img.png({ compressionLevel: 6 }).toBuffer(), ext: 'png', mime: 'image/png' }
+  }
+  return { buffer: await img.jpeg({ quality: 100, mozjpeg: true }).toBuffer(), ext: 'jpg', mime: 'image/jpeg' }
 }

@@ -76,9 +76,9 @@ function rewriteLocalUrl (rawUrl, publicBaseUrl) {
   }
 }
 
-async function bufferToImageUrl (buf, prefix = 'hideimg') {
+async function bufferToImageUrl (buf, prefix = 'hideimg', ext = 'jpg', mime = 'image/jpeg') {
   const c = cfg()
-  const filename = `${prefix}-${Date.now()}.jpg`
+  const filename = `${prefix}-${Date.now()}.${ext}`
   const linkMode = String(c.linkMode || 'external').toLowerCase()
   const provider = String(c.externalProvider || 'auto').toLowerCase()
 
@@ -107,7 +107,7 @@ async function bufferToImageUrl (buf, prefix = 'hideimg') {
       try {
         const form = new FormData()
         for (const [k, v] of Object.entries(bed.fields)) form.append(k, v)
-        form.append('fileToUpload', new Blob([buf], { type: 'image/jpeg' }), filename)
+        form.append('fileToUpload', new Blob([buf], { type: mime }), filename)
 
         const res = await fetch(bed.url, { method: 'POST', body: form })
         const text = (await res.text()).trim()
@@ -198,6 +198,9 @@ export class hideImg extends plugin {
       `\n· 链接模式：${mode}`,
       `\n· 外部图床：${provider === 'auto' ? '自动（Catbox → Litterbox）' : provider}`,
       `\n· 图片上限：${Number(c.maxMB) || DEFAULT_MAX_MB}MB`,
+      `\n· 输出格式：${String(c.outputFormat || 'png').toLowerCase()}（推荐png，QQ里复制链接解图更稳）`,
+      `\n· QQ抗压缩倍数：${Number(c.qqSafeScale) || 1}x`,
+      `\n· 混图最大边：${Number(c.maxSide) || 0 || '不限制'}`,
       `\n· 本地图链有效期：${Number(c.localExpireMin) || 10}分钟`,
       `\n· 本地图链访问次数：${Number(c.localMaxViews) > 0 ? `${Number(c.localMaxViews)}次` : '不限次数'}`,
       `\n· 本地公网地址：${c.localPublicBaseUrl || '未设置（使用云崽原始地址）'}`,
@@ -249,10 +252,17 @@ export class hideImg extends plugin {
     try {
       await e.reply(mode === 'decrypt' ? '收到，正在解图...' : '收到，正在混图...')
       const input = await downloadImage(src)
-      const out = await hideImgTransform(input, mode)
-      const ret = await bufferToImageUrl(out, mode === 'decrypt' ? 'tomato-decode' : 'tomato-encode')
+      const out = await hideImgTransform(input, mode, cfg().outputFormat || 'png', {
+        upscale: Number(cfg().qqSafeScale) || 1,
+        maxSide: Number(cfg().maxSide) || 0
+      })
+      const ret = await bufferToImageUrl(out.buffer, mode === 'decrypt' ? 'tomato-decode' : 'tomato-encode', out.ext, out.mime)
       const tip = ret.source === 'local' ? '本地临时链接' : `外部图床：${ret.source}`
-      await e.reply(`${mode === 'decrypt' ? '解图完成' : '混图完成'}（${tip}）：\n${ret.url}`, true)
+      const title = mode === 'decrypt' ? '解图完成' : '混图完成'
+      const extra = mode === 'encrypt'
+        ? `\n\n解图请复制：\n小番茄解图 ${ret.url}`
+        : ''
+      await e.reply(`${title}（${tip}，${out.ext.toUpperCase()}）：\n${ret.url}${extra}`, true)
     } catch (err) {
       logger.error('[小番茄图片混淆] error', err)
       await e.reply(`处理失败：${err?.message || err}`)

@@ -2,6 +2,9 @@ enable: true          #小番茄图片混淆总开关,默认开启
 linkMode: external    #结果链接模式: external=外部图床链接, local=机器人本地图链
 externalProvider: auto #外部图床: auto=自动兜底, catbox=Catbox, litterbox=Litterbox临时图床
 maxMB: 12             #输入图片最大体积(MB),太大容易占内存
+outputFormat: png     #输出格式:png=全部png(推荐,最适合QQ里传链接解图), auto=混图jpg/解图png, jpg=全部jpg
+qqSafeScale: 2        #QQ抗压缩放大倍数:1=原尺寸,2=推荐;混图前把像素放大成色块,下载后再发QQ更不容易解糊
+maxSide: 1600         #混图前最大边限制,避免放大后图片太大;0=不限制
 localExpireMin: 10    #本地图链有效期(分钟),linkMode=local或外部图床失败兜底时使用
 localMaxViews: 0      #本地图链最大访问次数,0=不限制次数直到过期;linkMode=local或外部图床失败兜底时使用
 localPublicBaseUrl: '' #本地图链公网地址,如 http://1.2.3.4:2536 ;留空则用云崽自带 Bot.fileToUrl 返回值(很多环境默认 localhost)

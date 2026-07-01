@@ -172,6 +172,34 @@ export function supportGuoba() {
           componentProps: { min: 1, max: 50, placeholder: '默认 12' },
         },
         {
+          field: 'hideImg.outputFormat',
+          label: '输出格式',
+          bottomHelpMessage: 'png=全部 PNG（推荐，最适合 QQ 下载/转发后再解图）；auto=混图 JPG、解图 PNG；jpg=全部 JPG（文件小但更容易糊）',
+          component: 'Select',
+          componentProps: {
+            placeholder: '请选择输出格式',
+            options: [
+              { label: '全部 PNG（推荐）', value: 'png' },
+              { label: '自动：混图JPG / 解图PNG', value: 'auto' },
+              { label: '全部 JPG', value: 'jpg' },
+            ],
+          },
+        },
+        {
+          field: 'hideImg.qqSafeScale',
+          label: 'QQ 抗压缩倍数',
+          bottomHelpMessage: '混图前把像素放大成色块，别人下载/转发到 QQ 后再解图会更稳。1=原尺寸，2=推荐，3/4 更稳但文件更大',
+          component: 'InputNumber',
+          componentProps: { min: 1, max: 4, placeholder: '默认 2' },
+        },
+        {
+          field: 'hideImg.maxSide',
+          label: '混图最大边',
+          bottomHelpMessage: '混图前先限制最大边，再做抗压缩放大，避免图片过大。默认 1600；填 0 表示不限制',
+          component: 'InputNumber',
+          componentProps: { min: 0, max: 4096, placeholder: '默认 1600' },
+        },
+        {
           field: 'hideImg.localExpireMin',
           label: '本地图链有效期（分钟）',
           bottomHelpMessage: '仅 linkMode=local 或外部图床失败兜底时使用，默认 10 分钟',
