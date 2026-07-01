@@ -259,10 +259,7 @@ export class hideImg extends plugin {
       const ret = await bufferToImageUrl(out.buffer, mode === 'decrypt' ? 'tomato-decode' : 'tomato-encode', out.ext, out.mime)
       const tip = ret.source === 'local' ? '本地临时链接' : `外部图床：${ret.source}`
       const title = mode === 'decrypt' ? '解图完成' : '混图完成'
-      const extra = mode === 'encrypt'
-        ? `\n\n解图请复制：\n小番茄解图 ${ret.url}`
-        : ''
-      await e.reply(`${title}（${tip}，${out.ext.toUpperCase()}）：\n${ret.url}${extra}`, true)
+      await e.reply(`${title}（${tip}，${out.ext.toUpperCase()}）：\n${ret.url}`, true)
     } catch (err) {
       logger.error('[小番茄图片混淆] error', err)
       await e.reply(`处理失败：${err?.message || err}`)
