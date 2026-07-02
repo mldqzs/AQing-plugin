@@ -116,15 +116,21 @@ export class example extends plugin {
     return await this.setContext('Set')
   }
 
-  Set () {
+  async Set () {
     this.finish('Set')
     const ctx = s[this.e.user_id]
     delete s[this.e.user_id]
-    if (!ctx) return
-    if (this.e.msg.trim() === ctx.s) {
-      return this.reply(this.add(ctx.user_id))
+    if (!ctx) return true
+
+    // setContext 会接管用户的下一条消息。下一条可能不是纯文本（图片/表情/卡片等），
+    // 这类消息 e.msg 可能为空；以前直接 this.e.msg.trim() 会抛错，导致用户看不到“验证码错误”。
+    const msg = String(this.e.msg || this.e.raw_message || '').trim()
+    if (msg && msg === ctx.s) {
+      await this.reply(this.add(ctx.user_id))
+    } else {
+      await this.reply('验证码有误，设置已取消。请重新发送「#设置绝对主人」获取新的验证码。')
     }
-    return this.reply('验证码有误，设置已取消。')
+    return true
   }
 
   add (user_id) {
