@@ -315,7 +315,15 @@ export class AQPluginInstall extends plugin {
     let npm = 'npm'
     if (fs.existsSync('node_modules/.pnpm')) npm = 'pnpm'
     else if (fs.existsSync('node_modules/.yarn-integrity')) npm = 'yarn'
-    return this.execSync(`${npm} install --omit=dev`, { cwd })
+
+    // 不能统一用 --omit=dev：旧版 pnpm 不认识这个参数，会报 Unknown option: 'omit'
+    // 按包管理器分别用它自己支持的生产依赖安装参数。
+    const cmd = npm === 'pnpm'
+      ? 'pnpm install --prod'
+      : npm === 'yarn'
+        ? 'yarn install --production=true'
+        : 'npm install --omit=dev'
+    return this.execSync(cmd, { cwd })
   }
 
   async checkGit(e) {
