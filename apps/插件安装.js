@@ -319,7 +319,10 @@ export class AQPluginInstall extends plugin {
     // 不能统一用 --omit=dev：旧版 pnpm 不认识这个参数，会报 Unknown option: 'omit'
     // 按包管理器分别用它自己支持的生产依赖安装参数。
     const cmd = npm === 'pnpm'
-      ? 'pnpm install --prod'
+      // pnpm 在 workspace 里执行 install 会尝试处理整个工作区，并可能弹出
+      // “modules directories will be removed...” 交互确认；exec 无法交互就会失败/超时。
+      // --ignore-workspace 只安装目标插件自身依赖，--config.confirmModulesPurge=false 禁止确认弹窗。
+      ? 'pnpm install --prod --ignore-workspace --config.confirmModulesPurge=false --no-frozen-lockfile'
       : npm === 'yarn'
         ? 'yarn install --production=true'
         : 'npm install --omit=dev'
