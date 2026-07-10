@@ -1,0 +1,29 @@
+# ============ 音乐解析配置 ============
+# 支持网易云音乐 / QQ音乐 / 酷狗音乐 / 酷我音乐链接或卡片自动解析：歌曲信息、歌词、可用音频。
+# 音频只在用户 Cookie 对应账号有权限且平台返回可播放直链时发送；没权限时只发歌词/提示。
+
+enable: true              # 总开关
+parseNetease: true        # 网易云音乐解析开关
+parseQQ: true             # QQ音乐解析开关
+parseKugou: true          # 酷狗音乐解析开关
+parseKuwo: true           # 酷我音乐解析开关
+
+neteaseCookie: ''         # 网易云 Cookie，用户自行从已登录浏览器复制；留空也可解析部分公开信息/歌词
+qqCookie: ''              # QQ音乐 Cookie，用户自行从已登录浏览器复制；留空也可解析部分公开信息/歌词
+kugouCookie: ''           # 酷狗 Cookie，用户自行从已登录浏览器复制
+kuwoCookie: ''            # 酷我 Cookie，用户自行从已登录浏览器复制
+
+sendLyrics: true          # 是否发送歌词（用聊天记录折叠发送，不限制行数）
+sendMp3: true             # 是否尝试发送音频文件
+sendCover: true           # 是否发送封面图
+
+maxSize: 30               # 音频下载体积上限(MB)
+sendMode: auto            # 音频发送方式:auto=小文件上传/大文件发链接, upload=总是上传, link=总是发临时下载链接
+uploadLimitMB: 25         # auto模式下超过多少MB改发临时链接
+linkExpireMin: 60         # 临时下载链接有效期(分钟)
+linkMaxViews: 0           # 临时下载链接访问次数,0=不限次数直到过期
+filePublicBaseUrl: ''     # 临时下载链接公网地址,如 http://1.2.3.4:2536 ;留空用云崽原始地址
+
+isCD: true                # 是否开启解析 CD（同一群/私聊冷却，防刷屏）
+CD: 10                    # CD 时长（秒）
+timeout: 20               # 平台接口超时（秒）

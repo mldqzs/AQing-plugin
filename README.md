@@ -4,7 +4,7 @@
 
 **基于 [TRSS-Yunzai](https://github.com/TimeRainStarSky/Yunzai) 的自用娱乐插件，功能杂、偏练手，欢迎尝鲜**
 
-[![version](https://img.shields.io/badge/version-1.9.1-9b8cff?style=flat-square)](./CHANGELOG.md)
+[![version](https://img.shields.io/badge/version-1.10.1-9b8cff?style=flat-square)](./CHANGELOG.md)
 [![Yunzai](https://img.shields.io/badge/TRSS--Yunzai-V3-66ccff?style=flat-square)](https://github.com/TimeRainStarSky/Yunzai)
 [![Gitee](https://img.shields.io/badge/Gitee-aayhg-c71d23?style=flat-square&logo=gitee)](https://gitee.com/aayhg/AQing-plugin)
 [![GitHub](https://img.shields.io/badge/GitHub-mldqzs-181717?style=flat-square&logo=github)](https://github.com/mldqzs/AQing-plugin)
@@ -29,6 +29,7 @@
 | 娱乐 | QQ 注册时间 | `#QQ注册时间` 查询 QQ 注册时间等信息，图片卡片展示 |
 | 娱乐 | 涩图打分 | 引用或发图给图片打分，百度 / Sightengine 双接口可切换（Sightengine 对二次元更准） |
 | 娱乐 | 短视频解析 | 发抖音 / 快手 / B站链接自动解析为视频（图文则发图片）；全程原生轻量解析、免 cookie，可选用 ffmpeg 抽背景音乐 |
+| 娱乐 | 音乐解析 | 发网易云音乐 / QQ音乐 / 酷狗 / 酷我链接或卡片，自动解析歌曲信息、完整歌词（聊天记录折叠）和账号有权限播放的音频；Cookie 可在锅巴配置 |
 | 娱乐 | 图文解析 | 发小红书 / 小黑盒链接自动解析，图文用「聊天记录」折叠卡片发送，视频笔记发本体 |
 | 娱乐 | 扫雷小游戏 | 群里发 `扫雷` 开局，`挖 B3` 翻格、`旗 B3` 插旗（支持 `挖 A1 B2` 连发），通关按出力攒积分，`扫雷排名` 看榜 |
 | 娱乐 | 五子棋 | `五子棋人机`（加 `地狱` 更难）和 AI 对战、`五子棋对战 @某人` 邀人对战（对方发 `接受`），`落 H8` 落子；AI 可在锅巴自配接口/Key/模型，未配置用内置 AI，`五子棋排名` 看榜 |
@@ -101,6 +102,19 @@ pnpm install
 
 **背景音乐**（可选，默认关）：开启「提取背景音乐」后，机器人会用 ffmpeg 从视频抽出音轨，发一条语音条（点开就听）+ 一个 mp3 文件。需要系统装有 `ffmpeg`（多数云崽环境已自带；`ffmpeg -version` 可验证）。注意抽的是视频音轨——纯音乐视频即 BGM，带人声的视频会是「人声 + BGM」的混音。
 
+### 音乐解析
+
+群里或私聊发送**网易云音乐、QQ音乐、酷狗、酷我**歌曲链接或分享卡片即可自动解析，无需指令：
+
+- 发送歌曲名称、歌手、专辑、时长和封面；
+- 完整歌词用「聊天记录」（合并转发）折叠发送，歌词不限制行数，过长时自动拆成多个节点；
+- 在锅巴「AQing-plugin → 音乐解析」填写各平台已登录账号的完整 Cookie 后，会使用该账号权限尝试获取可播放音源；
+- 账号有权限且平台返回直链时下载并发送音频，非 MP3 音源自动用 ffmpeg 转为 MP3；
+- 没有权限、Cookie 失效、地区/版权限制时仍会返回歌曲信息和歌词，并明确提示未获取到音频；
+- 音频上传超时或体积过大时自动改发临时下载链接，可配置公网域名、有效期和访问次数。
+
+音频获取能力以用户账号本身的播放权限和平台接口返回为准。
+
 ### 图文解析
 
 群里或私聊直接发**小红书 / 小黑盒**链接（纯文本、复制带文案、QQ 卡片分享均可）即自动解析，无需指令：
@@ -138,7 +152,7 @@ AI 对手默认用**内置启发式 AI**，开箱即玩；在锅巴「AQing-plug
 
 - **混淆图片**：发图/引用图/图片链接后发送 `小番茄混图`，或先发 `小番茄混图` 再补图；
 - **解混淆**：发图/引用图/图片链接后发送 `小番茄解图`，或先发 `小番茄解图` 再补图；
-- 算法走 Gilbert 空间填充曲线 + 黄金比例偏移重排像素，本地处理，不上传第三方；
+- 算法走 Gilbert 空间填充曲线 + 黄金比例偏移重排像素；
 - 输出会直接返回一个 `http...` 临时图片链接，不再把结果作为 QQ 图片消息发出去，避免 QQ 图片风控拦截；
 - 如果选择「本地图链」，可在锅巴填写「本地图链公网地址」（如 `http://1.2.3.4:2536` 或自己的域名），插件会把云崽默认的 `localhost` 链接替换成可访问的公网地址；
 - 本地图链默认**不限访问次数**，只按有效期过期，避免 QQ/浏览器预览点一次就把次数扣光；
