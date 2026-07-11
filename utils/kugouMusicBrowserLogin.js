@@ -99,7 +99,7 @@ export async function waitKugouMusicBrowserLogin (page, timeout = 120000) {
       await new Promise(resolve => setTimeout(resolve, 2000))
       if (page.isClosed()) return { status: 'error', msg: '登录页面已关闭' }
 
-      const cookies = await page.cookies('https://www.kugou.com/', 'https://kugou.com/')
+      const cookies = await page.cookies('https://www.kugou.com/', 'https://kugou.com/', 'https://login-user.kugou.com/', 'https://wwwapi.kugou.com/', 'https://m.kugou.com/')
       const fields = kugouFields(cookies)
       if (fields.userId && fields.token) {
         return { status: 'success', cookie: cookieString(cookies), ...fields }

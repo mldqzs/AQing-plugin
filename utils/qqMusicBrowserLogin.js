@@ -14,6 +14,29 @@ function cookieString (cookies = []) {
     .join('; ')
 }
 
+async function findQrElement (page) {
+  for (const frame of page.frames()) {
+    const handles = await frame.$$('img, canvas').catch(() => [])
+    for (const handle of handles) {
+      const info = await handle.evaluate(el => {
+        const rect = el.getBoundingClientRect()
+        const style = getComputedStyle(el)
+        const text = `${el.id || ''} ${el.className || ''} ${el.getAttribute?.('alt') || ''} ${el.getAttribute?.('src') || ''}`
+        return {
+          visible: rect.width >= 100 && rect.height >= 100 && style.display !== 'none' && style.visibility !== 'hidden' && Number(style.opacity || 1) > 0,
+          square: Math.abs(rect.width - rect.height) < Math.max(rect.width, rect.height) * 0.25,
+          likely: /qr|qrcode|ptqrshow|二维码|扫码/i.test(text),
+          width: rect.width,
+          height: rect.height
+        }
+      }).catch(() => null)
+      if (info?.visible && info.square && (info.likely || (info.width <= 360 && info.height <= 360))) return handle
+      await handle.dispose().catch(() => {})
+    }
+  }
+  return null
+}
+
 export async function startQQMusicBrowserLogin (renderer) {
   if (!renderer || typeof renderer.browserInit !== 'function') throw new Error('当前渲染器不支持浏览器登录')
   const browser = await renderer.browserInit()
@@ -23,27 +46,21 @@ export async function startQQMusicBrowserLogin (renderer) {
     await page.setViewport({ width: 560, height: 720, deviceScaleFactor: 2 })
     await page.goto(LOGIN_URL, { waitUntil: 'domcontentloaded', timeout: 120000 })
 
-    // 等官方页面自己的登录脚本加载并生成二维码；首次请求偶尔会直接显示失效，自动点一次刷新。
-    const waitQr = () => page.waitForFunction(() => {
-      const img = document.querySelector('#qrlogin_img') || [...document.images].find(v => /ptqrshow|qrshow/i.test(v.src || ''))
-      return img && img.naturalWidth > 20
-    }, { timeout: 15000 })
-    try {
-      await waitQr()
-    } catch {
+    // 等官方页面自己的登录脚本加载并生成二维码；二维码有时在 iframe 里，不能只查主页面 #qrlogin_img。
+    let qr = null
+    const deadline = Date.now() + 45000
+    while (!qr && Date.now() < deadline) {
+      qr = await findQrElement(page)
+      if (qr) break
       await page.evaluate(() => {
         const refresh = document.querySelector('#refresh_qrcode, .refresh, .qr_invalid') || [...document.querySelectorAll('a, div, span')].find(v => /点击刷新/.test(v.textContent || ''))
         refresh?.click()
-      })
-      await waitQr()
+      }).catch(() => {})
+      await new Promise(resolve => setTimeout(resolve, 1000))
     }
-
-    const qr = await page.$('#qrlogin_img') || await page.evaluateHandle(() => {
-      return [...document.images].find(img => /ptqrshow|qrshow/i.test(img.src || '') && img.naturalWidth > 20) || null
-    })
-    const element = qr.asElement()
-    if (!element) throw new Error('官方登录页未生成二维码')
-    const image = await element.screenshot({ type: 'png' })
+    if (!qr) throw new Error('官方登录页未生成二维码')
+    const image = await qr.screenshot({ type: 'png' })
+    await qr.dispose().catch(() => {})
     return { page, image }
   } catch (err) {
     await page.close().catch(() => {})
