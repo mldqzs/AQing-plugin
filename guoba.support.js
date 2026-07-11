@@ -416,7 +416,7 @@ export function supportGuoba() {
         {
           field: 'music.qqCookie',
           label: 'QQ音乐 Cookie',
-          bottomHelpMessage: '推荐直接发「#QQ音乐扫码登录」，机器人会发送二维码并自动保存 Cookie；也可手动粘贴完整 Cookie',
+          bottomHelpMessage: '从已登录 QQ 音乐网页复制完整 Cookie。用于获取该账号有权播放的 VIP/会员音源；留空仍可解析部分公开信息和歌词',
           component: 'Input',
           componentProps: { placeholder: '请输入QQ音乐完整 Cookie' },
         },

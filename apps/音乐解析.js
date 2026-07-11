@@ -2,7 +2,6 @@ import plugin from '../../../lib/plugins/plugin.js'
 import common from '../../../lib/common/common.js'
 import setting from '../utils/setting.js'
 import { collectMusicText, detectMusicLink, parseMusic } from '../utils/music.js'
-import { startQQMusicBrowserLogin, waitQQMusicBrowserLogin } from '../utils/qqMusicBrowserLogin.js'
 import { startKugouMusicBrowserLogin, waitKugouMusicBrowserLogin } from '../utils/kugouMusicBrowserLogin.js'
 import puppeteer from '../../../lib/puppeteer/puppeteer.js'
 import fs from 'node:fs'
@@ -258,16 +257,6 @@ export class musicParse extends plugin {
       priority: 8500,
       rule: [
         {
-          reg: '^#?(QQ|qq)音乐(扫码登录|登录)$',
-          fnc: 'qqLogin',
-          permission: 'master'
-        },
-        {
-          reg: '^#?(QQ|qq)音乐(退出登录|注销)$',
-          fnc: 'qqLogout',
-          permission: 'master'
-        },
-        {
           reg: '^#?酷狗音乐(扫码登录|登录)$',
           fnc: 'kugouLogin',
           permission: 'master'
@@ -279,41 +268,6 @@ export class musicParse extends plugin {
         }
       ]
     })
-  }
-
-  async qqLogin (e) {
-    if (loginTasks.has('qq')) {
-      await e.reply('QQ音乐扫码登录正在进行中，请先完成当前扫码或等待二维码过期。')
-      return true
-    }
-    loginTasks.add('qq')
-    try {
-      const { page, image } = await startQQMusicBrowserLogin(puppeteer)
-      await sendLoginQr(e, '请在约两分钟内使用手机 QQ 扫码并确认登录。\n如果 QQ 提示过期，请切到后置摄像头/相机扫码，不要用截图长按识别：\n', image, 'qq_login_qr')
-      const result = await waitQQMusicBrowserLogin(page, 120000, () => e.reply('二维码已扫描，请在手机 QQ 中点击确认登录。'))
-      if (result.status === 'success') {
-        const c = cfg()
-        c.qqCookie = result.cookie
-        setting.setConfig('music', c)
-        await e.reply('✅ QQ音乐登录成功，Cookie 已自动保存。')
-      } else {
-        await e.reply(`QQ音乐登录失败：${result.msg || '未知错误'}。请重新发送「#QQ音乐扫码登录」。`)
-      }
-    } catch (err) {
-      logger.error('[音乐解析] QQ音乐扫码登录失败', err)
-      await e.reply(`QQ音乐扫码登录失败：${err?.message || err}`)
-    } finally {
-      loginTasks.delete('qq')
-    }
-    return true
-  }
-
-  async qqLogout (e) {
-    const c = cfg()
-    c.qqCookie = ''
-    setting.setConfig('music', c)
-    await e.reply('QQ音乐登录信息已清除。')
-    return true
   }
 
   async kugouLogin (e) {
