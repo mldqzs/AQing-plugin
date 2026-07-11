@@ -82,7 +82,11 @@ export async function startKugouMusicBrowserLogin (renderer) {
       await new Promise(resolve => setTimeout(resolve, 1000))
       qr = await findQrElement(page)
     }
-    if (!qr) throw new Error('酷狗官方登录页未生成二维码')
+    if (!qr) {
+      // 兜底：酷狗页面结构或二维码标签变化时，整页截图仍可让用户扫码，不要把原本可用的登录流程卡死。
+      const image = await page.screenshot({ type: 'png', fullPage: false })
+      return { page, image }
+    }
     const image = await qr.screenshot({ type: 'png' })
     await qr.dispose().catch(() => {})
     return { page, image }

@@ -58,7 +58,11 @@ export async function startQQMusicBrowserLogin (renderer) {
       }).catch(() => {})
       await new Promise(resolve => setTimeout(resolve, 1000))
     }
-    if (!qr) throw new Error('官方登录页未生成二维码')
+    if (!qr) {
+      // 兜底：官方页面结构经常变，识别不到二维码元素时不要直接失败，直接发整页截图给用户扫码。
+      const image = await page.screenshot({ type: 'png', fullPage: false })
+      return { page, image }
+    }
     const image = await qr.screenshot({ type: 'png' })
     await qr.dispose().catch(() => {})
     return { page, image }
