@@ -37,6 +37,21 @@ async function findQrElement (page) {
   return null
 }
 
+async function qrImageBuffer (page, element) {
+  const src = await element.evaluate(el => el.getAttribute('src') || '').catch(() => '')
+  if (src) {
+    const abs = await page.evaluate(url => new URL(url, location.href).href, src).catch(() => src)
+    const res = await page.evaluate(async url => {
+      const r = await fetch(url, { credentials: 'include' })
+      if (!r.ok) return null
+      const buf = await r.arrayBuffer()
+      return Array.from(new Uint8Array(buf))
+    }, abs).catch(() => null)
+    if (res?.length) return Buffer.from(res)
+  }
+  return element.screenshot({ type: 'png' })
+}
+
 export async function startQQMusicBrowserLogin (renderer) {
   if (!renderer || typeof renderer.browserInit !== 'function') throw new Error('当前渲染器不支持浏览器登录')
   const browser = await renderer.browserInit()
@@ -63,7 +78,7 @@ export async function startQQMusicBrowserLogin (renderer) {
       const image = await page.screenshot({ type: 'png', fullPage: false })
       return { page, image }
     }
-    const image = await qr.screenshot({ type: 'png' })
+    const image = await qrImageBuffer(page, qr)
     await qr.dispose().catch(() => {})
     return { page, image }
   } catch (err) {

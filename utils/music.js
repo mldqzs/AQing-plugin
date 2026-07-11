@@ -197,11 +197,11 @@ async function qqAudio (songMid, mediaMid, cookie, timeout) {
   const guid = (String(cookie).match(/(?:^|;\s*)pgv_pvid=(\d+)/i) || [])[1] || String(Math.floor(1000000000 + Math.random() * 8999999999))
   const fileMid = mediaMid || songMid
   const qualities = [
-    // 从高到低依次尝试；平台可能给 purl 但 CDN 实际 404，所以每条都必须实测可访问。
-    { prefix: 'F000', ext: 'flac' },
+    // 优先 MP3，避免明明有 9MB MP3，却先命中 30MB+ FLAC 被体积上限拦住。
     { prefix: 'M800', ext: 'mp3' },
     { prefix: 'M500', ext: 'mp3' },
-    { prefix: 'C400', ext: 'm4a' }
+    { prefix: 'C400', ext: 'm4a' },
+    { prefix: 'F000', ext: 'flac' }
   ]
   for (const q of qualities) {
     const filename = `${q.prefix}${fileMid}.${q.ext}`
@@ -305,6 +305,12 @@ function buildKugouAuth (cfg) {
   return { rawCookie, userId, token, cookie: [rawCookie, coreCookie].filter(Boolean).join('; ') }
 }
 
+function normalizeBackupUrl (value) {
+  if (Array.isArray(value)) return value[0] || ''
+  if (value && typeof value === 'object') return Object.values(value).find(Boolean) || ''
+  return value || ''
+}
+
 function normalizeKugouData (data = {}, hash = '') {
   const song = data.data || data
   const authors = Array.isArray(song.authors) ? song.authors.map(v => v.author_name || v.name).filter(Boolean).join(' / ') : ''
@@ -317,7 +323,7 @@ function normalizeKugouData (data = {}, hash = '') {
     cover: firstValue(song.album_img, song.imgUrl, song.img, song.image, song.singerHead).replace('{size}', '500'),
     duration: Number(song.timeLength || song.timelength || song.duration || song.time_length) || Math.round(Number(extra['128timelength'] || extra['320timelength'] || extra.sqtimelength || extra.hightimelength || 0) / 1000) || 0,
     lyric: firstValue(song.lyrics, song.lyric, song.krc),
-    audioUrl: firstValue(song.play_url, song.url, Array.isArray(song.backup_url) ? song.backup_url[0] : '', Array.isArray(song.backupUrl) ? song.backupUrl[0] : ''),
+    audioUrl: firstValue(song.play_url, song.url, normalizeBackupUrl(song.backup_url), normalizeBackupUrl(song.backupUrl)),
     audioType: firstValue(song.extName, song.ext, song.format, 'mp3').toLowerCase(),
     qualityHashes: [extra.highhash, extra.sqhash, extra['320hash'], extra['128hash'], song.hash, hash].filter(Boolean),
     raw: song
@@ -347,7 +353,10 @@ async function fetchKugouWebData (hash, auth, timeout) {
 }
 
 async function fetchKugouMobileData (hash, auth, timeout) {
-  return fetchJson(`https://m.kugou.com/app/i/getSongInfo.php?cmd=playInfo&hash=${encodeURIComponent(hash)}`, {
+  const qs = new URLSearchParams({ cmd: 'playInfo', hash })
+  if (auth.userId) qs.set('userid', auth.userId)
+  if (auth.token) qs.set('token', auth.token)
+  return fetchJson(`https://m.kugou.com/app/i/getSongInfo.php?${qs.toString()}`, {
     cookie: auth.cookie, referer: KG_REFERER, timeout
   })
 }
