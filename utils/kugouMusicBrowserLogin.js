@@ -29,6 +29,17 @@ function kugouFields (cookies = []) {
   return { userId: decode(userId), token: decode(token), nickname: decode(nickname) }
 }
 
+function hasLoginCookie (cookies = []) {
+  const fields = kugouFields(cookies)
+  return Boolean(fields.userId && fields.token)
+}
+
+async function currentLogin (page) {
+  const cookies = await page.cookies('https://www.kugou.com/', 'https://kugou.com/', 'https://login-user.kugou.com/', 'https://wwwapi.kugou.com/', 'https://m.kugou.com/')
+  const fields = kugouFields(cookies)
+  return { cookies, ...fields, logged: Boolean(fields.userId && fields.token) }
+}
+
 async function findQrElement (page) {
   const fallback = []
   for (const frame of page.frames()) {
@@ -69,6 +80,9 @@ export async function startKugouMusicBrowserLogin (renderer) {
     await page.setViewport({ width: 1280, height: 900, deviceScaleFactor: 2 })
     await page.goto(LOGIN_URL, { waitUntil: 'domcontentloaded', timeout: 120000 })
 
+    const before = await currentLogin(page)
+    if (before.logged) return { page, alreadyLogged: true, ...before }
+
     const login = await page.$('._login, [class*="login"]')
     if (login) await login.click().catch(() => {})
     else await page.evaluate(() => {
@@ -83,9 +97,10 @@ export async function startKugouMusicBrowserLogin (renderer) {
       qr = await findQrElement(page)
     }
     if (!qr) {
-      // 兜底：酷狗页面结构或二维码标签变化时，整页截图仍可让用户扫码，不要把原本可用的登录流程卡死。
-      const image = await page.screenshot({ type: 'png', fullPage: false })
-      return { page, image }
+      const cur = await currentLogin(page)
+      if (cur.logged) return { page, alreadyLogged: true, ...cur }
+      await page.close().catch(() => {})
+      throw new Error('酷狗官方登录页未生成二维码。若页面已经显示账号头像，说明浏览器里已有登录态，请先发送「#酷狗音乐退出登录」清除插件配置，或清理浏览器登录态后再扫码。')
     }
     const image = await qr.screenshot({ type: 'png' })
     await qr.dispose().catch(() => {})

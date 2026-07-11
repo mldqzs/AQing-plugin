@@ -316,6 +316,7 @@ function normalizeKugouData (data = {}, hash = '') {
   const authors = Array.isArray(song.authors) ? song.authors.map(v => v.author_name || v.name).filter(Boolean).join(' / ') : ''
   const fileName = String(song.fileName || song.filename || '').trim()
   const extra = song.extra || {}
+  const audioUrl = firstValue(song.play_url, song.url, normalizeBackupUrl(song.backup_url), normalizeBackupUrl(song.backupUrl))
   return {
     title: firstValue(song.songName, song.audio_name, song.song_name, song.name, fileName.replace(/^.*?\s+-\s+/, ''), hash ? `歌曲${hash.slice(0, 8)}` : ''),
     artists: firstValue(song.singerName, song.author_name, song.singer_name, song.authorName, authors, fileName.split(' - ')[0], '未知歌手'),
@@ -323,8 +324,8 @@ function normalizeKugouData (data = {}, hash = '') {
     cover: firstValue(song.album_img, song.imgUrl, song.img, song.image, song.singerHead).replace('{size}', '500'),
     duration: Number(song.timeLength || song.timelength || song.duration || song.time_length) || Math.round(Number(extra['128timelength'] || extra['320timelength'] || extra.sqtimelength || extra.hightimelength || 0) / 1000) || 0,
     lyric: firstValue(song.lyrics, song.lyric, song.krc),
-    audioUrl: firstValue(song.play_url, song.url, normalizeBackupUrl(song.backup_url), normalizeBackupUrl(song.backupUrl)),
-    audioType: firstValue(song.extName, song.ext, song.format, 'mp3').toLowerCase(),
+    audioUrl,
+    audioType: (firstValue(song.extName, song.ext, song.format) || (audioUrl.match(/\.([a-z0-9]+)(?:\?|$)/i) || [])[1] || 'mp3').toLowerCase(),
     qualityHashes: [extra.highhash, extra.sqhash, extra['320hash'], extra['128hash'], song.hash, hash].filter(Boolean),
     raw: song
   }

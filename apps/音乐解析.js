@@ -323,9 +323,19 @@ export class musicParse extends plugin {
     }
     loginTasks.add('kugou')
     try {
-      const { page, image } = await startKugouMusicBrowserLogin(puppeteer)
-      await sendLoginQr(e, '请在约两分钟内使用酷狗音乐 App 扫码并确认登录：\n', image, 'kugou_login_qr')
-      const result = await waitKugouMusicBrowserLogin(page, 120000)
+      const login = await startKugouMusicBrowserLogin(puppeteer)
+      if (login.alreadyLogged) {
+        const c = cfg()
+        c.kugouCookie = login.cookie || ''
+        c.kugouUserId = login.userId || ''
+        c.kugouToken = login.token || ''
+        setting.setConfig('music', c)
+        await login.page?.close?.().catch(() => {})
+        await e.reply(`✅ 酷狗音乐当前浏览器已有登录账号${login.nickname ? `：${login.nickname}` : ''}，已直接保存登录信息。\n如果这不是你要登录的账号，请先发送「#酷狗音乐退出登录」，再清理浏览器登录态后重新扫码。`)
+        return true
+      }
+      await sendLoginQr(e, '请在约两分钟内使用酷狗音乐 App 扫码并确认登录：\n', login.image, 'kugou_login_qr')
+      const result = await waitKugouMusicBrowserLogin(login.page, 120000)
       if (result.status === 'success') {
         const c = cfg()
         c.kugouCookie = result.cookie
