@@ -192,9 +192,10 @@ async function validAudioUrl (url, cookie, timeout) {
   } catch { return false }
 }
 
-async function qqAudio (mid, cookie, timeout) {
+async function qqAudio (songMid, mediaMid, cookie, timeout) {
   const uin = qqUinFromCookie(cookie)
-  const guid = String(Math.floor(1000000000 + Math.random() * 8999999999))
+  const guid = (String(cookie).match(/(?:^|;\s*)pgv_pvid=(\d+)/i) || [])[1] || String(Math.floor(1000000000 + Math.random() * 8999999999))
+  const fileMid = mediaMid || songMid
   const qualities = [
     // 从高到低依次尝试；平台可能给 purl 但 CDN 实际 404，所以每条都必须实测可访问。
     { prefix: 'F000', ext: 'flac' },
@@ -203,9 +204,9 @@ async function qqAudio (mid, cookie, timeout) {
     { prefix: 'C400', ext: 'm4a' }
   ]
   for (const q of qualities) {
-    const filename = `${q.prefix}${mid}.${q.ext}`
+    const filename = `${q.prefix}${fileMid}.${q.ext}`
     const body = {
-      req: { module: 'vkey.GetVkeyServer', method: 'CgiGetVkey', param: { guid, songmid: [mid], songtype: [0], uin, loginflag: 1, platform: '20', filename: [filename] } },
+      req: { module: 'vkey.GetVkeyServer', method: 'CgiGetVkey', param: { guid, songmid: [songMid], songtype: [0], uin, loginflag: 1, platform: '20', filename: [filename] } },
       comm: { uin: Number(uin) || 0, format: 'json', ct: 24, cv: 0 }
     }
     const j = await fetchJson('https://u.y.qq.com/cgi-bin/musicu.fcg', { cookie, referer: QQ_REFERER, timeout, method: 'POST', body }).catch(() => null)
@@ -213,7 +214,8 @@ async function qqAudio (mid, cookie, timeout) {
     const info = data?.midurlinfo?.[0]
     if (!info?.purl) continue
     // sip 常有多条线路，第一条可能对当前地区/歌曲 404；逐条验证后再返回。
-    for (const sip of data?.sip || []) {
+    const hosts = data?.sip?.length ? data.sip : ['https://dl.stream.qqmusic.qq.com/', 'https://isure.stream.qqmusic.qq.com/', 'https://aqqmusic.tc.qq.com/']
+    for (const sip of hosts) {
       const url = `${sip}${info.purl}`
       if (await validAudioUrl(url, cookie, timeout)) return { url, ext: q.ext }
     }
@@ -248,9 +250,10 @@ async function parseQQ (hit, cfg) {
   // 数字 songid 先由详情换成真正 songmid，后续歌词/vkey 统一使用 songmid
   const mid = song.mid || song.songmid || (resolved.idType === 'songmid' ? resolved.id : '')
   if (!mid) throw new Error('QQ音乐未返回 songmid，暂时无法继续解析')
+  const mediaMid = song.file?.media_mid || mid
   const [lyric, audio] = await Promise.all([
     fetchJson(`https://c.y.qq.com/lyric/fcgi-bin/fcg_query_lyric_new.fcg?songmid=${encodeURIComponent(mid)}&format=json&nobase64=1`, { cookie, referer: QQ_REFERER, timeout }).catch(() => ({})),
-    qqAudio(mid, cookie, timeout)
+    qqAudio(mid, mediaMid, cookie, timeout)
   ])
   const albumMid = song.album?.mid || ''
   return {
@@ -306,15 +309,17 @@ function normalizeKugouData (data = {}, hash = '') {
   const song = data.data || data
   const authors = Array.isArray(song.authors) ? song.authors.map(v => v.author_name || v.name).filter(Boolean).join(' / ') : ''
   const fileName = String(song.fileName || song.filename || '').trim()
+  const extra = song.extra || {}
   return {
     title: firstValue(song.songName, song.audio_name, song.song_name, song.name, fileName.replace(/^.*?\s+-\s+/, ''), hash ? `歌曲${hash.slice(0, 8)}` : ''),
     artists: firstValue(song.singerName, song.author_name, song.singer_name, song.authorName, authors, fileName.split(' - ')[0], '未知歌手'),
     album: firstValue(song.album_name, song.albumName, song.album_name_audio),
     cover: firstValue(song.album_img, song.imgUrl, song.img, song.image, song.singerHead).replace('{size}', '500'),
-    duration: Number(song.timeLength || song.timelength || song.duration || song.time_length) || 0,
+    duration: Number(song.timeLength || song.timelength || song.duration || song.time_length) || Math.round(Number(extra['128timelength'] || extra['320timelength'] || extra.sqtimelength || extra.hightimelength || 0) / 1000) || 0,
     lyric: firstValue(song.lyrics, song.lyric, song.krc),
     audioUrl: firstValue(song.play_url, song.url, Array.isArray(song.backup_url) ? song.backup_url[0] : '', Array.isArray(song.backupUrl) ? song.backupUrl[0] : ''),
     audioType: firstValue(song.extName, song.ext, song.format, 'mp3').toLowerCase(),
+    qualityHashes: [extra.highhash, extra.sqhash, extra['320hash'], extra['128hash'], song.hash, hash].filter(Boolean),
     raw: song
   }
 }
@@ -347,6 +352,31 @@ async function fetchKugouMobileData (hash, auth, timeout) {
   })
 }
 
+async function fetchKugouLyricBySearch (hash, auth, timeout, duration = 0) {
+  const params = new URLSearchParams({
+    ver: '1',
+    man: 'yes',
+    client: 'pc',
+    hash,
+    keyword: '',
+    duration: String(Math.max(0, Number(duration) || 0) * 1000)
+  })
+  const search = await fetchJson(`https://lyrics.kugou.com/search?${params.toString()}`, {
+    cookie: auth.cookie,
+    referer: KG_REFERER,
+    timeout
+  }).catch(() => ({}))
+  const cand = search?.candidates?.[0]
+  if (!cand?.id || !cand?.accesskey) return ''
+  const down = await fetchJson(`https://lyrics.kugou.com/download?ver=1&client=pc&id=${encodeURIComponent(cand.id)}&accesskey=${encodeURIComponent(cand.accesskey)}&fmt=lrc&charset=utf8`, {
+    cookie: auth.cookie,
+    referer: KG_REFERER,
+    timeout
+  }).catch(() => ({}))
+  if (!down?.content) return ''
+  try { return Buffer.from(String(down.content), 'base64').toString('utf8').trim() } catch { return '' }
+}
+
 async function fetchKugouLyric (hash, auth, timeout, duration = 0) {
   const timelength = Math.max(0, Number(duration) || 0) * 1000
   const urls = [
@@ -358,7 +388,7 @@ async function fetchKugouLyric (hash, auth, timeout, duration = 0) {
     const text = String(res.text || '').trim()
     if (text) return text
   }
-  return ''
+  return fetchKugouLyricBySearch(hash, auth, timeout, duration)
 }
 
 async function parseKugou (hit, cfg) {
@@ -376,7 +406,8 @@ async function parseKugou (hit, cfg) {
     const msg = web?.error || web?.err_msg || mobile?.error || '酷狗未返回歌曲信息，链接或 Cookie 可能失效'
     throw new Error(msg)
   }
-  const lyric = merged.lyric || await fetchKugouLyric(hash, auth, timeout, merged.duration)
+  const lyricHash = [hash, ...(merged.qualityHashes || [])].find(Boolean)
+  const lyric = merged.lyric || await fetchKugouLyric(lyricHash, auth, timeout, merged.duration)
   return {
     platform: '酷狗音乐',
     platformKey: 'kugou',

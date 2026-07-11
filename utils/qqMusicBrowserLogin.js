@@ -5,7 +5,7 @@
  * 再读取浏览器 Cookie 保存到配置。
  */
 
-const LOGIN_URL = 'https://xui.ptlogin2.qq.com/cgi-bin/xlogin?appid=716027609&daid=383&pt_3rd_aid=100497308&s_url=https%3A%2F%2Fy.qq.com%2F'
+const LOGIN_URL = 'https://ui.ptlogin2.qq.com/cgi-bin/login?appid=716027609&daid=383&pt_3rd_aid=100497308&s_url=https%3A%2F%2Fy.qq.com%2F&style=40&hide_title_bar=1&hide_border=1&target=self&link_target=blank&low_login=0&qlogin_auto_login=1&no_verifyimg=1'
 
 function cookieString (cookies = []) {
   return cookies
@@ -23,7 +23,7 @@ async function findQrElement (page) {
         const style = getComputedStyle(el)
         const text = `${el.id || ''} ${el.className || ''} ${el.getAttribute?.('alt') || ''} ${el.getAttribute?.('src') || ''}`
         return {
-          visible: rect.width >= 100 && rect.height >= 100 && style.display !== 'none' && style.visibility !== 'hidden' && Number(style.opacity || 1) > 0,
+          visible: rect.width >= 80 && rect.height >= 80 && style.display !== 'none' && style.visibility !== 'hidden' && Number(style.opacity || 1) > 0,
           square: Math.abs(rect.width - rect.height) < Math.max(rect.width, rect.height) * 0.25,
           likely: /qr|qrcode|ptqrshow|二维码|扫码/i.test(text),
           width: rect.width,
@@ -94,14 +94,14 @@ export async function waitQQMusicBrowserLogin (page, timeout = 120000, onScanned
       }
       if (state.expired) return { status: 'expired', msg: '二维码已过期' }
 
-      const cookies = await page.cookies('https://y.qq.com/', 'https://qq.com/', 'https://ptlogin2.qq.com/', 'https://xui.ptlogin2.qq.com/')
+      const cookies = await page.cookies('https://y.qq.com/', 'https://qq.com/', 'https://ptlogin2.qq.com/', 'https://ui.ptlogin2.qq.com/', 'https://xui.ptlogin2.qq.com/')
       const names = new Set(cookies.map(v => v.name))
       const logged = names.has('uin') || names.has('p_uin') || names.has('qqmusic_key') || names.has('qm_keyst') || names.has('skey') || names.has('p_skey')
       if (logged) {
         // 有些环境手机确认后不会立刻跳出 ptlogin 页；只要登录 Cookie 到了，就主动打开 QQ音乐补齐站点 Cookie。
         await page.goto('https://y.qq.com/', { waitUntil: 'domcontentloaded', timeout: 60000 }).catch(() => {})
         await new Promise(resolve => setTimeout(resolve, 1500))
-        const all = await page.cookies('https://y.qq.com/', 'https://qq.com/', 'https://ptlogin2.qq.com/', 'https://xui.ptlogin2.qq.com/')
+        const all = await page.cookies('https://y.qq.com/', 'https://qq.com/', 'https://ptlogin2.qq.com/', 'https://ui.ptlogin2.qq.com/', 'https://xui.ptlogin2.qq.com/')
         return { status: 'success', cookie: cookieString(all), msg: '登录成功' }
       }
     }
