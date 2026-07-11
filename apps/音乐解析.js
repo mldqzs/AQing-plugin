@@ -289,7 +289,7 @@ export class musicParse extends plugin {
     loginTasks.add('qq')
     try {
       const { page, image } = await startQQMusicBrowserLogin(puppeteer)
-      await sendLoginQr(e, '请在约两分钟内使用手机 QQ 扫码并确认登录：\n', image, 'qq_login_qr')
+      await sendLoginQr(e, '请在约两分钟内使用手机 QQ 扫码并确认登录。\n如果 QQ 提示过期，请切到后置摄像头/相机扫码，不要用截图长按识别：\n', image, 'qq_login_qr')
       const result = await waitQQMusicBrowserLogin(page, 120000, () => e.reply('二维码已扫描，请在手机 QQ 中点击确认登录。'))
       if (result.status === 'success') {
         const c = cfg()

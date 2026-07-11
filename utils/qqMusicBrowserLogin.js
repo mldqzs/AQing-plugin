@@ -38,17 +38,24 @@ async function findQrElement (page) {
 }
 
 async function qrImageBuffer (page, element) {
-  const src = await element.evaluate(el => el.getAttribute('src') || '').catch(() => '')
-  if (src) {
-    const abs = await page.evaluate(url => new URL(url, location.href).href, src).catch(() => src)
-    const res = await page.evaluate(async url => {
-      const r = await fetch(url, { credentials: 'include' })
-      if (!r.ok) return null
-      const buf = await r.arrayBuffer()
-      return Array.from(new Uint8Array(buf))
-    }, abs).catch(() => null)
-    if (res?.length) return Buffer.from(res)
-  }
+  // 不要重新 fetch 二维码 src：ptqrshow 每请求一次都可能刷新 qrsig，
+  // 导致发出去的码和页面轮询的登录态不一致，表现为刚发出去就过期。
+  // 这里只把页面里已加载好的二维码临时放大并移到可视区域后截图，避免二次请求。
+  await element.evaluate(el => {
+    el.style.setProperty('display', 'block', 'important')
+    el.style.setProperty('visibility', 'visible', 'important')
+    el.style.setProperty('opacity', '1', 'important')
+    el.style.setProperty('position', 'fixed', 'important')
+    el.style.setProperty('left', '24px', 'important')
+    el.style.setProperty('top', '24px', 'important')
+    el.style.setProperty('width', '260px', 'important')
+    el.style.setProperty('height', '260px', 'important')
+    el.style.setProperty('z-index', '2147483647', 'important')
+    el.style.setProperty('background', '#fff', 'important')
+    el.style.setProperty('padding', '12px', 'important')
+    el.style.setProperty('box-sizing', 'content-box', 'important')
+  }).catch(() => {})
+  await new Promise(resolve => setTimeout(resolve, 200))
   return element.screenshot({ type: 'png' })
 }
 
