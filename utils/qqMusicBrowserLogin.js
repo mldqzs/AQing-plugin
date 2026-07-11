@@ -103,9 +103,16 @@ export async function waitQQMusicBrowserLogin (page, timeout = 120000, onScanned
       if (page.isClosed()) return { status: 'error', msg: '登录页面已关闭' }
 
       const state = await page.evaluate(() => {
-        const text = document.body?.innerText || ''
+        const visibleText = el => {
+          if (!el) return ''
+          const rect = el.getBoundingClientRect()
+          const style = getComputedStyle(el)
+          if (rect.width <= 0 || rect.height <= 0 || style.display === 'none' || style.visibility === 'hidden' || Number(style.opacity || 1) <= 0) return ''
+          return el.textContent || ''
+        }
+        const text = [...document.querySelectorAll('div, span, p')].map(visibleText).join('\n')
         return {
-          scanned: /扫描成功|手机上确认|授权登录/.test(text),
+          scanned: /扫描成功|手机上确认|授权登录/.test(text) && !/快捷登录[\s\S]*使用QQ手机版扫码登录/.test(text),
           expired: /二维码.*失效|二维码.*过期/.test(text)
         }
       }).catch(() => ({ scanned: false, expired: false }))

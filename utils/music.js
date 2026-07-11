@@ -405,12 +405,12 @@ async function parseKugou (hit, cfg) {
   const timeout = Math.max(5, Number(cfg.timeout) || 20) * 1000
   const hash = await resolveKugouHash(hit, auth.cookie, timeout)
 
-  const web = await fetchKugouWebData(hash, auth, timeout).catch(() => null)
   const mobile = await fetchKugouMobileData(hash, auth, timeout).catch(() => null)
+  const web = await fetchKugouWebData(hash, auth, timeout).catch(() => null)
   if (!web && !mobile) throw new Error('酷狗未返回歌曲信息，链接或 Cookie 可能失效')
   const mobileSong = mobile?.data || mobile || {}
   const webSong = web?.data || web || {}
-  const merged = normalizeKugouData({ data: { ...mobileSong, ...webSong } }, hash)
+  const merged = normalizeKugouData({ data: { ...webSong, ...mobileSong } }, hash)
   if (!merged.raw?.songName && !merged.raw?.fileName && !merged.raw?.song_name && !merged.raw?.audio_name && !merged.raw?.play_url && !merged.raw?.url) {
     const msg = web?.error || web?.err_msg || mobile?.error || '酷狗未返回歌曲信息，链接或 Cookie 可能失效'
     throw new Error(msg)
