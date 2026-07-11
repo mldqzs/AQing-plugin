@@ -15,17 +15,52 @@ const htmlDecode = (s = '') => String(s)
   .replace(/&quot;/g, '"').replace(/&#39;/g, "'")
 
 export function collectMusicText (e) {
-  const parts = [e.msg || '', e.raw_message || '']
-  for (const seg of e.message || []) {
+  const parts = []
+  const segs = Array.isArray(e.message) ? e.message : []
+  for (const seg of segs) {
     if (!seg) continue
-    if (seg.type === 'text') parts.push(seg.text || '')
-    else if (seg.type === 'json' || seg.type === 'xml') {
+    if (seg.type === 'text') parts.push(seg.text || seg.data?.text || '')
+    else if (seg.type === 'json' || seg.type === 'xml' || seg.type === 'music') {
       let raw = seg.data
       if (raw && typeof raw === 'object') raw = raw.data || JSON.stringify(raw)
       parts.push(String(raw || ''))
+      // OneBot/NapCat 的 music 段有时把字段直接挂在消息段本体，而不是 data 里
+      if (seg.type === 'music') parts.push(JSON.stringify(seg))
     }
   }
+  // 只有拿不到结构化消息段时，才退回原始文本；避免 face/mface/image 的 CQ 码被当成音乐卡片。
+  if (!segs.length) parts.push(e.msg || '', e.raw_message || '')
   return htmlDecode(parts.join('\n').replace(/\\\//g, '/').replace(/\\u0026/gi, '&'))
+}
+
+function decodeUrlValue (s = '') {
+  try { return decodeURIComponent(String(s)) } catch { return String(s) }
+}
+
+function hasQQMusicContext (s = '') {
+  return /QQ音乐|qqmusic|com\.tencent\.qqmusic|app_type["'\s:=%]*qqmusic|music\.qq\.com|y\.qq\.com/i.test(s)
+}
+
+function findQQMusicUrl (s = '') {
+  const urls = String(s).match(/https?:\/\/[^\s"'<>\\]+/ig) || []
+  for (const raw of urls) {
+    const url = decodeUrlValue(raw).replace(/&amp;/g, '&')
+    if (/(?:^https?:\/\/)?(?:y\.qq\.com|i\.y\.qq\.com|i2\.y\.qq\.com|c6\.y\.qq\.com)\//i.test(url)) return url
+  }
+  const encoded = String(s).match(/https?%3A%2F%2F[^\s"'<>\\]+/ig) || []
+  for (const raw of encoded) {
+    const url = decodeUrlValue(raw).replace(/&amp;/g, '&')
+    if (/^(?:https?:\/\/)?(?:y\.qq\.com|i\.y\.qq\.com|i2\.y\.qq\.com|c6\.y\.qq\.com)\//i.test(url)) return url
+  }
+  return ''
+}
+
+function qqIdFromText (s = '') {
+  let m = String(s).match(/\b(songmid|song_mid|songid|song_id)\b["'=:\s%]*([A-Za-z0-9]{5,})/i)
+  if (m) return { id: m[2], idType: /song_?id/i.test(m[1]) || /^\d+$/.test(m[2]) ? 'songid' : 'songmid' }
+  m = String(s).match(/\bmid\b["'=:\s%]*([A-Za-z0-9]{8,})/i)
+  if (m && !/^\d+$/.test(m[1])) return { id: m[1], idType: 'songmid' }
+  return null
 }
 
 export function detectMusicLink (text = '') {
@@ -38,16 +73,22 @@ export function detectMusicLink (text = '') {
   }
   if ((m = s.match(/https?:\/\/163cn\.tv\/[A-Za-z0-9_-]+/i))) return { platform: 'netease', id: '', url: m[0] }
 
-  // QQ音乐：songDetail/songmid/playsong 页面；卡片 JSON 里也通常包含 songmid
-  if ((m = s.match(/https?:\/\/(?:y\.qq\.com|i\.y\.qq\.com|i2\.y\.qq\.com|c6\.y\.qq\.com)\/[^\s"'<>]*(?:songDetail\/|songmid=)([A-Za-z0-9]{8,})[^\s"'<>]*/i))) {
-    return { platform: 'qq', id: m[1], url: m[0] }
+  // QQ音乐：songDetail/songmid/songid/playsong 页面；VIP 分享卡片有时只有数字 songid 或跳转链接
+  if ((m = s.match(/https?:\/\/(?:y\.qq\.com|i\.y\.qq\.com|i2\.y\.qq\.com|c6\.y\.qq\.com)\/[^\s"'<>]*(?:songDetail\/|songmid=|songid=)([A-Za-z0-9]{5,})[^\s"'<>]*/i))) {
+    const idType = /^\d+$/.test(m[1]) ? 'songid' : 'songmid'
+    return { platform: 'qq', id: m[1], idType, url: m[0] }
   }
-  if ((m = s.match(/https?:\/\/(?:c6\.y\.qq\.com|y\.qq\.com)\/(?:base\/fcgi-bin\/u|n\/ryqq\/songDetail)[^\s"'<>]*/i))) {
-    const mid = (m[0].match(/songDetail\/([A-Za-z0-9]{8,})|songmid=([A-Za-z0-9]{8,})/i) || []).slice(1).find(Boolean) || ''
-    return { platform: 'qq', id: mid, url: m[0] }
+  if ((m = s.match(/https?:\/\/(?:c6\.y\.qq\.com|y\.qq\.com)\/(?:base\/fcgi-bin\/u|n\/ryqq(?:_v2)?\/songDetail)[^\s"'<>]*/i))) {
+    const raw = (m[0].match(/songDetail\/([A-Za-z0-9]{5,})|songmid=([A-Za-z0-9]{5,})|songid=(\d+)/i) || []).slice(1).find(Boolean) || ''
+    return { platform: 'qq', id: raw, idType: /^\d+$/.test(raw) ? 'songid' : 'songmid', url: m[0] }
   }
-  if (/qq\.com|QQ音乐|qqmusic/i.test(s) && (m = s.match(/["'=:\/]songmid["'=:\s%]*([A-Za-z0-9]{8,})/i))) {
-    return { platform: 'qq', id: m[1], url: '' }
+  if (hasQQMusicContext(s)) {
+    const url = findQQMusicUrl(s)
+    const fromUrl = url ? qqIdFromText(url) || (url.match(/songDetail\/([A-Za-z0-9]{5,})/i) ? { id: RegExp.$1, idType: /^\d+$/.test(RegExp.$1) ? 'songid' : 'songmid' } : null) : null
+    if (fromUrl) return { platform: 'qq', ...fromUrl, url }
+    const fromCard = qqIdFromText(s)
+    if (fromCard) return { platform: 'qq', ...fromCard, url: url || '' }
+    if (url) return { platform: 'qq', id: '', idType: 'songmid', url }
   }
 
   // 酷狗：网页 hash、卡片中的 hash/fileHash；短链接先保留 URL，解析时跟跳转/读页面
@@ -77,8 +118,8 @@ async function fetchText (url, { cookie = '', referer = '', timeout = 20000 } = 
   return { text: await res.text(), url: res.url, headers: res.headers }
 }
 
-async function fetchJson (url, { cookie = '', referer = '', timeout = 20000, method = 'GET', body } = {}) {
-  const headers = { 'User-Agent': UA, Referer: referer }
+async function fetchJson (url, { cookie = '', referer = '', timeout = 20000, method = 'GET', body, headers: extraHeaders = {} } = {}) {
+  const headers = { 'User-Agent': UA, Referer: referer, ...extraHeaders }
   if (cookie) headers.Cookie = cookie
   if (body) headers['Content-Type'] = 'application/json'
   const res = await fetch(url, {
@@ -136,10 +177,27 @@ function qqUinFromCookie (cookie = '') {
   return (String(cookie).match(/(?:^|;\s*)(?:uin|wxuin|qqmusic_uin)=o?(\d+)/i) || [])[1] || '0'
 }
 
+async function validAudioUrl (url, cookie, timeout) {
+  if (!url) return false
+  try {
+    const res = await fetch(url, {
+      headers: { 'User-Agent': UA, Referer: QQ_REFERER, Cookie: cookie, Range: 'bytes=0-31' },
+      redirect: 'follow',
+      signal: AbortSignal.timeout(timeout)
+    })
+    const type = res.headers.get('content-type') || ''
+    const ok = (res.status === 200 || res.status === 206) && !/text\/html|application\/json/i.test(type)
+    try { await res.body?.cancel() } catch {}
+    return ok
+  } catch { return false }
+}
+
 async function qqAudio (mid, cookie, timeout) {
   const uin = qqUinFromCookie(cookie)
   const guid = String(Math.floor(1000000000 + Math.random() * 8999999999))
   const qualities = [
+    // 从高到低依次尝试；平台可能给 purl 但 CDN 实际 404，所以每条都必须实测可访问。
+    { prefix: 'F000', ext: 'flac' },
     { prefix: 'M800', ext: 'mp3' },
     { prefix: 'M500', ext: 'mp3' },
     { prefix: 'C400', ext: 'm4a' }
@@ -153,23 +211,47 @@ async function qqAudio (mid, cookie, timeout) {
     const j = await fetchJson('https://u.y.qq.com/cgi-bin/musicu.fcg', { cookie, referer: QQ_REFERER, timeout, method: 'POST', body }).catch(() => null)
     const data = j?.req?.data
     const info = data?.midurlinfo?.[0]
-    if (info?.purl && data?.sip?.[0]) return { url: data.sip[0] + info.purl, ext: q.ext }
+    if (!info?.purl) continue
+    // sip 常有多条线路，第一条可能对当前地区/歌曲 404；逐条验证后再返回。
+    for (const sip of data?.sip || []) {
+      const url = `${sip}${info.purl}`
+      if (await validAudioUrl(url, cookie, timeout)) return { url, ext: q.ext }
+    }
   }
   return { url: '', ext: 'mp3' }
+}
+
+async function resolveQQId (hit, cookie, timeout) {
+  if (hit.id) return { id: hit.id, idType: hit.idType || (/^\d+$/.test(hit.id) ? 'songid' : 'songmid') }
+  if (!hit.url) throw new Error('未识别到 QQ 音乐歌曲 ID')
+  const page = await fetchText(hit.url, { cookie, referer: QQ_REFERER, timeout })
+  const all = decodeUrlValue(`${page.url}\n${page.text}`)
+  const fromText = qqIdFromText(all)
+  if (fromText) return fromText
+  let m = all.match(/songDetail\/([A-Za-z0-9]{5,})/i)
+  if (m) return { id: m[1], idType: /^\d+$/.test(m[1]) ? 'songid' : 'songmid' }
+  m = all.match(/(?:songDetail\/|songmid["'=:\s%]+)([A-Za-z0-9]{8,})/i)
+  if (m) return { id: m[1], idType: 'songmid' }
+  m = all.match(/songid["'=:\s%]+(\d{5,})/i)
+  if (m) return { id: m[1], idType: 'songid' }
+  throw new Error('QQ音乐分享链接已失效或未识别到歌曲 ID')
 }
 
 async function parseQQ (hit, cfg) {
   const cookie = String(cfg.qqCookie || '').trim()
   const timeout = Math.max(5, Number(cfg.timeout) || 20) * 1000
-  const mid = hit.id
-  if (!mid) throw new Error('未识别到 QQ 音乐 songmid')
-  const [detail, lyric, audio] = await Promise.all([
-    fetchJson(`https://c.y.qq.com/v8/fcg-bin/fcg_play_single_song.fcg?songmid=${encodeURIComponent(mid)}&format=json`, { cookie, referer: QQ_REFERER, timeout }),
+  const resolved = await resolveQQId(hit, cookie, timeout)
+  const queryKey = resolved.idType === 'songid' ? 'songid' : 'songmid'
+  const detail = await fetchJson(`https://c.y.qq.com/v8/fcg-bin/fcg_play_single_song.fcg?${queryKey}=${encodeURIComponent(resolved.id)}&format=json`, { cookie, referer: QQ_REFERER, timeout })
+  const song = detail?.data?.[0]
+  if (!song) throw new Error('QQ音乐未返回歌曲信息，分享链接可能失效或歌曲已下架')
+  // 数字 songid 先由详情换成真正 songmid，后续歌词/vkey 统一使用 songmid
+  const mid = song.mid || song.songmid || (resolved.idType === 'songmid' ? resolved.id : '')
+  if (!mid) throw new Error('QQ音乐未返回 songmid，暂时无法继续解析')
+  const [lyric, audio] = await Promise.all([
     fetchJson(`https://c.y.qq.com/lyric/fcgi-bin/fcg_query_lyric_new.fcg?songmid=${encodeURIComponent(mid)}&format=json&nobase64=1`, { cookie, referer: QQ_REFERER, timeout }).catch(() => ({})),
     qqAudio(mid, cookie, timeout)
   ])
-  const song = detail?.data?.[0]
-  if (!song) throw new Error('QQ音乐未返回歌曲信息，链接可能无效')
   const albumMid = song.album?.mid || ''
   return {
     platform: 'QQ音乐',
@@ -199,34 +281,117 @@ async function resolveKugouHash (hit, cookie, timeout) {
   return hash.toUpperCase()
 }
 
-async function parseKugou (hit, cfg) {
-  const cookie = String(cfg.kugouCookie || '').trim()
-  const timeout = Math.max(5, Number(cfg.timeout) || 20) * 1000
-  const hash = await resolveKugouHash(hit, cookie, timeout)
-  const data = await fetchJson(`https://m.kugou.com/app/i/getSongInfo.php?cmd=playInfo&hash=${encodeURIComponent(hash)}`, {
-    cookie, referer: KG_REFERER, timeout
+function firstValue (...values) {
+  for (const value of values) {
+    if (value === undefined || value === null) continue
+    const s = String(value).trim()
+    if (s) return s
+  }
+  return ''
+}
+
+function kugouCookieValue (cookie = '', name) {
+  return (String(cookie).match(new RegExp(`(?:^|;\\s*)${name}=([^;]+)`, 'i')) || [])[1] || ''
+}
+
+function buildKugouAuth (cfg) {
+  const rawCookie = String(cfg.kugouCookie || '').trim()
+  const userId = firstValue(cfg.kugouUserId, kugouCookieValue(rawCookie, 'KugooID'))
+  const token = firstValue(cfg.kugouToken, kugouCookieValue(rawCookie, 't'), kugouCookieValue(rawCookie, 'token'))
+  const coreCookie = [userId ? `KugooID=${userId}` : '', token ? `t=${token}` : '', token ? `token=${token}` : ''].filter(Boolean).join('; ')
+  return { rawCookie, userId, token, cookie: [rawCookie, coreCookie].filter(Boolean).join('; ') }
+}
+
+function normalizeKugouData (data = {}, hash = '') {
+  const song = data.data || data
+  const authors = Array.isArray(song.authors) ? song.authors.map(v => v.author_name || v.name).filter(Boolean).join(' / ') : ''
+  const fileName = String(song.fileName || song.filename || '').trim()
+  return {
+    title: firstValue(song.songName, song.audio_name, song.song_name, song.name, fileName.replace(/^.*?\s+-\s+/, ''), hash ? `歌曲${hash.slice(0, 8)}` : ''),
+    artists: firstValue(song.singerName, song.author_name, song.singer_name, song.authorName, authors, fileName.split(' - ')[0], '未知歌手'),
+    album: firstValue(song.album_name, song.albumName, song.album_name_audio),
+    cover: firstValue(song.album_img, song.imgUrl, song.img, song.image, song.singerHead).replace('{size}', '500'),
+    duration: Number(song.timeLength || song.timelength || song.duration || song.time_length) || 0,
+    lyric: firstValue(song.lyrics, song.lyric, song.krc),
+    audioUrl: firstValue(song.play_url, song.url, Array.isArray(song.backup_url) ? song.backup_url[0] : '', Array.isArray(song.backupUrl) ? song.backupUrl[0] : ''),
+    audioType: firstValue(song.extName, song.ext, song.format, 'mp3').toLowerCase(),
+    raw: song
+  }
+}
+
+async function fetchKugouWebData (hash, auth, timeout) {
+  const qs = new URLSearchParams({
+    r: 'play/getdata',
+    hash,
+    dfid: kugouCookieValue(auth.cookie, 'kg_dfid') || kugouCookieValue(auth.cookie, 'dfid') || '',
+    mid: kugouCookieValue(auth.cookie, 'kg_mid') || kugouCookieValue(auth.cookie, 'mid') || '',
+    platid: '4',
+    album_id: '',
+    _: String(Date.now())
   })
-  if (!data?.songName && !data?.fileName) throw new Error(data?.error || '酷狗未返回歌曲信息，链接或 Cookie 可能失效')
-  const lyricRes = await fetchText(`https://m.kugou.com/app/i/krc.php?cmd=100&hash=${encodeURIComponent(hash)}&timelength=${(Number(data.timeLength) || 0) * 1000}`, {
-    cookie, referer: KG_REFERER, timeout
-  }).catch(() => ({ text: '' }))
-  const cover = String(data.album_img || data.imgUrl || data.singerHead || '').replace('{size}', '500')
-  const audioUrl = data.url || data.backup_url?.[0] || ''
+  if (auth.userId) qs.set('userid', auth.userId)
+  if (auth.token) qs.set('token', auth.token)
+  const json = await fetchJson(`https://wwwapi.kugou.com/yy/index.php?${qs.toString()}`, {
+    cookie: auth.cookie,
+    referer: KG_REFERER,
+    timeout,
+    headers: { Origin: 'https://www.kugou.com' }
+  })
+  if (json?.err_code && Number(json.err_code) !== 0) throw new Error(json.error || json.err_msg || '酷狗网页接口返回错误')
+  return json
+}
+
+async function fetchKugouMobileData (hash, auth, timeout) {
+  return fetchJson(`https://m.kugou.com/app/i/getSongInfo.php?cmd=playInfo&hash=${encodeURIComponent(hash)}`, {
+    cookie: auth.cookie, referer: KG_REFERER, timeout
+  })
+}
+
+async function fetchKugouLyric (hash, auth, timeout, duration = 0) {
+  const timelength = Math.max(0, Number(duration) || 0) * 1000
+  const urls = [
+    `https://m.kugou.com/app/i/krc.php?cmd=100&hash=${encodeURIComponent(hash)}&timelength=${timelength}`,
+    `https://m.kugou.com/app/i/krc.php?cmd=100&hash=${encodeURIComponent(hash)}&timelength=0`
+  ]
+  for (const url of urls) {
+    const res = await fetchText(url, { cookie: auth.cookie, referer: KG_REFERER, timeout }).catch(() => ({ text: '' }))
+    const text = String(res.text || '').trim()
+    if (text) return text
+  }
+  return ''
+}
+
+async function parseKugou (hit, cfg) {
+  const auth = buildKugouAuth(cfg)
+  const timeout = Math.max(5, Number(cfg.timeout) || 20) * 1000
+  const hash = await resolveKugouHash(hit, auth.cookie, timeout)
+
+  const web = await fetchKugouWebData(hash, auth, timeout).catch(() => null)
+  const mobile = await fetchKugouMobileData(hash, auth, timeout).catch(() => null)
+  if (!web && !mobile) throw new Error('酷狗未返回歌曲信息，链接或 Cookie 可能失效')
+  const mobileSong = mobile?.data || mobile || {}
+  const webSong = web?.data || web || {}
+  const merged = normalizeKugouData({ data: { ...mobileSong, ...webSong } }, hash)
+  if (!merged.raw?.songName && !merged.raw?.fileName && !merged.raw?.song_name && !merged.raw?.audio_name && !merged.raw?.play_url && !merged.raw?.url) {
+    const msg = web?.error || web?.err_msg || mobile?.error || '酷狗未返回歌曲信息，链接或 Cookie 可能失效'
+    throw new Error(msg)
+  }
+  const lyric = merged.lyric || await fetchKugouLyric(hash, auth, timeout, merged.duration)
   return {
     platform: '酷狗音乐',
     platformKey: 'kugou',
     id: hash,
-    title: data.songName || String(data.fileName || '').replace(/^.*?\s+-\s+/, '') || `歌曲${hash.slice(0, 8)}`,
-    artists: data.singerName || data.author_name || data.authors?.map(v => v.author_name).filter(Boolean).join(' / ') || String(data.fileName || '').split(' - ')[0] || '未知歌手',
-    album: data.album_name || '',
-    cover,
-    duration: Number(data.timeLength) || 0,
-    lyric: lyricRes.text || '',
+    title: merged.title,
+    artists: merged.artists,
+    album: merged.album,
+    cover: merged.cover,
+    duration: merged.duration,
+    lyric,
     translation: '',
-    audioUrl,
-    audioType: String(data.extName || 'mp3').toLowerCase(),
-    audioHeaders: { Referer: KG_REFERER, Cookie: cookie },
-    noAudioReason: audioUrl ? '' : '账号无播放权限、Cookie 失效，或歌曲为 VIP/付费/地区限制音源'
+    audioUrl: merged.audioUrl,
+    audioType: merged.audioType,
+    audioHeaders: { Referer: KG_REFERER, Cookie: auth.cookie },
+    noAudioReason: merged.audioUrl ? '' : '账号无播放权限、Cookie 失效，或歌曲为 VIP/付费/地区限制音源'
   }
 }
 

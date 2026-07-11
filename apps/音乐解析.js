@@ -2,6 +2,9 @@ import plugin from '../../../lib/plugins/plugin.js'
 import common from '../../../lib/common/common.js'
 import setting from '../utils/setting.js'
 import { collectMusicText, detectMusicLink, parseMusic } from '../utils/music.js'
+import { startQQMusicBrowserLogin, waitQQMusicBrowserLogin } from '../utils/qqMusicBrowserLogin.js'
+import { startKugouMusicBrowserLogin, waitKugouMusicBrowserLogin } from '../utils/kugouMusicBrowserLogin.js'
+import puppeteer from '../../../lib/puppeteer/puppeteer.js'
 import fs from 'node:fs'
 import path from 'node:path'
 import { execFile } from 'node:child_process'
@@ -20,6 +23,7 @@ const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/
 const cfg = () => setting.getConfig('music') || {}
 const recent = new Set()
 const cdMap = {}
+const loginTasks = new Set()
 
 function ensureTmp () {
   try { if (!fs.existsSync(TMP_DIR)) fs.mkdirSync(TMP_DIR, { recursive: true }) } catch {}
@@ -38,6 +42,23 @@ function fileUri (p) {
   return 'file://' + path.resolve(p)
 }
 
+async function sendLoginQr (e, text, image, prefix) {
+  const buf = Buffer.isBuffer(image) ? image : Buffer.from(image)
+  const base64 = `base64://${buf.toString('base64')}`
+  try {
+    await e.reply([text, segment.image(base64)])
+    return
+  } catch (err) {
+    logger.warn(`[音乐解析] 扫码二维码 base64 发送失败，改用临时文件：${err?.message || err}`)
+  }
+
+  ensureTmp()
+  const file = path.join(TMP_DIR, `${prefix}_${Date.now()}.png`)
+  await fs.promises.writeFile(file, buf)
+  await e.reply([text, segment.image(fileUri(file))])
+  setTimeout(() => fs.rmSync(file, { force: true }), 10 * 60 * 1000)
+}
+
 function rewriteUrl (rawUrl, baseUrl) {
   const base = String(baseUrl || '').trim().replace(/\/+$/, '')
   if (!base) return String(rawUrl)
@@ -49,6 +70,41 @@ function rewriteUrl (rawUrl, baseUrl) {
     dst.hash = src.hash
     return dst.toString()
   } catch { return String(rawUrl) }
+}
+
+async function validCover (url, headers = {}) {
+  if (!url) return ''
+  const requestHeaders = { 'User-Agent': UA, ...headers }
+  try {
+    const res = await fetch(url, { method: 'HEAD', headers: requestHeaders, redirect: 'follow', signal: AbortSignal.timeout(8000) })
+    if (res.ok && /^image\//i.test(res.headers.get('content-type') || '')) return url
+  } catch {}
+  // 部分 CDN 不支持 HEAD，补一次小型 GET 验证；只读响应头后立即取消正文。
+  try {
+    const res = await fetch(url, { headers: { ...requestHeaders, Range: 'bytes=0-31' }, redirect: 'follow', signal: AbortSignal.timeout(8000) })
+    const ok = res.ok && /^image\//i.test(res.headers.get('content-type') || '')
+    try { await res.body?.cancel() } catch {}
+    if (ok) return url
+  } catch {}
+  return ''
+}
+
+async function sendSongInfo (e, r, c) {
+  const info = [
+    `🎶 ${r.title}`,
+    `歌手：${r.artists}`,
+    r.album ? `专辑：${r.album}` : '',
+    r.duration ? `时长：${fmtDur(r.duration)}` : '',
+    `平台：${r.platform}`
+  ].filter(Boolean).join('\n')
+  const cover = c.sendCover !== false ? await validCover(r.cover) : ''
+  // 封面 404/防盗链时只发文字，绝不能让封面失败阻断歌词和音频。
+  try {
+    await e.reply([info, cover ? '\n' : '', cover ? segment.image(cover) : ''].filter(Boolean), true)
+  } catch (err) {
+    logger.warn(`[音乐解析] 封面发送失败，降级文字：${err?.message || err}`)
+    await e.reply(info, true)
+  }
 }
 
 async function downloadToFile (url, headers, dest, maxMB) {
@@ -200,8 +256,103 @@ export class musicParse extends plugin {
       dsc: '网易云/QQ/酷狗/酷我音乐链接与卡片解析',
       event: 'message',
       priority: 8500,
-      rule: []
+      rule: [
+        {
+          reg: '^#?(QQ|qq)音乐(扫码登录|登录)$',
+          fnc: 'qqLogin',
+          permission: 'master'
+        },
+        {
+          reg: '^#?(QQ|qq)音乐(退出登录|注销)$',
+          fnc: 'qqLogout',
+          permission: 'master'
+        },
+        {
+          reg: '^#?酷狗音乐(扫码登录|登录)$',
+          fnc: 'kugouLogin',
+          permission: 'master'
+        },
+        {
+          reg: '^#?酷狗音乐(退出登录|注销)$',
+          fnc: 'kugouLogout',
+          permission: 'master'
+        }
+      ]
     })
+  }
+
+  async qqLogin (e) {
+    if (loginTasks.has('qq')) {
+      await e.reply('QQ音乐扫码登录正在进行中，请先完成当前扫码或等待二维码过期。')
+      return true
+    }
+    loginTasks.add('qq')
+    try {
+      const { page, image } = await startQQMusicBrowserLogin(puppeteer)
+      await sendLoginQr(e, '请在约两分钟内使用手机 QQ 扫码并确认登录：\n', image, 'qq_login_qr')
+      const result = await waitQQMusicBrowserLogin(page, 120000, () => e.reply('二维码已扫描，请在手机 QQ 中点击确认登录。'))
+      if (result.status === 'success') {
+        const c = cfg()
+        c.qqCookie = result.cookie
+        setting.setConfig('music', c)
+        await e.reply('✅ QQ音乐登录成功，Cookie 已自动保存。')
+      } else {
+        await e.reply(`QQ音乐登录失败：${result.msg || '未知错误'}。请重新发送「#QQ音乐扫码登录」。`)
+      }
+    } catch (err) {
+      logger.error('[音乐解析] QQ音乐扫码登录失败', err)
+      await e.reply(`QQ音乐扫码登录失败：${err?.message || err}`)
+    } finally {
+      loginTasks.delete('qq')
+    }
+    return true
+  }
+
+  async qqLogout (e) {
+    const c = cfg()
+    c.qqCookie = ''
+    setting.setConfig('music', c)
+    await e.reply('QQ音乐登录信息已清除。')
+    return true
+  }
+
+  async kugouLogin (e) {
+    if (loginTasks.has('kugou')) {
+      await e.reply('酷狗音乐扫码登录正在进行中，请先完成当前扫码或等待二维码过期。')
+      return true
+    }
+    loginTasks.add('kugou')
+    try {
+      const { page, image } = await startKugouMusicBrowserLogin(puppeteer)
+      await sendLoginQr(e, '请在约两分钟内使用酷狗音乐 App 扫码并确认登录：\n', image, 'kugou_login_qr')
+      const result = await waitKugouMusicBrowserLogin(page, 120000)
+      if (result.status === 'success') {
+        const c = cfg()
+        c.kugouCookie = result.cookie
+        c.kugouUserId = result.userId
+        c.kugouToken = result.token
+        setting.setConfig('music', c)
+        await e.reply(`✅ 酷狗音乐登录成功${result.nickname ? `：${result.nickname}` : ''}，登录信息已自动保存。`)
+      } else {
+        await e.reply(`酷狗音乐登录失败：${result.msg || '未知错误'}。请重新发送「#酷狗音乐扫码登录」。`)
+      }
+    } catch (err) {
+      logger.error('[音乐解析] 酷狗音乐扫码登录失败', err)
+      await e.reply(`酷狗音乐扫码登录失败：${err?.message || err}`)
+    } finally {
+      loginTasks.delete('kugou')
+    }
+    return true
+  }
+
+  async kugouLogout (e) {
+    const c = cfg()
+    c.kugouCookie = ''
+    c.kugouUserId = ''
+    c.kugouToken = ''
+    setting.setConfig('music', c)
+    await e.reply('酷狗音乐登录信息已清除。')
+    return true
   }
 
   async accept (e) {
@@ -231,14 +382,7 @@ export class musicParse extends plugin {
       const platformName = { netease: '网易云音乐', qq: 'QQ音乐', kugou: '酷狗音乐', kuwo: '酷我音乐' }[hit.platform] || '音乐'
       await e.reply(`🎵 正在解析${platformName}…`, true, { recallMsg: 8 })
       const r = await parseMusic(hit, c)
-      const info = [
-        `🎶 ${r.title}`,
-        `歌手：${r.artists}`,
-        r.album ? `专辑：${r.album}` : '',
-        r.duration ? `时长：${fmtDur(r.duration)}` : '',
-        `平台：${r.platform}`
-      ].filter(Boolean).join('\n')
-      await e.reply([info, c.sendCover !== false && r.cover ? '\n' : '', c.sendCover !== false && r.cover ? segment.image(r.cover) : ''].filter(Boolean), true)
+      await sendSongInfo(e, r, c)
       if (c.sendLyrics !== false) await sendLyrics(e, r)
       await sendAudio(e, r)
     } catch (err) {
