@@ -10,9 +10,9 @@ parseKuwo: true           # 酷我音乐解析开关
 
 neteaseCookie: ''         # 网易云 Cookie，用户自行从已登录浏览器复制；留空也可解析部分公开信息/歌词
 qqCookie: ''              # QQ音乐 Cookie，需手动从已登录浏览器复制完整 Cookie
-kugouCookie: ''           # 酷狗完整 Cookie，可发「#酷狗音乐扫码登录」自动获取，也可手动填写
-kugouUserId: ''           # 酷狗核心用户ID（KugooID），扫码登录后自动保存
-kugouToken: ''            # 酷狗核心登录Token（Cookie中的t），扫码登录后自动保存
+kugouCookie: ''           # 酷狗完整 Cookie，需手动从已登录浏览器复制；也可只填下方 KugooID 和 Token
+kugouUserId: ''           # 酷狗核心用户ID（KugooID），手动配置时填写
+kugouToken: ''            # 酷狗核心登录Token（Cookie中的t），手动配置时填写
 kuwoCookie: ''            # 酷我 Cookie，用户自行从已登录浏览器复制
 
 sendLyrics: true          # 是否发送歌词（用聊天记录折叠发送，不限制行数）

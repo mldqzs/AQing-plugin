@@ -2,8 +2,6 @@ import plugin from '../../../lib/plugins/plugin.js'
 import common from '../../../lib/common/common.js'
 import setting from '../utils/setting.js'
 import { collectMusicText, detectMusicLink, parseMusic } from '../utils/music.js'
-import { startKugouMusicBrowserLogin, waitKugouMusicBrowserLogin } from '../utils/kugouMusicBrowserLogin.js'
-import puppeteer from '../../../lib/puppeteer/puppeteer.js'
 import fs from 'node:fs'
 import path from 'node:path'
 import { execFile } from 'node:child_process'
@@ -22,7 +20,6 @@ const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/
 const cfg = () => setting.getConfig('music') || {}
 const recent = new Set()
 const cdMap = {}
-const loginTasks = new Set()
 
 function ensureTmp () {
   try { if (!fs.existsSync(TMP_DIR)) fs.mkdirSync(TMP_DIR, { recursive: true }) } catch {}
@@ -35,27 +32,6 @@ function safeName (s = '') {
 function fmtDur (sec) {
   sec = Number(sec) || 0
   return `${Math.floor(sec / 60)}:${String(Math.floor(sec % 60)).padStart(2, '0')}`
-}
-
-function fileUri (p) {
-  return 'file://' + path.resolve(p)
-}
-
-async function sendLoginQr (e, text, image, prefix) {
-  const buf = Buffer.isBuffer(image) ? image : Buffer.from(image)
-  const base64 = `base64://${buf.toString('base64')}`
-  try {
-    await e.reply([text, segment.image(base64)])
-    return
-  } catch (err) {
-    logger.warn(`[音乐解析] 扫码二维码 base64 发送失败，改用临时文件：${err?.message || err}`)
-  }
-
-  ensureTmp()
-  const file = path.join(TMP_DIR, `${prefix}_${Date.now()}.png`)
-  await fs.promises.writeFile(file, buf)
-  await e.reply([text, segment.image(fileUri(file))])
-  setTimeout(() => fs.rmSync(file, { force: true }), 10 * 60 * 1000)
 }
 
 function rewriteUrl (rawUrl, baseUrl) {
@@ -256,67 +232,8 @@ export class musicParse extends plugin {
       event: 'message',
       priority: 8500,
       rule: [
-        {
-          reg: '^#?酷狗音乐(扫码登录|登录)$',
-          fnc: 'kugouLogin',
-          permission: 'master'
-        },
-        {
-          reg: '^#?酷狗音乐(退出登录|注销)$',
-          fnc: 'kugouLogout',
-          permission: 'master'
-        }
       ]
     })
-  }
-
-  async kugouLogin (e) {
-    if (loginTasks.has('kugou')) {
-      await e.reply('酷狗音乐扫码登录正在进行中，请先完成当前扫码或等待二维码过期。')
-      return true
-    }
-    loginTasks.add('kugou')
-    try {
-      const login = await startKugouMusicBrowserLogin(puppeteer)
-      if (login.alreadyLogged) {
-        const c = cfg()
-        c.kugouCookie = login.cookie || ''
-        c.kugouUserId = login.userId || ''
-        c.kugouToken = login.token || ''
-        setting.setConfig('music', c)
-        await login.page?.close?.().catch(() => {})
-        await e.reply(`✅ 酷狗音乐当前浏览器已有登录账号${login.nickname ? `：${login.nickname}` : ''}，已直接保存登录信息。\n如果这不是你要登录的账号，请先发送「#酷狗音乐退出登录」，再清理浏览器登录态后重新扫码。`)
-        return true
-      }
-      await sendLoginQr(e, '请在约两分钟内使用酷狗音乐 App 扫码并确认登录：\n', login.image, 'kugou_login_qr')
-      const result = await waitKugouMusicBrowserLogin(login.page, 120000)
-      if (result.status === 'success') {
-        const c = cfg()
-        c.kugouCookie = result.cookie
-        c.kugouUserId = result.userId
-        c.kugouToken = result.token
-        setting.setConfig('music', c)
-        await e.reply(`✅ 酷狗音乐登录成功${result.nickname ? `：${result.nickname}` : ''}，登录信息已自动保存。`)
-      } else {
-        await e.reply(`酷狗音乐登录失败：${result.msg || '未知错误'}。请重新发送「#酷狗音乐扫码登录」。`)
-      }
-    } catch (err) {
-      logger.error('[音乐解析] 酷狗音乐扫码登录失败', err)
-      await e.reply(`酷狗音乐扫码登录失败：${err?.message || err}`)
-    } finally {
-      loginTasks.delete('kugou')
-    }
-    return true
-  }
-
-  async kugouLogout (e) {
-    const c = cfg()
-    c.kugouCookie = ''
-    c.kugouUserId = ''
-    c.kugouToken = ''
-    setting.setConfig('music', c)
-    await e.reply('酷狗音乐登录信息已清除。')
-    return true
   }
 
   async accept (e) {
