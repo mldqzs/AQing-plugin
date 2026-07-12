@@ -4,6 +4,8 @@
  * - Cookie 对应账号有播放权限且平台返回直链时下载音频；没权限仍返回歌曲信息与歌词。
  * ───────────────────────────────────────────────────────────── */
 
+import crypto from 'node:crypto'
+
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/126 Safari/537.36'
 const QQ_REFERER = 'https://y.qq.com/'
 const NE_REFERER = 'https://music.163.com/'
@@ -297,6 +299,18 @@ function kugouCookieValue (cookie = '', name) {
   return (String(cookie).match(new RegExp(`(?:^|;\\s*)${name}=([^;]+)`, 'i')) || [])[1] || ''
 }
 
+function kugouSign (params = {}) {
+  const secret = 'NVPh5oo715z5DIWAeQlhMDsWXXQV4hwt'
+  const raw = Object.keys(params).sort().map(key => `${key}=${params[key]}`).join('')
+  return crypto.createHash('md5').update(`${secret}${raw}${secret}`).digest('hex')
+}
+
+function kugouEncodeAlbumAudioId (value = '') {
+  const id = Number(value)
+  if (!Number.isFinite(id) || id <= 0) return ''
+  return id.toString(36)
+}
+
 function buildKugouAuth (cfg) {
   const rawCookie = String(cfg.kugouCookie || '').trim()
   const userId = firstValue(cfg.kugouUserId, kugouCookieValue(rawCookie, 'KugooID'))
@@ -311,6 +325,15 @@ function normalizeBackupUrl (value) {
   return value || ''
 }
 
+function kugouDuration (...values) {
+  for (const value of values) {
+    const n = Number(value) || 0
+    if (!n) continue
+    return n > 30000 ? Math.round(n / 1000) : n
+  }
+  return 0
+}
+
 function normalizeKugouData (data = {}, hash = '') {
   const song = data.data || data
   const authors = Array.isArray(song.authors) ? song.authors.map(v => v.author_name || v.name).filter(Boolean).join(' / ') : ''
@@ -322,10 +345,11 @@ function normalizeKugouData (data = {}, hash = '') {
     artists: firstValue(song.singerName, song.author_name, song.singer_name, song.authorName, authors, fileName.split(' - ')[0], '未知歌手'),
     album: firstValue(song.album_name, song.albumName, song.album_name_audio),
     cover: firstValue(song.album_img, song.imgUrl, song.img, song.image, song.singerHead).replace('{size}', '500'),
-    duration: Number(song.timeLength || song.timelength || song.duration || song.time_length) || Math.round(Number(extra['128timelength'] || extra['320timelength'] || extra.sqtimelength || extra.hightimelength || 0) / 1000) || 0,
+    duration: kugouDuration(song.timeLength, song.timelength, song.duration, song.time_length, extra['128timelength'], extra['320timelength'], extra.sqtimelength, extra.hightimelength),
     lyric: firstValue(song.lyrics, song.lyric, song.krc),
     audioUrl,
     audioType: (firstValue(song.extName, song.ext, song.format) || (audioUrl.match(/\.([a-z0-9]+)(?:\?|$)/i) || [])[1] || 'mp3').toLowerCase(),
+    encodeAlbumAudioId: firstValue(song.encode_album_audio_id, song.encodeAlbumAudioId),
     qualityHashes: [extra.highhash, extra.sqhash, extra['320hash'], extra['128hash'], song.hash, hash].filter(Boolean),
     raw: song
   }
@@ -401,6 +425,32 @@ async function fetchKugouLyric (hash, auth, timeout, duration = 0) {
   return fetchKugouLyricBySearch(hash, auth, timeout, duration)
 }
 
+async function fetchKugouSignedSongInfo (hash, auth, timeout, encodeAlbumAudioId = '') {
+  if (!auth.userId || !auth.token) return null
+  const now = Date.now()
+  const params = {
+    srcappid: '2919',
+    clientver: '20000',
+    clienttime: String(now),
+    mid: kugouCookieValue(auth.cookie, 'kg_mid') || kugouCookieValue(auth.cookie, 'mid') || String(now),
+    uuid: kugouCookieValue(auth.cookie, 'kg_mid') || kugouCookieValue(auth.cookie, 'mid') || String(now),
+    dfid: kugouCookieValue(auth.cookie, 'kg_dfid') || kugouCookieValue(auth.cookie, 'dfid') || '-',
+    appid: '1014',
+    platid: '4',
+    hash,
+    token: auth.token,
+    userid: auth.userId
+  }
+  if (encodeAlbumAudioId) params.encode_album_audio_id = encodeAlbumAudioId
+  params.signature = kugouSign(params)
+  return fetchJson(`https://wwwapi.kugou.com/play/songinfo?${new URLSearchParams(params).toString()}`, {
+    cookie: auth.cookie,
+    referer: `${KG_REFERER}song/`,
+    timeout,
+    headers: { Origin: KG_REFERER.replace(/\/$/, '') }
+  }).catch(() => null)
+}
+
 async function parseKugou (hit, cfg) {
   const auth = buildKugouAuth(cfg)
   const timeout = Math.max(5, Number(cfg.timeout) || 20) * 1000
@@ -411,7 +461,18 @@ async function parseKugou (hit, cfg) {
   if (!web && !mobile) throw new Error('酷狗未返回歌曲信息，链接或 Cookie 可能失效')
   const mobileSong = mobile?.data || mobile || {}
   const webSong = web?.data || web || {}
-  const merged = normalizeKugouData({ data: { ...webSong, ...mobileSong } }, hash)
+  let merged = normalizeKugouData({ data: { ...webSong, ...mobileSong } }, hash)
+  if (!merged.audioUrl) {
+    const signed = await fetchKugouSignedSongInfo(hash, auth, timeout, merged.encodeAlbumAudioId)
+    const signedSong = signed?.data || signed || {}
+    let signedMerged = normalizeKugouData({ data: { ...merged.raw, ...signedSong } }, hash)
+    if (!signedMerged.audioUrl && signedMerged.encodeAlbumAudioId && signedMerged.encodeAlbumAudioId !== merged.encodeAlbumAudioId) {
+      const retry = await fetchKugouSignedSongInfo(hash, auth, timeout, signedMerged.encodeAlbumAudioId)
+      const retrySong = retry?.data || retry || {}
+      signedMerged = normalizeKugouData({ data: { ...signedMerged.raw, ...retrySong } }, hash)
+    }
+    if (signedMerged.audioUrl || signedMerged.lyric || signedMerged.title) merged = signedMerged
+  }
   if (!merged.raw?.songName && !merged.raw?.fileName && !merged.raw?.song_name && !merged.raw?.audio_name && !merged.raw?.play_url && !merged.raw?.url) {
     const msg = web?.error || web?.err_msg || mobile?.error || '酷狗未返回歌曲信息，链接或 Cookie 可能失效'
     throw new Error(msg)
