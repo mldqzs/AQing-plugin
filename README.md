@@ -1,5 +1,3 @@
-<div align="center">
-
 # 🌌 AQing-plugin · 阿晴插件
 
 **基于 [TRSS-Yunzai](https://github.com/TimeRainStarSky/Yunzai) 的自用娱乐插件，功能杂、偏练手，欢迎尝鲜**
@@ -9,8 +7,6 @@
 [![Gitee](https://img.shields.io/badge/Gitee-aayhg-c71d23?style=flat-square&logo=gitee)](https://gitee.com/aayhg/AQing-plugin)
 [![GitHub](https://img.shields.io/badge/GitHub-mldqzs-181717?style=flat-square&logo=github)](https://github.com/mldqzs/AQing-plugin)
 [![QQ群](https://img.shields.io/badge/QQ%E7%BE%A4-%E5%A4%A7%E6%99%B4%E7%8E%8B%E6%9C%9D%20912363090-12b7f5?style=flat-square&logo=tencentqq)](https://qun.qq.com/universal-share/share?ac=1&authKey=vaayVDiP9soOVbKeG0YpOEy%2FXXOynz%2Bv%2BH8%2F2FTHKgT6prWnzNJObfjLa3z5I73T&busi_data=eyJncm91cENvZGUiOiI5MTIzNjMwOTAiLCJ0b2tlbiI6ImdlSFFhMnlydkFEZWV5M3FIVnhWNFRSSGVwWndySnNkTmRXdUhaRXcxaFMvUk9mWWpOeUMxR0o3VEtpcXZ3bGUiLCJ1aW4iOiIzMTcxNDE5NzA2In0%3D&data=2bE0k_euv8SPtnSWv8Ph6ZWuC8uU4R_YxH4b0ojn5uUSejkqPKbgBnLDxjcQExxlsRdh3Uc0EnuGp701zD0Gmw&svctype=4&tempid=h5_group_info)
-
-</div>
 
 ## 📖 介绍
 
@@ -165,13 +161,9 @@ AI 对手默认用**内置启发式 AI**，开箱即玩；在锅巴「AQing-plug
 
 欢迎加群一起玩、提需求、反馈 bug：
 
-<div align="center">
-
 **大晴王朝 · QQ 群 912363090**
 
 [![加入QQ群](https://img.shields.io/badge/点击加入-大晴王朝%20912363090-12b7f5?style=for-the-badge&logo=tencentqq)](https://qun.qq.com/universal-share/share?ac=1&authKey=vaayVDiP9soOVbKeG0YpOEy%2FXXOynz%2Bv%2BH8%2F2FTHKgT6prWnzNJObfjLa3z5I73T&busi_data=eyJncm91cENvZGUiOiI5MTIzNjMwOTAiLCJ0b2tlbiI6ImdlSFFhMnlydkFEZWV5M3FIVnhWNFRSSGVwWndySnNkTmRXdUhaRXcxaFMvUk9mWWpOeUMxR0o3VEtpcXZ3bGUiLCJ1aW4iOiIzMTcxNDE5NzA2In0%3D&data=2bE0k_euv8SPtnSWv8Ph6ZWuC8uU4R_YxH4b0ojn5uUSejkqPKbgBnLDxjcQExxlsRdh3Uc0EnuGp701zD0Gmw&svctype=4&tempid=h5_group_info)
-
-</div>
 
 ## 🔗 友情链接
 
