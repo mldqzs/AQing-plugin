@@ -13,6 +13,7 @@
  * - 总开关在锅巴配置（config.repeatBan）中控制，关闭后整功能停用
  * - 管理员可通过「复读禁言 开启/关闭」单独控制本群开关
  * - 主人可通过「设置复读禁言时间 N」设置初始禁言时间（分钟）
+ * - 主人可通过「设置复读禁言叠加 N」设置每次阶梯叠加时长（分钟），默认 1
  */
 
 import plugin from '../../../lib/plugins/plugin.js'
@@ -85,6 +86,12 @@ function repeatBanEnabled() {
 // 初始禁言时间（分钟），未配置/非法时默认 1
 function repeatBanBaseTime() {
   const t = parseInt(loadCfg().repeatBanTime)
+  return Number.isFinite(t) && t > 0 ? t : 1
+}
+
+// 每次阶梯叠加时长（分钟），未配置/非法时默认 1
+function repeatBanStepTime() {
+  const t = parseInt(loadCfg().repeatBanStep)
   return Number.isFinite(t) && t > 0 ? t : 1
 }
 
@@ -412,6 +419,12 @@ export class RepeatBanPlugin extends plugin {
           permission: 'master',  // 仅机器人主人可操作
         },
         {
+          // 设置每次阶梯叠加时长：「设置复读禁言叠加 5」（分钟）
+          reg: '^[/#]?设置复读禁言叠加\\s*\\d+$',
+          fnc: 'setBanStep',
+          permission: 'master',  // 仅机器人主人可操作
+        },
+        {
           // 监听所有群消息
           reg: '^[\\s\\S]*$',
           fnc: 'handleMessage',
@@ -455,12 +468,38 @@ export class RepeatBanPlugin extends plugin {
     }
     try {
       writeCfg('repeatBanTime', minutes)
-      await e.reply(`复读初始禁言时间已设为 ${minutes} 分钟（之后每次阶梯 +1 分钟）`, true)
+      const step = repeatBanStepTime()
+      await e.reply(
+        `复读初始禁言时间已设为 ${minutes} 分钟（之后每次阶梯 +${step} 分钟）`,
+        true
+      )
     } catch (err) {
       logger.error('[复读禁言] 设置初始禁言时间失败:', err)
       await e.reply('设置失败，请检查配置文件权限', true)
     }
     return true   // 已处理，消费掉该指令，避免落入下方复读监听
+  }
+
+  // ── 设置每次阶梯叠加时长 ──────────────────────
+  async setBanStep(e) {
+    const m = e.msg.match(/(\d+)\s*$/)
+    const minutes = m ? parseInt(m[1]) : NaN
+    if (!Number.isFinite(minutes) || minutes <= 0) {
+      await e.reply('请输入一个大于 0 的整数（分钟），例如：设置复读禁言叠加 5', true)
+      return true
+    }
+    try {
+      writeCfg('repeatBanStep', minutes)
+      const base = repeatBanBaseTime()
+      await e.reply(
+        `复读禁言叠加时长已设为 ${minutes} 分钟（首次 ${base} 分钟，之后每次 +${minutes} 分钟）`,
+        true
+      )
+    } catch (err) {
+      logger.error('[复读禁言] 设置叠加时长失败:', err)
+      await e.reply('设置失败，请检查配置文件权限', true)
+    }
+    return true
   }
 
   // ── 消息监听 ──────────────────────────────────
@@ -530,15 +569,16 @@ export class RepeatBanPlugin extends plugin {
    * 群持久阶梯禁言
    *
    * banLevel 存在 groupMeta 中，复读链打断不归零，零点才归零。
-   * 每次调用：meta.banLevel +1 → 禁言时长 = 初始禁言时间 + (banLevel - 1) 分钟。
+   * 每次调用：meta.banLevel +1 →
+   *   禁言时长 = 初始禁言时间 + (banLevel - 1) × 叠加时长（分钟）。
    *
    * @param {string} reason - "repeat" | "bot"
    */
   async _doBan(e, groupId, userId, meta, reason = 'repeat') {
     meta.banLevel += 1
     saveMeta()
-    // 初始禁言时间可在锅巴配置，之后每次阶梯 +1 分钟
-    const banMinutes = repeatBanBaseTime() + (meta.banLevel - 1)
+    // 初始禁言时间 / 叠加时长均可在锅巴或命令中配置
+    const banMinutes = repeatBanBaseTime() + (meta.banLevel - 1) * repeatBanStepTime()
     const banSeconds = banMinutes * 60
 
     const tipText = reason === 'bot'

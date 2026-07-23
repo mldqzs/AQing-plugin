@@ -692,7 +692,14 @@ export function supportGuoba() {
         {
           field: 'config.repeatBanTime',
           label: '复读初始禁言时间',
-          bottomHelpMessage: '首次禁言时长（分钟），之后每次阶梯递增 1 分钟，零点归零',
+          bottomHelpMessage: '首次禁言时长（分钟），之后按「叠加时长」阶梯递增，零点归零',
+          component: 'InputNumber',
+          componentProps: { min: 1, max: 60, placeholder: '请输入整数（分钟）' },
+        },
+        {
+          field: 'config.repeatBanStep',
+          label: '复读禁言叠加时长',
+          bottomHelpMessage: '每次阶梯禁言额外增加的分钟数（默认 1）。例如初始 1、叠加 5 → 1/6/11/16…',
           component: 'InputNumber',
           componentProps: { min: 1, max: 60, placeholder: '请输入整数（分钟）' },
         },
