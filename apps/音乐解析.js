@@ -166,9 +166,26 @@ async function makeFileLink (filePath, filename, c) {
   return rewriteUrl(raw, c.filePublicBaseUrl)
 }
 
+// 本机文件统一用 file:// URI 交给适配器：NapCat 等可直接从磁盘读
+const fileUri = (p) => 'file://' + path.resolve(p)
+
+// 语音条：与短视频 BGM 一致，直接发 mp3；适配器自行转 silk
+async function sendVoice (e, mp3Path) {
+  try {
+    await e.reply(segment.record(fileUri(mp3Path)))
+    return true
+  } catch (err) {
+    logger.warn(`[音乐解析] 语音发送失败：${err?.message || err}`)
+    return false
+  }
+}
+
 async function sendAudio (e, r) {
   const c = cfg()
-  if (c.sendMp3 === false) return
+  // sendMp3=关 且 sendVoice=关 才完全跳过；默认都发
+  const wantFile = c.sendMp3 !== false
+  const wantVoice = c.sendVoice !== false
+  if (!wantFile && !wantVoice) return
   if (!r.audioUrl) {
     await e.reply(`⚠️ 未获取到音频：${r.noAudioReason || '当前账号没有该歌曲的播放权限'}。\n歌曲信息与歌词已正常返回；请检查对应平台 Cookie 是否有效，以及该账号是否拥有播放权限。`)
     return
@@ -193,6 +210,12 @@ async function sendAudio (e, r) {
     const filename = `${safeName(`${r.title} - ${r.artists}`)}.mp3`
     named = path.join(TMP_DIR, filename)
     if (named !== mp3) fs.copyFileSync(mp3, named)
+
+    // 先发语音条，再发文件/链接（与短视频 BGM 一致）
+    if (wantVoice) await sendVoice(e, named)
+
+    if (!wantFile) return
+
     const sizeMB = fs.statSync(named).size / 1048576
     const mode = String(c.sendMode || 'auto').toLowerCase()
     const limit = Math.max(1, Number(c.uploadLimitMB) || 25)

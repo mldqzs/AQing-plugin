@@ -17,6 +17,7 @@ kuwoCookie: ''            # 酷我 Cookie，用户自行从已登录浏览器复
 
 sendLyrics: true          # 是否发送歌词（用聊天记录折叠发送，不限制行数）
 sendMp3: true             # 是否尝试发送音频文件
+sendVoice: true           # 是否同时发送语音条（可直接在聊天里播放；与 sendMp3 可独立开关）
 sendCover: true           # 是否发送封面图
 
 maxSize: 30               # 音频下载体积上限(MB)

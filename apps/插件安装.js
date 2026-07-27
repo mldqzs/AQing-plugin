@@ -1,9 +1,18 @@
 import plugin from '../../../lib/plugins/plugin.js'
 import common from '../../../lib/common/common.js'
+import puppeteer from '../../../lib/puppeteer/puppeteer.js'
 import { Restart } from '../../other/restart.js'
+import { getVersionInfo } from '../model/version.js'
 import { exec } from 'node:child_process'
 import path from 'node:path'
 import fs from 'node:fs'
+
+const _path = process.cwd().replace(/\\/g, '/')
+
+// 系统/内置目录，列表里标成「系统」
+const CORE_DIRS = new Set(['system', 'other', 'example', 'adapter', 'genshin'])
+// 图标编号轮换（对应 help/img 下 1~16.png）
+const ICON_CYCLE = 16
 
 /*
  * 插件安装 / 删除（参考戏天插件 xitian-plugin）
@@ -285,20 +294,115 @@ export class AQPluginInstall extends plugin {
     return true
   }
 
-  /* ───────────── 列表（plugins/example 下的单 js） ───────────── */
+  /* ───────────── 列表（完整插件 + plugins/example 下的单 js，图片渲染） ───────────── */
   async list(e) {
     if (!this.isMaster(e)) return true
-    if (!fs.existsSync(JS_DIR)) {
-      await e.reply('plugins/example 目录不存在')
+
+    // #阿晴js插件列表 只看单 js；#阿晴插件列表 两者都展示
+    const jsOnly = /阿晴js插件列表/.test(e.msg || '')
+
+    const dirs = jsOnly ? [] : this.collectDirPlugins()
+    const jsList = this.collectJsPlugins()
+
+    if (!dirs.length && !jsList.length) {
+      await e.reply(jsOnly ? 'plugins/example 下暂无单 js 插件' : '暂无已安装插件')
       return true
     }
-    const files = fs.readdirSync(JS_DIR).filter(f => f.endsWith('.js'))
-    if (!files.length) {
-      await e.reply('plugins/example 下暂无单 js 插件')
-      return true
+
+    const { yunzaiVersion, pluginVersion } = getVersionInfo()
+    const data = {
+      tplFile: './plugins/AQing-plugin/resources/html/pluginlist/pluginlist.html',
+      pluResPath: _path,
+      saveId: 'pluginlist',
+      jsOnly,
+      dirs,
+      jsList,
+      dirTotal: dirs.length,
+      jsTotal: jsList.length,
+      yunzaiVersion,
+      pluginVersion,
     }
-    await e.reply(`已安装的 js 插件（共 ${files.length} 个）：\n` + files.map(f => `· ${f}`).join('\n'))
+
+    try {
+      const img = await puppeteer.screenshot('pluginlist', data)
+      if (img) {
+        await e.reply(img)
+        return true
+      }
+    } catch (err) {
+      logger.error(`[AQ插件安装] 插件列表截图失败：${err?.message || err}`)
+    }
+
+    // 截图失败兜底为文字
+    await e.reply(this.formatListText(jsOnly, dirs, jsList))
     return true
+  }
+
+  // 扫描 plugins 下的完整插件目录
+  collectDirPlugins() {
+    if (!fs.existsSync('./plugins')) return []
+    const names = fs.readdirSync('./plugins')
+      .filter(name => {
+        try {
+          return fs.statSync(path.join('./plugins', name)).isDirectory()
+        } catch {
+          return false
+        }
+      })
+      .sort((a, b) => a.localeCompare(b, 'zh-CN'))
+
+    return names.map((name, i) => {
+      const meta = this.readPluginMeta(path.join('./plugins', name))
+      const core = CORE_DIRS.has(name)
+      return {
+        name,
+        desc: meta.desc || (core ? '系统 / 内置目录' : '完整插件'),
+        tag: meta.version ? `v${meta.version}` : (core ? '系统' : ''),
+        core,
+        icon: (i % ICON_CYCLE) + 1,
+      }
+    })
+  }
+
+  // 扫描 plugins/example 下的单 js
+  collectJsPlugins() {
+    if (!fs.existsSync(JS_DIR)) return []
+    return fs.readdirSync(JS_DIR)
+      .filter(f => f.endsWith('.js'))
+      .sort((a, b) => a.localeCompare(b, 'zh-CN'))
+      .map((f, i) => ({
+        name: f,
+        desc: '单 js 插件 · 热加载',
+        icon: ((i + 7) % ICON_CYCLE) + 1,
+      }))
+  }
+
+  // 读 package.json 拿 version / description
+  readPluginMeta(dir) {
+    try {
+      const pkg = JSON.parse(fs.readFileSync(path.join(dir, 'package.json'), 'utf8'))
+      return {
+        version: pkg.version ? String(pkg.version) : '',
+        desc: pkg.description ? String(pkg.description).slice(0, 40) : '',
+      }
+    } catch {
+      return { version: '', desc: '' }
+    }
+  }
+
+  // 文字兜底
+  formatListText(jsOnly, dirs, jsList) {
+    const lines = []
+    if (!jsOnly) {
+      lines.push(`【完整插件】（共 ${dirs.length} 个）`)
+      lines.push(...(dirs.length ? dirs.map(d => `· ${d.name}${d.tag ? ` ${d.tag}` : ''}`) : ['· （无）']))
+    }
+    if (!jsOnly && jsList.length) lines.push('')
+    if (jsOnly || jsList.length || !dirs.length) {
+      lines.push(`【单 js 插件】（共 ${jsList.length} 个，位于 plugins/example）`)
+      lines.push(...(jsList.length ? jsList.map(f => `· ${f.name}`) : ['· （无）']))
+    }
+    return lines.join('\n')
   }
 
   /* ───────────── 工具方法 ───────────── */

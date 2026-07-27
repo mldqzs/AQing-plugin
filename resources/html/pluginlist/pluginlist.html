@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="zh">
+
+<head>
+    <meta charset="UTF-8">
+    <title>阿晴插件列表</title>
+    <style>
+        @font-face {
+            font-family: "tttgbnumber";
+            src: url("{{pluResPath}}/plugins/AQing-plugin/resources/font/tttgbnumber.ttf");
+            font-weight: normal;
+            font-style: normal;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'tttgbnumber', -apple-system, "PingFang SC", "Microsoft YaHei", "Droid Sans Fallback", sans-serif;
+        }
+
+        body {
+            width: 840px;
+            position: relative;
+            padding: 30px;
+            /* 与帮助图一致：初音背景 + 轻柔光遮罩，iOS 果冻质感 */
+            background:
+                linear-gradient(160deg, rgba(120, 170, 255, 0.30) 0%, rgba(180, 150, 240, 0.22) 50%, rgba(255, 180, 220, 0.28) 100%),
+                url("{{pluResPath}}/plugins/AQing-plugin/resources/html/help/img/bg-miku.png");
+            background-size: cover;
+            background-position: center top;
+        }
+
+        /* 清透果冻玻璃外卡 */
+        .container {
+            position: relative;
+            background: rgba(255, 255, 255, 0.12);
+            border-radius: 34px;
+            padding: 28px 26px;
+            border: 1.5px solid rgba(255, 255, 255, 0.45);
+            box-shadow:
+                0 18px 50px rgba(70, 90, 160, 0.26),
+                inset 0 1px 0 rgba(255, 255, 255, 0.6);
+            backdrop-filter: blur(5px) saturate(135%);
+            -webkit-backdrop-filter: blur(5px) saturate(135%);
+        }
+
+        .head_box {
+            text-align: center;
+            margin-bottom: 22px;
+        }
+
+        .head_box h1 {
+            font-size: 44px;
+            color: #ffffff;
+            letter-spacing: 4px;
+            text-shadow: 0 4px 14px rgba(70, 90, 170, 0.55);
+        }
+
+        .head_box .subtitle {
+            display: inline-block;
+            margin-top: 14px;
+            font-size: 16px;
+            color: #5b4b8a;
+            letter-spacing: 1px;
+            padding: 7px 20px;
+            border-radius: 999px;
+            background: linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(255, 255, 255, 0.72));
+            box-shadow:
+                0 6px 16px rgba(80, 100, 180, 0.22),
+                inset 0 1px 0 rgba(255, 255, 255, 0.9);
+        }
+
+        .section {
+            margin-bottom: 20px;
+        }
+
+        .section:last-of-type {
+            margin-bottom: 0;
+        }
+
+        .section-title {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin: 4px 4px 12px;
+            color: #ffffff;
+            font-size: 18px;
+            letter-spacing: 1px;
+            text-shadow: 0 2px 10px rgba(70, 90, 170, 0.55);
+        }
+
+        .section-title .badge {
+            display: inline-block;
+            min-width: 28px;
+            text-align: center;
+            padding: 3px 12px;
+            border-radius: 999px;
+            font-size: 14px;
+            color: #5b4b8a;
+            background: linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(255, 255, 255, 0.72));
+            box-shadow:
+                0 4px 12px rgba(80, 100, 180, 0.18),
+                inset 0 1px 0 rgba(255, 255, 255, 0.9);
+        }
+
+        .section-title .hint {
+            margin-left: auto;
+            font-size: 13px;
+            color: rgba(255, 255, 255, 0.88);
+            text-shadow: 0 1px 4px rgba(60, 70, 140, 0.45);
+            font-weight: normal;
+            letter-spacing: 0;
+        }
+
+        .plugin-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+        }
+
+        /* 果冻卡片 */
+        .card {
+            position: relative;
+            display: flex;
+            align-items: center;
+            border-radius: 20px;
+            padding: 12px 14px;
+            overflow: hidden;
+            background: linear-gradient(145deg, rgba(255, 255, 255, 0.52), rgba(255, 255, 255, 0.24));
+            border: 1px solid rgba(255, 255, 255, 0.6);
+            box-shadow:
+                0 10px 22px rgba(60, 80, 160, 0.16),
+                inset 0 1px 0 rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(3px) saturate(130%);
+            -webkit-backdrop-filter: blur(3px) saturate(130%);
+            min-width: 0;
+        }
+
+        /* 顶部高光，营造果冻反光 */
+        .card::before {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 46%;
+            background: linear-gradient(180deg, rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0));
+            pointer-events: none;
+        }
+
+        .card .icon-bubble {
+            position: relative;
+            width: 46px;
+            height: 46px;
+            flex-shrink: 0;
+            border-radius: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(160deg, rgba(255, 255, 255, 0.95), rgba(235, 230, 255, 0.85));
+            box-shadow:
+                0 4px 12px rgba(90, 110, 190, 0.25),
+                inset 0 1px 0 rgba(255, 255, 255, 0.9);
+            font-size: 20px;
+            color: #6a52b0;
+            font-weight: bold;
+        }
+
+        .card .icon-bubble img {
+            width: 30px;
+            height: 30px;
+            object-fit: contain;
+        }
+
+        .card .text {
+            position: relative;
+            margin-left: 12px;
+            min-width: 0;
+            flex: 1;
+        }
+
+        .card .title {
+            font-size: 17px;
+            color: #34286b;
+            font-weight: bold;
+            margin-bottom: 3px;
+            word-break: break-all;
+            text-shadow: 0 1px 0 rgba(255, 255, 255, 0.6);
+            line-height: 1.25;
+        }
+
+        .card .desc {
+            font-size: 12px;
+            color: #6a6190;
+            line-height: 1.35;
+            word-break: break-all;
+        }
+
+        .card .tag {
+            position: relative;
+            margin-left: 8px;
+            flex-shrink: 0;
+            font-size: 11px;
+            color: #7a59c2;
+            background: rgba(122, 89, 194, 0.12);
+            border: 1px solid rgba(122, 89, 194, 0.22);
+            border-radius: 999px;
+            padding: 3px 9px;
+            white-space: nowrap;
+        }
+
+        .card.core .tag {
+            color: #5a7ad0;
+            background: rgba(90, 122, 208, 0.12);
+            border-color: rgba(90, 122, 208, 0.22);
+        }
+
+        .card.js .tag {
+            color: #c06a9a;
+            background: rgba(192, 106, 154, 0.12);
+            border-color: rgba(192, 106, 154, 0.22);
+        }
+
+        .empty {
+            position: relative;
+            grid-column: 1 / -1;
+            text-align: center;
+            padding: 18px;
+            border-radius: 18px;
+            color: #6a6190;
+            font-size: 14px;
+            background: linear-gradient(145deg, rgba(255, 255, 255, 0.42), rgba(255, 255, 255, 0.18));
+            border: 1px dashed rgba(255, 255, 255, 0.55);
+        }
+
+        .footer {
+            margin-top: 22px;
+            text-align: center;
+        }
+
+        .footer .version {
+            display: inline-block;
+            background: linear-gradient(180deg, rgba(60, 50, 110, 0.55), rgba(40, 35, 80, 0.45));
+            color: #ffffff;
+            font-size: 14px;
+            padding: 9px 22px;
+            border-radius: 999px;
+            letter-spacing: 1px;
+            box-shadow:
+                0 6px 16px rgba(40, 40, 90, 0.3),
+                inset 0 1px 0 rgba(255, 255, 255, 0.35);
+        }
+
+        .footer .version b {
+            color: #ffe27a;
+        }
+
+        .footer .credit {
+            margin-top: 10px;
+            font-size: 12px;
+            color: rgba(255, 255, 255, 0.92);
+            text-shadow: 0 1px 4px rgba(60, 70, 140, 0.5);
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="head_box">
+            <h1>插件列表</h1>
+            <div class="subtitle">
+                {{if jsOnly}}
+                AQing-plugin · 单 js 插件 · 共 {{jsTotal}} 个
+                {{else}}
+                AQing-plugin · 已安装插件 · 完整 {{dirTotal}} · 单 js {{jsTotal}}
+                {{/if}}
+            </div>
+        </div>
+
+        {{if !jsOnly}}
+        <div class="section">
+            <div class="section-title">
+                <span>完整插件</span>
+                <span class="badge">{{dirTotal}}</span>
+                <span class="hint">plugins/ 目录</span>
+            </div>
+            <div class="plugin-grid">
+                {{if dirTotal}}
+                {{each dirs p}}
+                <div class="card {{if p.core}}core{{/if}}">
+                    <div class="icon-bubble">
+                        <img src="{{pluResPath}}/plugins/AQing-plugin/resources/html/help/img/{{p.icon}}.png"
+                             onerror="this.onerror=null;this.src='{{pluResPath}}/plugins/AQing-plugin/resources/html/help/img/16.png'">
+                    </div>
+                    <div class="text">
+                        <div class="title">{{p.name}}</div>
+                        <div class="desc">{{p.desc}}</div>
+                    </div>
+                    {{if p.tag}}<div class="tag">{{p.tag}}</div>{{/if}}
+                </div>
+                {{/each}}
+                {{else}}
+                <div class="empty">暂无完整插件</div>
+                {{/if}}
+            </div>
+        </div>
+        {{/if}}
+
+        <div class="section">
+            <div class="section-title">
+                <span>单 js 插件</span>
+                <span class="badge">{{jsTotal}}</span>
+                <span class="hint">plugins/example</span>
+            </div>
+            <div class="plugin-grid">
+                {{if jsTotal}}
+                {{each jsList p}}
+                <div class="card js">
+                    <div class="icon-bubble">
+                        <img src="{{pluResPath}}/plugins/AQing-plugin/resources/html/help/img/{{p.icon}}.png"
+                             onerror="this.onerror=null;this.src='{{pluResPath}}/plugins/AQing-plugin/resources/html/help/img/16.png'">
+                    </div>
+                    <div class="text">
+                        <div class="title">{{p.name}}</div>
+                        <div class="desc">{{p.desc}}</div>
+                    </div>
+                    <div class="tag">js</div>
+                </div>
+                {{/each}}
+                {{else}}
+                <div class="empty">plugins/example 下暂无单 js 插件</div>
+                {{/if}}
+            </div>
+        </div>
+
+        <div class="footer">
+            <div class="version">
+                TRSS-Yunzai <b>v{{yunzaiVersion}}</b> &nbsp;·&nbsp; AQing-plugin <b>v{{pluginVersion}}</b>
+            </div>
+            <div class="credit">删除请发「#阿晴删除插件 名称」 · 安装「#阿晴安装插件 链接」</div>
+        </div>
+    </div>
+</body>
+
+</html>

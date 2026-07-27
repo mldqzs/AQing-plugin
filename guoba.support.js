@@ -450,6 +450,7 @@ export function supportGuoba() {
         },
         { field: 'music.sendLyrics', label: '发送完整歌词', bottomHelpMessage: '歌词用「聊天记录」折叠发送，不限制歌词行数', component: 'Switch' },
         { field: 'music.sendMp3', label: '发送音频文件', component: 'Switch' },
+        { field: 'music.sendVoice', label: '发送语音条', bottomHelpMessage: '下载到音频后额外发一条可点播的语音；与「发送音频文件」可同时开，默认都开', component: 'Switch' },
         { field: 'music.sendCover', label: '发送歌曲封面', component: 'Switch' },
         {
           field: 'music.maxSize',
