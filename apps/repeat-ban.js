@@ -428,7 +428,6 @@ export class RepeatBanPlugin extends plugin {
           // 监听所有群消息
           reg: '^[\\s\\S]*$',
           fnc: 'handleMessage',
-          permission: 'everyone',
         },
       ],
     })
