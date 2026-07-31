@@ -222,7 +222,7 @@ export class Fakemessage extends plugin {
   async sendByApi(e, data_msg, { prompt, brief, title, summary }) {
     const bot = (typeof Bot !== "undefined" && Bot[e.self_id]) || e.bot;
     const adapter = bot?.adapter;
-    if (!bot?.sendApi || adapter?.name !== "OneBotv11" || typeof adapter.makeMsg !== "function") {
+    if (!bot?.sendApi || typeof adapter?.makeMsg !== "function") {
       return false;
     }
 
@@ -251,13 +251,15 @@ export class Fakemessage extends plugin {
         ? { group_id: e.group_id, messages }
         : { user_id: e.user_id, messages };
 
+      const safeNews = Array.isArray(brief) && brief.some(t => t !== "")
+        ? brief.filter(t => t !== "").map(text => ({ text }))
+        : [{ text: prompt || title || summary || "聊天记录" }];
+      payload.news = safeNews;
+
       // 仅在用户用 ^p/^t/^s/^b 显式指定时才覆盖外显/标题/底部/预览，否则用 NapCat 自然默认
       if (prompt) payload.prompt = prompt;
       if (title) payload.source = title;
       if (summary) payload.summary = summary;
-      if (Array.isArray(brief) && brief.some(t => t !== "")) {
-        payload.news = brief.filter(t => t !== "").map(text => ({ text }));
-      }
 
       const action = isGroup ? "send_group_forward_msg" : "send_private_forward_msg";
       await bot.sendApi(action, payload);
@@ -286,14 +288,10 @@ export class Fakemessage extends plugin {
     if (typeof ForwardMsg.data === "object") {
       if (ForwardMsg.data.meta && ForwardMsg.data.meta.detail) {
         let detail = ForwardMsg.data.meta.detail;
-        detail.news = [];
-        if (Array.isArray(brief)) {
-          brief.forEach((text) => {
-            detail.news.push({ text });
-          });
-        } else {
-          detail.news = [{ text: brief !== "" ? brief : "聊天记录" }];
-        }
+        const safeBrief = Array.isArray(brief) && brief.some(text => text !== "")
+          ? brief.filter(text => text !== "")
+          : [prompt || title || summary || "聊天记录"];
+        detail.news = safeBrief.map(text => ({ text }));
         detail.source = title !== "" ? title : detail.source;
         detail.summary = summary !== "" ? summary : detail.summary;
       }
