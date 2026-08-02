@@ -32,8 +32,28 @@ const CONFIG = {
   FILE_PUBLIC_BASE_URL: ''
 }
 
-let axios = baseAxios
+let axios = createJmAxios()
 
+function normalizeJmAssetUrl (url) {
+  if (typeof url !== 'string') return url
+  try {
+    const u = new URL(url)
+    if (/^png\.18comic-[^.]+\.vip$/i.test(u.hostname)) {
+      u.hostname = 'png.xajtl.com'
+      return u.toString()
+    }
+  } catch {}
+  return url
+}
+
+function createJmAxios (options = {}) {
+  const instance = baseAxios.create(options)
+  instance.interceptors.request.use(config => {
+    config.url = normalizeJmAssetUrl(config.url)
+    return config
+  })
+  return instance
+}
 
 function rewritePublicFileUrl (rawUrl, publicBaseUrl) {
   const base = String(publicBaseUrl || '').trim().replace(/\/+$/, '')
@@ -66,19 +86,19 @@ async function makeLocalFileLink (filePath, filename) {
 function refreshJmAxios () {
   const proxyUrl = String(CONFIG.PROXY_URL || '').trim()
   if (!proxyUrl) {
-    axios = baseAxios
+    axios = createJmAxios()
     return
   }
   try {
     const agent = new HttpsProxyAgent(proxyUrl)
-    axios = baseAxios.create({
+    axios = createJmAxios({
       proxy: false,
       httpAgent: agent,
       httpsAgent: agent
     })
     logger?.mark?.(`[禁漫天堂] 已启用 JM 专用代理：${proxyUrl.replace(/:\/\/[^:@/]+:[^@/]+@/, '://***:***@')}`)
   } catch (err) {
-    axios = baseAxios
+    axios = createJmAxios()
     logger?.error?.(`[禁漫天堂] PROXY_URL 配置无效，已回退直连：${err?.message || err}`)
   }
 }
