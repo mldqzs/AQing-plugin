@@ -27,7 +27,8 @@ const CONFIG = {
   UPLOAD_LIMIT_MB: 80,
   LINK_EXPIRE_MIN: 60,
   LINK_MAX_VIEWS: 0,
-  FILE_PUBLIC_BASE_URL: ''
+  FILE_PUBLIC_BASE_URL: '',
+  CDN_SCRAMBLE_ID: 220980,
 }
 
 let axios = createJmAxios()
@@ -54,6 +55,7 @@ function createJmAxios (options = {}) {
 }
 
 const JM_DIRECT_CDN_HOSTS = [
+  'https://cdn-msp3.jmapiproxy2.cc',
   'https://png.xajtl.com',
   'https://cdn-msp.comic18j-jobi.me',
   'https://cdn-msp2.comic18j-jobi.me',
@@ -68,30 +70,72 @@ async function fetchDirectJmImage (aid, page) {
     'user-agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/120 Safari/537.36',
     referer: `https://${CONFIG.BASE_URL}/album/${aid}/`
   }
-  const controllers = JM_DIRECT_CDN_HOSTS.map(() => new AbortController())
-  const tasks = JM_DIRECT_CDN_HOSTS.map(async (host, index) => {
+
+  for (const host of JM_DIRECT_CDN_HOSTS) {
     const url = `${host}/media/photos/${aid}/${name}`
-    const res = await axios.get(url, {
-      responseType: 'arraybuffer',
-      timeout: 8000,
-      signal: controllers[index].signal,
-      validateStatus: () => true,
-      headers
-    })
-    const type = String(res.headers?.['content-type'] || '')
-    const buf = Buffer.from(res.data || [])
-    if (res.status === 200 && type.startsWith('image/') && buf.length > 1000) return buf
-    throw new Error(`CDN ${host} returned ${res.status}`)
-  })
-  try {
-    const buffer = await Promise.any(tasks)
-    controllers.forEach(controller => controller.abort())
-    return buffer
-  } catch (err) {
-    controllers.forEach(controller => controller.abort())
-    if (CONFIG.DEBUG) logger?.debug?.(`[JMComic] [${aid}] 直连 CDN 第 ${page} 页失败：${err?.message || err}`)
-    return null
+    try {
+      const res = await axios.get(url, {
+        responseType: 'arraybuffer',
+        timeout: 15000,
+        validateStatus: () => true,
+        headers
+      })
+      const type = String(res.headers?.['content-type'] || '')
+      const buf = Buffer.from(res.data || [])
+      if (res.status !== 200 || !type.startsWith('image/') || buf.length <= 1000) {
+        throw new Error(`returned ${res.status}, type=${type || 'unknown'}, size=${buf.length}`)
+      }
+
+      // 强制完整解码一次，避免 CDN 返回 200 但内容截断/不完整时被当成成功图片。
+      await sharp(buf).metadata()
+      return buf
+    } catch (err) {
+      if (CONFIG.DEBUG) logger?.debug?.(`[JMComic] [${aid}] CDN ${host} 第 ${page} 页失败：${err?.message || err}`)
+    }
   }
+
+  return null
+}
+
+function getJmImageSplitNum (scrambleId, aid, filename) {
+  const sid = Number(scrambleId) || 220980
+  const albumId = Number(aid)
+  if (!Number.isFinite(albumId) || albumId < sid) return 0
+  if (albumId < 268850) return 10
+  const mod = albumId < 421926 ? 10 : 8
+  const hex = crypto.createHash('md5').update(`${albumId}${filename}`).digest('hex')
+  return (hex.charCodeAt(hex.length - 1) % mod) * 2 + 2
+}
+
+async function decodeJmImageBuffer (buffer, aid, filename) {
+  const num = getJmImageSplitNum(CONFIG.CDN_SCRAMBLE_ID, aid, filename)
+  if (!num) return buffer
+  const meta = await sharp(buffer).metadata()
+  const width = meta.width
+  const height = meta.height
+  if (!width || !height) return buffer
+
+  const over = height % num
+  const move = Math.floor(height / num)
+  const parts = []
+  for (let i = 0; i < num; i++) {
+    const partHeight = i === 0 ? move + over : move
+    const top = height - (move * (i + 1)) - over
+    parts.push({
+      input: await sharp(buffer).extract({ left: 0, top, width, height: partHeight }).toBuffer(),
+      left: 0,
+      top: i === 0 ? 0 : over + move * i
+    })
+  }
+
+  return sharp({
+    create: {
+      width,
+      height,
+      channels: 3,
+      background: { r: 255, g: 255, b: 255 }
+    }
+  }).composite(parts).jpeg({ quality: 90 }).toBuffer()
 }
 
 async function createDirectCdnJmPdf (aid) {
@@ -123,7 +167,8 @@ async function createDirectCdnJmPdf (aid) {
   logger?.mark?.(`[JMComic] [${aid}] 直连 CDN 图片 ${images.length} 张`)
   const pdf = await PDFDocument.create()
   for (const image of images.sort((a, b) => a.page - b.page)) {
-    const jpg = await sharp(image.buffer).jpeg({ quality: 90 }).toBuffer()
+    const filename = String(image.page).padStart(5, '0')
+    const jpg = await decodeJmImageBuffer(image.buffer, aid, filename)
     const embedded = await pdf.embedJpg(jpg)
     const page = pdf.addPage([embedded.width, embedded.height])
     page.drawImage(embedded, { x: 0, y: 0, width: embedded.width, height: embedded.height })
