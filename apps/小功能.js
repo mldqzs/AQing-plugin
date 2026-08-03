@@ -12,9 +12,7 @@ import path from 'path'
 import util from 'util'
 import * as cheerio from 'cheerio'
 
-// 禁漫天堂（JMComic）运行配置：该对象被下方下载逻辑闭包引用，
-// jmcomic() 每次调用前都会用 config/config/jm.yaml 的值刷新它，
-// 因此锅巴面板修改与手改配置文件都能热生效、无需重启。
+// 禁漫天堂（JMComic）运行配置
 const CONFIG = {
   AVS: '',
   CONCURRENCY: 3,
@@ -53,6 +51,123 @@ function createJmAxios (options = {}) {
     return config
   })
   return instance
+}
+
+const JM_DIRECT_CDN_HOSTS = [
+  'https://png.xajtl.com',
+  'https://cdn-msp.comic18j-jobi.me',
+  'https://cdn-msp2.comic18j-jobi.me',
+  'https://cdn-msp3.comic18j-jobi.me',
+  'https://cdn-msp.18comic-mygo.vip',
+  'https://cdn-msp2.18comic-mygo.vip'
+]
+
+async function fetchDirectJmImage (aid, page) {
+  const name = `${String(page).padStart(5, '0')}.webp`
+  const headers = {
+    'user-agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/120 Safari/537.36',
+    referer: `https://${CONFIG.BASE_URL}/album/${aid}/`
+  }
+  const controllers = JM_DIRECT_CDN_HOSTS.map(() => new AbortController())
+  const tasks = JM_DIRECT_CDN_HOSTS.map(async (host, index) => {
+    const url = `${host}/media/photos/${aid}/${name}`
+    const res = await axios.get(url, {
+      responseType: 'arraybuffer',
+      timeout: 8000,
+      signal: controllers[index].signal,
+      validateStatus: () => true,
+      headers
+    })
+    const type = String(res.headers?.['content-type'] || '')
+    const buf = Buffer.from(res.data || [])
+    if (res.status === 200 && type.startsWith('image/') && buf.length > 1000) return buf
+    throw new Error(`CDN ${host} returned ${res.status}`)
+  })
+  try {
+    const buffer = await Promise.any(tasks)
+    controllers.forEach(controller => controller.abort())
+    return buffer
+  } catch (err) {
+    controllers.forEach(controller => controller.abort())
+    if (CONFIG.DEBUG) logger?.debug?.(`[JMComic] [${aid}] 直连 CDN 第 ${page} 页失败：${err?.message || err}`)
+    return null
+  }
+}
+
+async function createDirectCdnJmPdf (aid) {
+  const maxPages = Math.max(1, Number(CONFIG.MAX_PAGES) || 100)
+  const concurrency = Math.max(1, Number(CONFIG.CONCURRENCY) || 3)
+  const missLimit = Math.max(2, Number(CONFIG.CDN_MISS_LIMIT) || 3)
+  const images = []
+  let consecutiveMisses = 0
+
+  for (let start = 1; start <= maxPages && consecutiveMisses < missLimit; start += concurrency) {
+    const pages = Array.from({ length: Math.min(concurrency, maxPages - start + 1) }, (_, i) => start + i)
+    const batch = await Promise.all(pages.map(async page => {
+      const buffer = await fetchDirectJmImage(aid, page)
+      return { page, buffer }
+    }))
+
+    for (const item of batch.sort((a, b) => a.page - b.page)) {
+      if (item.buffer) {
+        images.push(item)
+        consecutiveMisses = 0
+      } else if (images.length) {
+        consecutiveMisses++
+      }
+    }
+  }
+
+  if (!images.length) throw new Error('获取漫画失败: 请检查 ID 是否存在或无权限查看')
+
+  logger?.mark?.(`[JMComic] [${aid}] 直连 CDN 图片 ${images.length} 张`)
+  const pdf = await PDFDocument.create()
+  for (const image of images.sort((a, b) => a.page - b.page)) {
+    const jpg = await sharp(image.buffer).jpeg({ quality: 90 }).toBuffer()
+    const embedded = await pdf.embedJpg(jpg)
+    const page = pdf.addPage([embedded.width, embedded.height])
+    page.drawImage(embedded, { x: 0, y: 0, width: embedded.width, height: embedded.height })
+  }
+  if (CONFIG.PASSWORD) pdf.encrypt({ userPassword: String(CONFIG.PASSWORD), ownerPassword: String(CONFIG.PASSWORD) })
+  const outFile = path.join(CONFIG.OUTPUT_DIR || 'temp', `${aid}.pdf`)
+  await fs.writeFile(outFile, await pdf.save())
+  return outFile
+}
+
+async function sendJmPdf (e, aid, file) {
+  const filePath = path.join(path.resolve(), file)
+  const stat = await fs.stat(filePath)
+  const sizeMB = stat.size / 1024 / 1024
+  const mode = String(CONFIG.SEND_MODE || 'auto').toLowerCase()
+  const limitMB = Math.max(1, Number(CONFIG.UPLOAD_LIMIT_MB) || 80)
+  const shouldLink = mode === 'link' || (mode === 'auto' && sizeMB > limitMB)
+  const target = e.isGroup ? e.group : e.friend
+  const sendFile = e.isGroup ? (e.group.sendFile || e.group.fs?.upload) : e.friend.sendFile
+
+  if (shouldLink) {
+    const url = await makeLocalFileLink(filePath, path.basename(file))
+    if (url) {
+      await e.reply(`本子 ${aid} 已生成，但文件较大（${sizeMB.toFixed(1)}MB），已改发临时下载链接：\n${url}\n\nPDF 打开密码：${CONFIG.PASSWORD}`, true)
+    } else if (sendFile) {
+      await sendFile.call(target, filePath)
+      await e.reply(`本子 ${aid} 已上传~\nPDF 是加密的，打开密码：${CONFIG.PASSWORD}`, true)
+    } else {
+      await e.reply('当前环境无法上传文件，也无法生成临时下载链接')
+    }
+  } else if (sendFile) {
+    try {
+      await sendFile.call(target, filePath)
+      await e.reply(`本子 ${aid} 已上传~\nPDF 是加密的，打开密码：${CONFIG.PASSWORD}`, true)
+    } catch (err) {
+      const url = await makeLocalFileLink(filePath, path.basename(file))
+      if (!url) throw err
+      await e.reply(`文件上传超时/失败，已改发临时下载链接：\n${url}\n\nPDF 打开密码：${CONFIG.PASSWORD}`, true)
+    }
+  } else {
+    const url = await makeLocalFileLink(filePath, path.basename(file))
+    if (url) await e.reply(`当前适配器不支持发送文件，已改发临时下载链接：\n${url}\n\nPDF 打开密码：${CONFIG.PASSWORD}`, true)
+    else await e.reply('当前适配器不支持发送文件，无法上传 PDF')
+  }
 }
 
 function rewritePublicFileUrl (rawUrl, publicBaseUrl) {
@@ -189,40 +304,15 @@ export class example extends plugin {
 
     await e.reply(`开始下载本子 ${aid}，请稍候…`, true)
     try {
-      const file = await new ComicPDFGenerator().create(aid)
-      const filePath = path.join(path.resolve(), file)
-      const stat = await fs.stat(filePath)
-      const sizeMB = stat.size / 1024 / 1024
-      const mode = String(CONFIG.SEND_MODE || 'auto').toLowerCase()
-      const limitMB = Math.max(1, Number(CONFIG.UPLOAD_LIMIT_MB) || 80)
-      const shouldLink = mode === 'link' || (mode === 'auto' && sizeMB > limitMB)
-      const target = e.isGroup ? e.group : e.friend
-      const sendFile = e.isGroup ? (e.group.sendFile || e.group.fs?.upload) : e.friend.sendFile
-
-      if (shouldLink) {
-        const url = await makeLocalFileLink(filePath, path.basename(file))
-        if (url) {
-          await e.reply(`本子 ${aid} 已生成，但文件较大（${sizeMB.toFixed(1)}MB），已改发临时下载链接：\n${url}\n\nPDF 打开密码：${CONFIG.PASSWORD}`, true)
-        } else if (sendFile) {
-          await sendFile.call(target, filePath)
-          await e.reply(`本子 ${aid} 已上传~\nPDF 是加密的，打开密码：${CONFIG.PASSWORD}`, true)
-        } else {
-          await e.reply('当前环境无法上传文件，也无法生成临时下载链接')
-        }
-      } else if (sendFile) {
-        try {
-          await sendFile.call(target, filePath)
-          await e.reply(`本子 ${aid} 已上传~\nPDF 是加密的，打开密码：${CONFIG.PASSWORD}`, true)
-        } catch (err) {
-          const url = await makeLocalFileLink(filePath, path.basename(file))
-          if (!url) throw err
-          await e.reply(`文件上传超时/失败，已改发临时下载链接：\n${url}\n\nPDF 打开密码：${CONFIG.PASSWORD}`, true)
-        }
-      } else {
-        const url = await makeLocalFileLink(filePath, path.basename(file))
-        if (url) await e.reply(`当前适配器不支持发送文件，已改发临时下载链接：\n${url}\n\nPDF 打开密码：${CONFIG.PASSWORD}`, true)
-        else await e.reply('当前适配器不支持发送文件，无法上传 PDF')
+      let file
+      try {
+        file = await new ComicPDFGenerator().create(aid)
+      } catch (err) {
+        if (!/获取漫画失败|ID 是否存在|无权限查看/.test(err?.message || String(err))) throw err
+        logger?.mark?.(`[JMComic] [${aid}] 页面解析失败，尝试使用直连 CDN 下载`)
+        file = await createDirectCdnJmPdf(aid)
       }
+      await sendJmPdf(e, aid, file)
       await fs.unlink(file).catch(err => logger.error('[禁漫天堂] 文件清理失败：', err))
     } catch (err) {
       await e.reply(err?.message || String(err))
