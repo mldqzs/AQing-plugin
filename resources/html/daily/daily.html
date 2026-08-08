@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="zh">
+
+<head>
+  <meta charset="UTF-8">
+  <title>阿晴每日日报</title>
+  <style>
+    @font-face {
+      font-family: "tttgbnumber";
+      src: url("{{pluResPath}}/plugins/AQing-plugin/resources/font/tttgbnumber.ttf");
+      font-weight: normal;
+      font-style: normal;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      font-family: 'tttgbnumber', -apple-system, "PingFang SC", "Microsoft YaHei", "Droid Sans Fallback", sans-serif;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    body {
+      width: 840px;
+      position: relative;
+      padding: 30px;
+      /* 初音背景图 + 轻柔光遮罩，整体偏 iOS 果冻质感 */
+      background:
+        linear-gradient(160deg, rgba(120, 170, 255, 0.30) 0%, rgba(180, 150, 240, 0.22) 50%, rgba(255, 180, 220, 0.28) 100%),
+        url("{{pluResPath}}/plugins/AQing-plugin/resources/html/help/img/bg-miku.png");
+      background-size: cover;
+      background-position: center top;
+    }
+
+    /* 整张卡片：清透果冻玻璃（弱化模糊，让背景透出来） */
+    .container {
+      position: relative;
+      background: rgba(255, 255, 255, 0.12);
+      border-radius: 34px;
+      padding: 28px 26px;
+      border: 1.5px solid rgba(255, 255, 255, 0.45);
+      box-shadow:
+        0 18px 50px rgba(70, 90, 160, 0.26),
+        inset 0 1px 0 rgba(255, 255, 255, 0.6);
+      backdrop-filter: blur(5px) saturate(135%);
+      -webkit-backdrop-filter: blur(5px) saturate(135%);
+    }
+
+    .header {
+      text-align: center;
+      margin-bottom: 22px;
+    }
+
+    .title {
+      font-size: 46px;
+      color: #ffffff;
+      letter-spacing: 4px;
+      text-shadow: 0 4px 14px rgba(70, 90, 170, 0.55);
+      font-weight: bold;
+    }
+
+    .subtitle {
+      display: inline-block;
+      margin-top: 14px;
+      font-size: 16px;
+      color: #5b4b8a;
+      letter-spacing: 1px;
+      padding: 7px 20px;
+      border-radius: 999px;
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(255, 255, 255, 0.72));
+      box-shadow:
+        0 6px 16px rgba(80, 100, 180, 0.22),
+        inset 0 1px 0 rgba(255, 255, 255, 0.9);
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+    }
+
+    /* 内部小卡片：果冻质感 */
+    .card {
+      position: relative;
+      overflow: hidden;
+      border-radius: 22px;
+      padding: 20px 22px;
+      background: linear-gradient(145deg, rgba(255, 255, 255, 0.52), rgba(255, 255, 255, 0.24));
+      border: 1px solid rgba(255, 255, 255, 0.6);
+      box-shadow:
+        0 10px 22px rgba(60, 80, 160, 0.16),
+        inset 0 1px 0 rgba(255, 255, 255, 0.85);
+      backdrop-filter: blur(3px) saturate(130%);
+      -webkit-backdrop-filter: blur(3px) saturate(130%);
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* 顶部高光，营造果冻反光 */
+    .card::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 46%;
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0));
+      pointer-events: none;
+    }
+
+    .card.wide {
+      grid-column: span 2;
+    }
+
+    .tab {
+      position: relative;
+      font-size: 20px;
+      color: #34286b;
+      font-weight: bold;
+      margin-bottom: 14px;
+      text-shadow: 0 1px 0 rgba(255, 255, 255, 0.6);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .content {
+      position: relative;
+      font-size: 15px;
+      line-height: 1.6;
+      color: #4a4163;
+    }
+
+    .news-list {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px 16px;
+    }
+
+    .line {
+      display: flex;
+      gap: 8px;
+      align-items: flex-start;
+      word-break: break-all;
+    }
+
+    .num {
+      flex: 0 0 auto;
+      min-width: 20px;
+      height: 20px;
+      line-height: 20px;
+      text-align: center;
+      border-radius: 6px;
+      color: #fff;
+      font-size: 13px;
+      background: linear-gradient(135deg, #8cb5ff, #a68cff);
+      box-shadow: 0 3px 8px rgba(120, 140, 220, 0.3);
+    }
+
+    .moyu-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 8px;
+      padding: 8px 14px;
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.5);
+      border: 1px solid rgba(255, 255, 255, 0.55);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9);
+    }
+
+    .moyu-name {
+      font-weight: bold;
+      color: #34286b;
+    }
+
+    .moyu-days {
+      color: #6a4eb8;
+      font-weight: bold;
+    }
+
+    .anime-item {
+      position: relative;
+      margin-bottom: 8px;
+      padding-left: 16px;
+      word-break: break-all;
+    }
+
+    .anime-item::before {
+      content: "▸";
+      position: absolute;
+      left: 0;
+      color: #7a59c2;
+      font-weight: bold;
+    }
+
+    .quote {
+      font-size: 20px;
+      line-height: 1.6;
+      color: #34286b;
+      text-align: center;
+      font-weight: bold;
+      padding: 10px 0;
+      text-shadow: 0 1px 0 rgba(255, 255, 255, 0.6);
+    }
+
+    .quote-from {
+      margin-top: 6px;
+      color: #6a6190;
+      text-align: right;
+      font-size: 14px;
+    }
+
+    .empty {
+      color: #6a6190;
+      text-align: center;
+      padding: 20px 0;
+    }
+
+    .footer {
+      margin-top: 22px;
+      text-align: center;
+    }
+
+    .footer .pill {
+      display: inline-block;
+      background: linear-gradient(180deg, rgba(60, 50, 110, 0.55), rgba(40, 35, 80, 0.45));
+      color: #ffffff;
+      font-size: 14px;
+      padding: 9px 24px;
+      border-radius: 999px;
+      letter-spacing: 1px;
+      box-shadow:
+        0 6px 16px rgba(40, 40, 90, 0.3),
+        inset 0 1px 0 rgba(255, 255, 255, 0.35);
+    }
+  </style>
+</head>
+
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="title">阿晴日报</div>
+      <div class="subtitle">{{report.dateText}} · {{report.weekText}}</div>
+    </div>
+
+    <div class="grid">
+      <div class="card wide">
+        <div class="tab">📰 每日资讯</div>
+        <div class="content">
+          {{if report.news.items.length}}
+          <div class="news-list">
+            {{each report.news.items item index}}
+            <div class="line"><span class="num">{{index + 1}}</span><span>{{item}}</span></div>
+            {{/each}}
+          </div>
+          {{else}}
+          <div class="empty">{{report.news.error}}</div>
+          {{/if}}
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="tab">🐟 摸鱼日历</div>
+        <div class="content">
+          {{if report.moyu.items.length}}
+          {{each report.moyu.items item}}
+          <div class="moyu-item">
+            <span class="moyu-name">{{if item.days === 0}}{{item.name}}就是今天！{{else}}距离 {{item.name}} 还有{{/if}}</span>
+            {{if item.days > 0}}<span class="moyu-days">{{item.days}} 天</span>{{/if}}
+          </div>
+          {{/each}}
+          {{else}}
+          <div class="empty">{{report.moyu.error}}</div>
+          {{/if}}
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="tab">📺 今日新番</div>
+        <div class="content">
+          {{if report.anime.items.length}}
+          {{each report.anime.items item}}
+          <div class="anime-item">{{item.name}}</div>
+          {{/each}}
+          {{else}}
+          <div class="empty">{{report.anime.error}}</div>
+          {{/if}}
+        </div>
+      </div>
+
+      <div class="card wide">
+        <div class="tab">💬 每日一言</div>
+        <div class="content">
+          <div class="quote">「{{report.hitokoto.content}}」</div>
+          <div class="quote-from">—— {{if report.hitokoto.author}}{{report.hitokoto.author}} · {{/if}}{{report.hitokoto.from}}</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="footer">
+      <span class="pill">AQing-plugin v{{pluginVersion}} · 生成于 {{report.generatedAt}}</span>
+    </div>
+  </div>
+</body>
+
+</html>

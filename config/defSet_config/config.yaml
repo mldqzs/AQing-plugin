@@ -1,15 +1,17 @@
 botname: 阿晴 #机器人名字
 muteTime: 5
 jyGroupList: []
+dailyReportGroupList: []
 ai: false #ai开关,默认false关闭，改成true开启
 fudu: false #复读开关,默认false关闭,改成true开启(消息由重复内容组成时叠加复读,如11→111、1212→121212)
 repeatBan: true #复读禁言总开关,默认true开启,改成false关闭
 repeatBanTime: 1 #复读禁言初始禁言时间(分钟)
 repeatBanStep: 1 #复读禁言每次阶梯叠加时长(分钟),默认1
 kawaiiStatus: false #可爱状态开关,默认false关闭;开启后「#状态」由阿晴出可爱状态图,并接管(替换)云崽本体的状态统计。主人可发「#开启可爱状态/#关闭可爱状态」热切换
+dailyReportTime: 08:00 #每日日报定时发送时间（HH:mm）
 
 绝对主人:
   - 123456
 
-start_tip: 阿晴上班了,今天又是充满干劲的一天~   #上班提示语  
+start_tip: 阿晴上班了,今天又是充满干劲的一天~   #上班提示语
 close_tip: 阿晴去玩了，开溜~      #下班提示语

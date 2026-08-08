@@ -82,6 +82,27 @@ export function supportGuoba() {
           component: 'Input',
           componentProps: { placeholder: '请输入文字' },
         },
+        {
+          field: 'config.dailyReportTime',
+          label: '每日日报定时发送时间',
+          bottomHelpMessage: '填写 HH:mm；到点后会自动向下方配置的群发送每日日报',
+          component: 'Input',
+          componentProps: { placeholder: '例如 08:00' },
+        },
+        {
+          field: 'config.dailyReportGroupList',
+          label: '每日日报推送群号',
+          bottomHelpMessage: '填写要接收每日日报的群号，可以多个；留空则不自动推送',
+          component: 'GTags',
+          componentProps: {
+            placeholder: '请输入群号',
+            allowAdd: true,
+            allowDel: true,
+            showPrompt: true,
+            promptProps: addGroupPromptProps,
+            valueFormatter: ((value) => Number.parseInt(value)).toString(),
+          },
+        },
 
         // ───────────────── 可爱状态 ─────────────────
         { component: 'SOFT_GROUP_BEGIN', label: '可爱状态' },
