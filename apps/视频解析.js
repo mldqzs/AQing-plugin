@@ -125,36 +125,175 @@ async function extractAudio(videoFile) {
 
 /* ───────────── B站：解析逻辑在 utils/bili.js，供本插件与图文解析复用 ───────────── */
 
-/* ───────────── 抖音：分享页 _ROUTER_DATA 自解析 ───────────── */
+/* ───────────── 抖音：分享页 / Web 接口自解析 ───────────── */
+
+const DOUYIN_HEADERS = {
+  'User-Agent': MOBILE_UA,
+  'Referer': 'https://www.douyin.com/',
+  'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+}
 
 // 还原短链 / 从链接里取 aweme_id（19 位左右的纯数字）
 async function resolveDouyinId(rawUrl) {
-  let url = rawUrl
-  if (/v\.douyin\.com/i.test(url)) {
-    try { url = (await fetch(url, { headers: { 'User-Agent': MOBILE_UA }, redirect: 'follow' })).url } catch {}
+  let url = String(rawUrl || '').replace(/[，。！？、)）\]}]+$/g, '')
+  if (/douyin\.com/i.test(url)) {
+    try {
+      const r = await fetch(url, { headers: DOUYIN_HEADERS, redirect: 'follow' })
+      url = r.url || url
+    } catch {}
   }
-  const m = url.match(/(\d{17,21})/) || rawUrl.match(/(\d{17,21})/)
+  const m = url.match(/(?:video|note)\/(\d{17,21})/) || url.match(/(\d{17,21})/) || rawUrl.match(/(\d{17,21})/)
   return m ? m[1] : null
+}
+
+function firstUrl(obj) {
+  if (!obj) return ''
+  if (typeof obj === 'string') return obj
+  if (Array.isArray(obj)) return obj.find(Boolean) || ''
+  return obj.uri || obj.url || obj.url_list?.find(Boolean) || obj.download_url_list?.find(Boolean) || ''
+}
+
+// 从「marker 后面的第一个 JSON 对象」里按括号配平提取，避免正则遇到嵌套对象提前截断
+function pickJsonObject(html, marker) {
+  const pos = html.indexOf(marker)
+  if (pos < 0) return ''
+  const start = html.indexOf('{', pos)
+  if (start < 0) return ''
+
+  let depth = 0
+  let inStr = false
+  let quote = ''
+  let esc = false
+  for (let i = start; i < html.length; i++) {
+    const ch = html[i]
+    if (inStr) {
+      if (esc) esc = false
+      else if (ch === '\\') esc = true
+      else if (ch === quote) inStr = false
+      continue
+    }
+    if (ch === '"' || ch === "'") { inStr = true; quote = ch; continue }
+    if (ch === '{') depth++
+    else if (ch === '}') {
+      depth--
+      if (!depth) return html.slice(start, i + 1)
+    }
+  }
+  return ''
+}
+
+function parseDouyinPageData(html) {
+  const dataList = []
+
+  const routerJson = pickJsonObject(html, '_ROUTER_DATA')
+  if (routerJson) {
+    try { dataList.push(JSON.parse(routerJson)) } catch {}
+  }
+
+  const render = html.match(/<script[^>]+id=["']RENDER_DATA["'][^>]*>([\s\S]*?)<\/script>/i)
+  if (render?.[1]) {
+    try { dataList.push(JSON.parse(decodeURIComponent(render[1]))) } catch {}
+  }
+
+  return dataList
+}
+
+function findDouyinItem(data, seen = new Set()) {
+  if (!data || typeof data !== 'object' || seen.has(data)) return null
+  seen.add(data)
+
+  if (Array.isArray(data)) {
+    for (const it of data) {
+      const found = findDouyinItem(it, seen)
+      if (found) return found
+    }
+    return null
+  }
+
+  if (data.aweme_detail?.video || data.aweme_detail?.images) return data.aweme_detail
+  if (data.item_list?.[0]?.video || data.item_list?.[0]?.images) return data.item_list[0]
+  if (data.videoInfoRes?.item_list?.[0]) return data.videoInfoRes.item_list[0]
+  if ((data.aweme_id || data.group_id || data.desc) && (data.video || data.images)) return data
+
+  for (const key of Object.keys(data)) {
+    const found = findDouyinItem(data[key], seen)
+    if (found) return found
+  }
+  return null
+}
+
+async function fetchDouyinItem(id) {
+  const pages = [
+    `https://www.douyin.com/video/${id}`,
+    `https://www.iesdouyin.com/share/video/${id}/`,
+  ]
+
+  for (const url of pages) {
+    try {
+      const html = await (await fetch(url, { headers: DOUYIN_HEADERS, redirect: 'follow' })).text()
+      for (const data of parseDouyinPageData(html)) {
+        const item = findDouyinItem(data)
+        if (item) return item
+      }
+    } catch (err) {
+      logger.debug?.(`[短视频解析] 抖音页面解析失败：${err?.message || err}`)
+    }
+  }
+
+  // 页面 SSR 数据拿不到时，兜底请求 Web 详情接口；公开作品通常不需要 Cookie
+  try {
+    const api = `https://www.douyin.com/aweme/v1/web/aweme/detail/?aweme_id=${id}&aid=1128&version_name=23.5.0&device_platform=webapp&os_name=Windows&os_version=10`
+    const res = await fetch(api, { headers: { ...DOUYIN_HEADERS, Accept: 'application/json,text/plain,*/*' }, redirect: 'follow' })
+    const data = await res.json()
+    return findDouyinItem(data)
+  } catch (err) {
+    logger.debug?.(`[短视频解析] 抖音接口解析失败：${err?.message || err}`)
+  }
+  return null
+}
+
+async function fetchDouyinExternal(rawUrl, id) {
+  const api = `https://api.xingzhige.com/API/douyin/?url=${encodeURIComponent(rawUrl)}`
+  try {
+    const res = await fetch(api, { headers: { 'User-Agent': UA, Accept: 'application/json,text/plain,*/*' }, redirect: 'follow' })
+    const data = await res.json()
+    const d = data?.data
+    const item = d?.item
+    if (data?.code !== 0 || !item) return null
+
+    const vurl = item.url || item.video || item.play || ''
+    const images = Array.isArray(item.images) ? item.images.filter(Boolean) : null
+    return {
+      platform: '抖音',
+      title: item.title || '',
+      author: d.author?.name || '',
+      cover: item.cover || item.cover_gif || d.author?.avatar || '',
+      duration: Math.round(Number(item.duration || 0)),
+      pageUrl: id ? `https://www.douyin.com/video/${id}` : rawUrl,
+      bgmTitle: '',
+      video: vurl ? { url: vurl, size: Number(item.size) || 0, headers: { 'User-Agent': MOBILE_UA, Referer: 'https://www.douyin.com' } } : null,
+      images: images?.length ? images : null,
+    }
+  } catch (err) {
+    logger.debug?.(`[短视频解析] 抖音外部兜底解析失败：${err?.message || err}`)
+    return null
+  }
 }
 
 async function parseDouyin(rawUrl) {
   const id = await resolveDouyinId(rawUrl)
   if (!id) throw new Error('未取到抖音作品 ID')
 
-  const html = await (await fetch(`https://www.iesdouyin.com/share/video/${id}/`, { headers: { 'User-Agent': MOBILE_UA } })).text()
-  const m = html.match(/_ROUTER_DATA\s*=\s*(\{[\s\S]*?\})\s*<\/script>/)
-  if (!m) throw new Error('抖音页面结构变化，解析失败')
-  let data
-  try { data = JSON.parse(m[1]) } catch { throw new Error('抖音页面数据解析失败') }
+  let item = await fetchDouyinItem(id)
+  if (!item) {
+    const external = await fetchDouyinExternal(rawUrl, id)
+    if (external?.video || external?.images?.length) return external
+  }
+  if (!item) throw new Error('抖音作品获取失败（可能已删除、私密、需要登录，或页面已改版）')
 
-  const ld = data.loaderData || {}
-  const key = Object.keys(ld).find(k => /\/page$/.test(k) && ld[k]?.videoInfoRes)
-  const item = ld[key]?.videoInfoRes?.item_list?.[0]
-  if (!item) throw new Error('抖音作品获取失败（可能已删除、私密或需要登录）')
-
-  const title = item.desc || ''
-  const author = item.author?.nickname || ''
-  const cover = item.video?.cover?.url_list?.[0] || item.video?.origin_cover?.url_list?.[0] || ''
+  const title = item.desc || item.caption || ''
+  const author = item.author?.nickname || item.author_user_info?.nickname || ''
+  const cover = firstUrl(item.video?.cover) || firstUrl(item.video?.origin_cover) || firstUrl(item.cover)
   const pageUrl = `https://www.douyin.com/video/${id}`
   const bgmTitle = item.music?.title || ''
 
@@ -163,25 +302,26 @@ async function parseDouyin(rawUrl) {
     const images = []
     const liveVideos = []
     for (const im of item.images) {
-      const v = im?.video?.play_addr?.url_list?.[0] || ''
+      const v = firstUrl(im?.video?.play_addr) || firstUrl(im?.video?.download_addr)
       if (v) {
         liveVideos.push({ url: v.replace('playwm', 'play'), headers: { 'User-Agent': MOBILE_UA, Referer: 'https://www.douyin.com' } })
       } else {
-        const u = im?.url_list?.[im.url_list.length - 1] || im?.url_list?.[0]
+        const u = firstUrl(im) || firstUrl(im?.display_image) || firstUrl(im?.download_url_list)
         if (u) images.push(u)
       }
     }
     if (images.length || liveVideos.length) return { platform: '抖音', title, author, cover, duration: 0, pageUrl, video: null, images, liveVideos }
   }
 
-  const duration = Math.round((item.video?.duration || 0) / 1000)
-  // play_addr 取直链，playwm → play 去水印
-  let vurl = item.video?.play_addr?.url_list?.[0] || ''
+  const duration = Math.round((item.video?.duration || item.duration || 0) / 1000)
+  // play_addr 取直链，playwm → play 去水印；部分作品的直链在 bit_rate 里
+  let vurl = firstUrl(item.video?.play_addr) || firstUrl(item.video?.download_addr) || firstUrl(item.video?.bit_rate?.[0]?.play_addr)
   vurl = vurl.replace('playwm', 'play')
   const video = vurl ? { url: vurl, headers: { 'User-Agent': MOBILE_UA, Referer: 'https://www.douyin.com' } } : null
   if (!video) throw new Error('未取到抖音视频直链')
   return { platform: '抖音', title, author, cover, duration, pageUrl, bgmTitle, video, images: null }
 }
+
 
 /* ───────────── 快手：移动分享页 INIT_STATE 自解析 ───────────── */
 
