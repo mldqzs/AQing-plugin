@@ -258,7 +258,7 @@ export class musicParse extends plugin {
       rule: [
         { reg: '^#?[qQ][qQ]音乐扫码$', fnc: 'qqQrLogin', permission: 'master' },
         { reg: '^#?酷狗音乐扫码$', fnc: 'kugouQrLogin', permission: 'master' },
-        { reg: '^#?音乐ck状态$', fnc: 'musicCkStatus', permission: 'master' },
+        { reg: '^#?阿晴音乐ck状态$', fnc: 'musicCkStatus', permission: 'master' },
         { reg: '^#?清除[qQ][qQ]音乐ck$', fnc: 'clearQQCk', permission: 'master' },
         { reg: '^#?清除酷狗音乐ck$', fnc: 'clearKugouCk', permission: 'master' }
       ]
