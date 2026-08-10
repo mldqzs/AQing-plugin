@@ -76,6 +76,33 @@ function detect(text) {
 
 const PLATFORM_CN = { bili: 'B站', douyin: '抖音', kuaishou: '快手' }
 const PLATFORM_SWITCH = { bili: 'parseBili', douyin: 'parseDouyin', kuaishou: 'parseKuaishou' }
+// 抖音几分钟的视频即使体积不一定超过 maxSize，也容易把 NapCat 发视频流程干崩，单独按长视频甩直链
+const DOUYIN_LONG_VIDEO_SECONDS = 180
+
+// 先探测远端视频体积：能拿到大小就提前决定是否甩直链，避免下载后再让适配器尝试发超大视频
+async function probeRemoteSize(url, headers) {
+  const baseHeaders = { 'User-Agent': UA, ...headers }
+  const tryRead = async (method) => {
+    const reqHeaders = method === 'GET' ? { ...baseHeaders, Range: 'bytes=0-0' } : baseHeaders
+    const res = await fetch(url, { method, headers: reqHeaders, redirect: 'follow' })
+    const range = res.headers.get('content-range') || ''
+    const m = range.match(/\/(\d+)$/)
+    if (m) return Number(m[1])
+    const len = Number(res.headers.get('content-length') || 0)
+    // Range GET 返回 206 时，content-length 只有 1 字节，不代表完整视频大小
+    if (method !== 'GET' || res.status !== 206) return len
+    return 0
+  }
+  try {
+    const len = await tryRead('HEAD')
+    if (len) return len
+  } catch {}
+  try {
+    return await tryRead('GET')
+  } catch {
+    return 0
+  }
+}
 
 // 流式下载到本地文件（带自定义请求头，B站直链建议带 Referer），按 maxMB 卡体积
 async function downloadToFile(url, headers, dest, maxMB) {
@@ -150,7 +177,7 @@ function firstUrl(obj) {
   if (!obj) return ''
   if (typeof obj === 'string') return obj
   if (Array.isArray(obj)) return obj.find(Boolean) || ''
-  return obj.uri || obj.url || obj.url_list?.find(Boolean) || obj.download_url_list?.find(Boolean) || ''
+  return obj.url || obj.url_list?.find(Boolean) || obj.download_url_list?.find(Boolean) || obj.uri || ''
 }
 
 // 从「marker 后面的第一个 JSON 对象」里按括号配平提取，避免正则遇到嵌套对象提前截断
@@ -375,6 +402,10 @@ function pickUserLink(r) {
   return r.video?.url || r.pageUrl || ''
 }
 
+function isDouyinLongVideo(r) {
+  return r.platform === '抖音' && (r.duration >= DOUYIN_LONG_VIDEO_SECONDS || /(?:long-video|long_video)/i.test(r.video?.url || ''))
+}
+
 function buildHeader(r) {
   return [
     `📺 ${r.platform}解析`,
@@ -461,6 +492,11 @@ async function sendResult(e, r) {
     const sizeMB = r.video.size ? r.video.size / 1048576 : 0
     if (overDur) reason = '视频时长超限'
     else if (sizeMB && sizeMB > maxMB) reason = '视频体积超限'
+    else if (isDouyinLongVideo(r)) reason = '检测到抖音长视频'
+    else {
+      const remoteSize = await probeRemoteSize(r.video.url, r.video.headers || {})
+      if (remoteSize && remoteSize / 1048576 > maxMB) reason = `视频体积 ${(remoteSize / 1048576).toFixed(1)}MB 超过上限 ${maxMB}MB`
+    }
   }
 
   // 超限/关闭/取不到本体 → 标题 + 封面 + 直链
