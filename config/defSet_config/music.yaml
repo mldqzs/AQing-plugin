@@ -30,3 +30,4 @@ filePublicBaseUrl: ''     # 临时下载链接公网地址,如 http://1.2.3.4:25
 isCD: true                # 是否开启解析 CD（同一群/私聊冷却，防刷屏）
 CD: 10                    # CD 时长（秒）
 timeout: 20               # 平台接口超时（秒）
+loginTimeout: 120         # QQ音乐/酷狗扫码登录等待时间（秒）

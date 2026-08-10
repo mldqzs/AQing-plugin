@@ -2,6 +2,7 @@ import plugin from '../../../lib/plugins/plugin.js'
 import common from '../../../lib/common/common.js'
 import setting from '../utils/setting.js'
 import { collectMusicText, detectMusicLink, parseMusic } from '../utils/music.js'
+import { createKugouQr, createQQMusicQr, pollKugouQr, pollQQMusicQr } from '../utils/musicLogin.js'
 import fs from 'node:fs'
 import path from 'node:path'
 import { execFile } from 'node:child_process'
@@ -255,8 +256,86 @@ export class musicParse extends plugin {
       event: 'message',
       priority: 8500,
       rule: [
+        { reg: '^#?[qQ][qQ]音乐扫码$', fnc: 'qqQrLogin', permission: 'master' },
+        { reg: '^#?酷狗音乐扫码$', fnc: 'kugouQrLogin', permission: 'master' },
+        { reg: '^#?音乐ck状态$', fnc: 'musicCkStatus', permission: 'master' },
+        { reg: '^#?清除[qQ][qQ]音乐ck$', fnc: 'clearQQCk', permission: 'master' },
+        { reg: '^#?清除酷狗音乐ck$', fnc: 'clearKugouCk', permission: 'master' }
       ]
     })
+  }
+
+  async qqQrLogin (e) {
+    try {
+      const c = cfg()
+      const timeoutSec = Math.max(30, Math.min(300, Number(c.loginTimeout) || 120))
+      await e.reply('请使用 QQ音乐/手机QQ 扫码登录。', true)
+      const qr = await createQQMusicQr({ timeout: Math.max(5, Number(c.timeout) || 20) * 1000 })
+      await e.reply(segment.image(qr.image), true)
+      const login = await pollQQMusicQr(qr, { timeoutSec })
+      const next = setting.getConfig('music') || {}
+      next.qqCookie = login.cookie
+      setting.setConfig('music', next)
+      await e.reply(`✅ QQ音乐 Cookie 获取成功并已保存${login.nick ? `：${login.nick}` : ''}${login.uin ? `（${login.uin}）` : ''}。`, true)
+    } catch (err) {
+      logger.error('[音乐解析][QQ扫码]', err)
+      await e.reply(`QQ音乐扫码失败：${err?.message || err}`, true)
+    }
+    return true
+  }
+
+  async kugouQrLogin (e) {
+    try {
+      const c = cfg()
+      const timeoutSec = Math.max(30, Math.min(300, Number(c.loginTimeout) || 120))
+      await e.reply('请使用酷狗音乐 App 扫码登录。', true)
+      const qr = await createKugouQr({ timeout: Math.max(5, Number(c.timeout) || 20) * 1000 })
+      await e.reply(segment.image(qr.image), true)
+      const login = await pollKugouQr(qr, { timeoutSec })
+      const next = setting.getConfig('music') || {}
+      next.kugouCookie = login.cookie
+      next.kugouUserId = login.userId
+      next.kugouToken = login.token
+      setting.setConfig('music', next)
+      await e.reply(`✅ 酷狗音乐 Cookie 获取成功并已保存（KugooID：${login.userId}）。`, true)
+    } catch (err) {
+      logger.error('[音乐解析][酷狗扫码]', err)
+      await e.reply(`酷狗音乐扫码失败：${err?.message || err}`, true)
+    }
+    return true
+  }
+
+  async musicCkStatus (e) {
+    const c = cfg()
+    const qq = String(c.qqCookie || '').trim()
+    const qqId = (qq.match(/(?:^|;\s*)(?:uin|qqmusic_uin|wxuin)=([^;]+)/i) || [])[1]?.replace(/^o/, '') || ''
+    const kgCookie = String(c.kugouCookie || '').trim()
+    const kgUser = String(c.kugouUserId || '').trim()
+    const kgToken = String(c.kugouToken || '').trim()
+    await e.reply([
+      '🎵 音乐 Cookie 状态',
+      `QQ音乐：${qq ? '已配置' : '未配置'}${qqId ? `（QQ：${qqId}）` : ''}`,
+      `酷狗音乐：${kgCookie || (kgUser && kgToken) ? '已配置' : '未配置'}${kgUser ? `（KugooID：${kgUser}）` : ''}`
+    ].join('\n'), true)
+    return true
+  }
+
+  async clearQQCk (e) {
+    const next = setting.getConfig('music') || {}
+    next.qqCookie = ''
+    setting.setConfig('music', next)
+    await e.reply('已清除 QQ音乐 Cookie。', true)
+    return true
+  }
+
+  async clearKugouCk (e) {
+    const next = setting.getConfig('music') || {}
+    next.kugouCookie = ''
+    next.kugouUserId = ''
+    next.kugouToken = ''
+    setting.setConfig('music', next)
+    await e.reply('已清除酷狗音乐 Cookie / KugooID / Token。', true)
+    return true
   }
 
   async accept (e) {

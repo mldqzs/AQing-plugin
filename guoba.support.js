@@ -504,6 +504,7 @@ export function supportGuoba() {
         { field: 'music.isCD', label: '解析 CD 开关', component: 'Switch' },
         { field: 'music.CD', label: '解析 CD（秒）', component: 'InputNumber', componentProps: { min: 1, placeholder: '默认 10' } },
         { field: 'music.timeout', label: '平台请求超时（秒）', component: 'InputNumber', componentProps: { min: 5, max: 120, placeholder: '默认 20' } },
+        { field: 'music.loginTimeout', label: '扫码登录等待（秒）', bottomHelpMessage: '主人发送 #qq音乐扫码 / #酷狗音乐扫码 后等待确认登录的时间', component: 'InputNumber', componentProps: { min: 30, max: 300, placeholder: '默认 120' } },
 
         // ───────────────── 图文解析（小红书/小黑盒） ─────────────────
         { component: 'SOFT_GROUP_BEGIN', label: '图文解析（小红书/小黑盒）' },

@@ -3,7 +3,7 @@
 这里是一个基于 [TRSS-Yunzai](https://github.com/TimeRainStarSky/Yunzai) 的综合娱乐小插件~ 
 虽然最初只是自用练手，但不知不觉也攒下了不少好玩的功能。如果能给你和群友带来快乐，那就最好不过啦！欢迎尝鲜哦 ฅ^•ﻌ•^ฅ
 
-[![version](https://img.shields.io/badge/version-1.10.3-9b8cff?style=flat-square)](./CHANGELOG.md)
+[![version](https://img.shields.io/badge/version-1.10.4-9b8cff?style=flat-square)](./CHANGELOG.md)
 [![Yunzai](https://img.shields.io/badge/TRSS--Yunzai-V3-66ccff?style=flat-square)](https://github.com/TimeRainStarSky/Yunzai)
 [![Gitee](https://img.shields.io/badge/Gitee-aayhg-c71d23?style=flat-square&logo=gitee)](https://gitee.com/aayhg/AQing-plugin)
 [![GitHub](https://img.shields.io/badge/GitHub-mldqzs-181717?style=flat-square&logo=github)](https://github.com/mldqzs/AQing-plugin)
