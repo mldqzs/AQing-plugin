@@ -749,6 +749,36 @@ export function supportGuoba() {
           },
         },
 
+        // ───────────────── 入群审核 ─────────────────
+        { component: 'SOFT_GROUP_BEGIN', label: '入群审核' },
+        {
+          field: 'config.groupJoinCheck',
+          label: '入群审核开关',
+          bottomHelpMessage: '开启后，仅对下方群号列表生效；有人申请加群时机器人在群内播报申请人和验证消息，管理员/群主/主人回复「同意」或「拒绝」即可审批。主人也可在群内发「#开启入群审核 / #关闭入群审核」热切换当前群',
+          component: 'Switch',
+        },
+        {
+          field: 'config.groupJoinCheckGroups',
+          label: '入群审核生效群号',
+          bottomHelpMessage: '填写要开启入群审核的群号，可以多个；留空表示未开启任何群。也可以在目标群发送「#开启入群审核」自动加入当前群',
+          component: 'GTags',
+          componentProps: {
+            placeholder: '请输入群号',
+            allowAdd: true,
+            allowDel: true,
+            showPrompt: true,
+            promptProps: addGroupPromptProps,
+            valueFormatter: ((value) => Number.parseInt(value)).toString(),
+          },
+        },
+        {
+          field: 'config.groupJoinCheckTime',
+          label: '审批等待超时（分钟）',
+          bottomHelpMessage: '申请播报后超过该时间无人审批，自动取消并在群内提示，默认 10',
+          component: 'InputNumber',
+          componentProps: { min: 1, max: 1440, placeholder: '默认 10' },
+        },
+
         // ───────────────── 伪造消息名单 ─────────────────
         { component: 'SOFT_GROUP_BEGIN', label: '伪造消息名单' },
         {
