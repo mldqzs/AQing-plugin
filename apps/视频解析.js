@@ -160,12 +160,42 @@ const DOUYIN_HEADERS = {
   'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
 }
 
+// 分享页 SSR 要带反爬 cookie 才返回作品数据：ttwid 用 bytedance 官方接口拿真值（免浏览器），
+// msToken 假值即可（126 随机字符 + ==，douyin_mcp 同款做法）。ttwid 缓存 6 小时复用
+let douyinToken = { ttwid: '', msToken: '', expire: 0 }
+
+function fakeMsToken() {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
+  return Array.from({ length: 126 }, () => chars[Math.floor(Math.random() * chars.length)]).join('') + '=='
+}
+
+async function getDouyinCookie(force = false) {
+  if (!force && douyinToken.ttwid && douyinToken.expire > Date.now()) {
+    return `ttwid=${douyinToken.ttwid}; msToken=${douyinToken.msToken}`
+  }
+  try {
+    const res = await fetch('https://ttwid.bytedance.com/ttwid/union/register/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'User-Agent': UA, Referer: 'https://www.douyin.com/' },
+      body: JSON.stringify({ region: 'cn', aid: 1768, needFid: false, service: 'www.ixigua.com', migrate_info: { ticket: '', source: 'node' }, cbUrlProtocol: 'https', union: true }),
+    })
+    const m = (res.headers.get('set-cookie') || '').match(/ttwid=([^;]+)/)
+    if (m) {
+      douyinToken = { ttwid: decodeURIComponent(m[1]), msToken: fakeMsToken(), expire: Date.now() + 6 * 3600 * 1000 }
+    }
+  } catch (err) {
+    logger.debug?.(`[短视频解析] 抖音 ttwid 获取失败：${err?.message || err}`)
+  }
+  return douyinToken.ttwid ? `ttwid=${douyinToken.ttwid}; msToken=${douyinToken.msToken}` : ''
+}
+
 // 还原短链 / 从链接里取 aweme_id（19 位左右的纯数字）
 async function resolveDouyinId(rawUrl) {
   let url = String(rawUrl || '').replace(/[，。！？、)）\]}]+$/g, '')
   if (/douyin\.com/i.test(url)) {
     try {
-      const r = await fetch(url, { headers: DOUYIN_HEADERS, redirect: 'follow' })
+      const cookie = await getDouyinCookie()
+      const r = await fetch(url, { headers: { ...DOUYIN_HEADERS, Cookie: cookie }, redirect: 'follow' })
       url = r.url || url
     } catch {}
   }
@@ -251,19 +281,23 @@ function findDouyinItem(data, seen = new Set()) {
 
 async function fetchDouyinItem(id) {
   const pages = [
-    `https://www.douyin.com/video/${id}`,
     `https://www.iesdouyin.com/share/video/${id}/`,
+    `https://www.douyin.com/video/${id}`,
   ]
 
-  for (const url of pages) {
-    try {
-      const html = await (await fetch(url, { headers: DOUYIN_HEADERS, redirect: 'follow' })).text()
-      for (const data of parseDouyinPageData(html)) {
-        const item = findDouyinItem(data)
-        if (item) return item
+  // 第一轮用缓存的 cookie，拿不到数据说明 ttwid 失效，强制换新再试一轮
+  for (let round = 0; round < 2; round++) {
+    const cookie = await getDouyinCookie(round > 0)
+    for (const url of pages) {
+      try {
+        const html = await (await fetch(url, { headers: { ...DOUYIN_HEADERS, Cookie: cookie }, redirect: 'follow' })).text()
+        for (const data of parseDouyinPageData(html)) {
+          const item = findDouyinItem(data)
+          if (item) return item
+        }
+      } catch (err) {
+        logger.debug?.(`[短视频解析] 抖音页面解析失败：${err?.message || err}`)
       }
-    } catch (err) {
-      logger.debug?.(`[短视频解析] 抖音页面解析失败：${err?.message || err}`)
     }
   }
 
@@ -276,6 +310,7 @@ async function fetchDouyinItem(id) {
   } catch (err) {
     logger.debug?.(`[短视频解析] 抖音接口解析失败：${err?.message || err}`)
   }
+
   return null
 }
 
