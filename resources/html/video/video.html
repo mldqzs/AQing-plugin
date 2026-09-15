@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>解析详情</title>
+  <style>
+    @font-face {
+      font-family: "tttgbnumber";
+      src: url("{{pluResPath}}/plugins/AQing-plugin/resources/font/tttgbnumber.ttf");
+      font-weight: normal;
+      font-style: normal;
+    }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: "tttgbnumber", -apple-system, "PingFang SC", "Microsoft YaHei", "Droid Sans Fallback", sans-serif;
+    }
+    body {
+      width: 840px;
+      position: relative;
+      padding: 30px;
+      color: #433866;
+      background:
+        linear-gradient(160deg, rgba(120, 170, 255, .30) 0%, rgba(180, 150, 240, .22) 50%, rgba(255, 180, 220, .28) 100%),
+        url("{{pluResPath}}/plugins/AQing-plugin/resources/html/help/img/bg-miku.png");
+      background-size: cover;
+      background-position: center top;
+    }
+    .container {
+      position: relative;
+      overflow: hidden;
+      padding: 28px 26px;
+      border-radius: 34px;
+      background: rgba(255, 255, 255, .12);
+      border: 1.5px solid rgba(255, 255, 255, .45);
+      box-shadow: 0 18px 50px rgba(70, 90, 160, .26), inset 0 1px 0 rgba(255, 255, 255, .60);
+      backdrop-filter: blur(5px) saturate(135%);
+      -webkit-backdrop-filter: blur(5px) saturate(135%);
+    }
+    .container::before {
+      content: "";
+      position: absolute;
+      inset: 0 0 auto;
+      height: 42%;
+      pointer-events: none;
+      background: linear-gradient(180deg, rgba(255, 255, 255, .34), transparent);
+    }
+    .head_box {
+      position: relative;
+      margin-bottom: 18px;
+      text-align: center;
+    }
+    .head_box h1 {
+      overflow: hidden;
+      color: #fff;
+      font-size: 38px;
+      font-weight: bold;
+      letter-spacing: 4px;
+      line-height: 1.25;
+      text-shadow: 0 4px 14px rgba(70, 90, 170, .55);
+      white-space: nowrap;
+      text-overflow: ellipsis;
+    }
+    .subtitle {
+      display: inline-block;
+      max-width: 100%;
+      margin-top: 10px;
+      padding: 7px 20px;
+      overflow: hidden;
+      border-radius: 999px;
+      color: #5b4b8a;
+      background: linear-gradient(180deg, rgba(255, 255, 255, .92), rgba(255, 255, 255, .72));
+      box-shadow: 0 6px 16px rgba(80, 100, 180, .22), inset 0 1px 0 rgba(255, 255, 255, .9);
+      font-size: 16px;
+      letter-spacing: 1px;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+    }
+    .hero {
+      position: relative;
+      height: 300px;
+      overflow: hidden;
+      border-radius: 22px;
+      background: linear-gradient(135deg, rgba(155, 188, 255, .92), rgba(215, 180, 245, .9) 55%, rgba(255, 201, 223, .9));
+      border: 1px solid rgba(255, 255, 255, .65);
+      box-shadow: 0 10px 22px rgba(60, 80, 160, .16), inset 0 1px 0 rgba(255, 255, 255, .85);
+    }
+    .hero img {
+      display: block;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    .hero::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      background: linear-gradient(180deg, rgba(60, 50, 110, .02) 30%, rgba(40, 35, 80, .72) 100%);
+    }
+    .badge {
+      position: absolute;
+      z-index: 1;
+      top: 16px;
+      left: 16px;
+      padding: 7px 16px;
+      border: 1px solid rgba(255, 255, 255, .6);
+      border-radius: 999px;
+      color: #fff;
+      background: rgba(60, 50, 110, .52);
+      box-shadow: 0 5px 14px rgba(40, 35, 100, .2), inset 0 1px 0 rgba(255, 255, 255, .35);
+      font-size: 16px;
+      font-weight: bold;
+    }
+    .hero-copy {
+      position: absolute;
+      z-index: 1;
+      right: 20px;
+      bottom: 18px;
+      left: 20px;
+      color: #fff;
+      text-shadow: 0 2px 10px rgba(34, 27, 77, .55);
+    }
+    .title {
+      display: -webkit-box;
+      overflow: hidden;
+      font-size: 27px;
+      font-weight: bold;
+      line-height: 1.3;
+      word-break: break-all;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2;
+    }
+    .sub {
+      margin-top: 7px;
+      font-size: 15px;
+      opacity: .94;
+    }
+    .details {
+      position: relative;
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 14px;
+      margin-top: 16px;
+    }
+    .item {
+      min-height: 60px;
+      padding: 12px 16px;
+      overflow: hidden;
+      border: 1px solid rgba(255, 255, 255, .6);
+      border-radius: 22px;
+      background: linear-gradient(145deg, rgba(255, 255, 255, .52), rgba(255, 255, 255, .24));
+      box-shadow: 0 10px 22px rgba(60, 80, 160, .16), inset 0 1px 0 rgba(255, 255, 255, .85);
+      backdrop-filter: blur(3px) saturate(130%);
+      -webkit-backdrop-filter: blur(3px) saturate(130%);
+    }
+    .label {
+      color: #75669d;
+      font-size: 12px;
+      font-weight: bold;
+      letter-spacing: 1px;
+    }
+    .value {
+      margin-top: 4px;
+      overflow: hidden;
+      color: #34286b;
+      font-size: 15px;
+      font-weight: bold;
+      line-height: 1.35;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .link { grid-column: span 2; }
+    .footer {
+      position: relative;
+      margin-top: 22px;
+      text-align: center;
+    }
+    .footer .version {
+      display: inline-block;
+      max-width: 100%;
+      overflow: hidden;
+      padding: 9px 24px;
+      border-radius: 999px;
+      color: #fff;
+      background: linear-gradient(180deg, rgba(60, 50, 110, .55), rgba(40, 35, 80, .45));
+      box-shadow: 0 6px 16px rgba(40, 40, 90, .3), inset 0 1px 0 rgba(255, 255, 255, .35);
+      font-size: 15px;
+      letter-spacing: 1px;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+    }
+    .footer .version b { color: #ffe27a; }
+  </style>
+</head>
+<body>
+  <div id="container" class="container">
+    <div class="head_box">
+      <h1>{{data.title}}</h1>
+      <div class="subtitle">{{data.platform}} · {{data.kindText}}</div>
+    </div>
+    <div class="hero">
+      {{if data.cover}}<img src="{{data.cover}}" onerror="this.style.display='none'">{{/if}}
+      <div class="badge">{{data.platform}}</div>
+      <div class="hero-copy"><div class="title">{{data.title}}</div><div class="sub">{{data.statusText}}</div></div>
+    </div>
+    <div class="details">
+      <div class="item"><div class="label">作者</div><div class="value">{{data.author}}</div></div>
+      <div class="item"><div class="label">时长</div><div class="value">{{data.durationText}}</div></div>
+      <div class="item"><div class="label">内容</div><div class="value">{{data.contentText}}</div></div>
+      <div class="item"><div class="label">状态</div><div class="value">{{data.statusText}}</div></div>
+      <div class="item link"><div class="label">原链接</div><div class="value">{{data.pageUrl}}</div></div>
+    </div>
+    <div class="footer"><div class="version"><span>●</span>&nbsp; AQing-plugin · <b>{{data.platformHint}}</b></div></div>
+  </div>
+</body>
+</html>

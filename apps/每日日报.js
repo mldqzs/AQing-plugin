@@ -6,8 +6,16 @@ import setting from '../utils/setting.js'
 const _path = process.cwd().replace(/\\/g, '/')
 const TPL = './plugins/AQing-plugin/resources/html/daily/daily.html'
 const CACHE_PREFIX = 'AQing:daily-report:'
+const HOLIDAY_CACHE_PREFIX = 'AQing:daily-holiday:'
 const CACHE_EXPIRE = 60 * 60 * 12
+const DEFAULT_HOLIDAY_CACHE_TTL = 60 * 60 * 24 * 7
 const FETCH_TIMEOUT = 8000
+
+const DEFAULT_HOLIDAY_URL = 'https://fastly.jsdelivr.net/gh/NateScarlet/holiday-cn@master/{year}.json'
+const DEFAULT_HOLIDAY_FALLBACK_URLS = [
+  'https://cdn.jsdelivr.net/gh/NateScarlet/holiday-cn@master/{year}.json',
+  'https://raw.githubusercontent.com/NateScarlet/holiday-cn/master/{year}.json'
+]
 
 const NEWS_APIS = [
   'https://60s.viki.moe/v2/60s?encoding=json',
@@ -18,28 +26,6 @@ const ANIME_DATA_APIS = [
   'https://unpkg.com/bangumi-data@0.3/dist/data.json',
   'https://fastly.jsdelivr.net/gh/bangumi-data/bangumi-data@master/dist/data.json',
   'https://cdn.jsdelivr.net/gh/bangumi-data/bangumi-data@master/dist/data.json'
-]
-
-const FESTIVAL_TABLE = {
-  2026: [
-    ['春节', '2026-02-17'], ['清明节', '2026-04-05'], ['端午节', '2026-06-19'], ['中秋节', '2026-09-25']
-  ],
-  2027: [
-    ['春节', '2027-02-06'], ['清明节', '2027-04-05'], ['端午节', '2027-06-09'], ['中秋节', '2027-09-15']
-  ],
-  2028: [
-    ['春节', '2028-01-26'], ['清明节', '2028-04-04'], ['端午节', '2028-05-28'], ['中秋节', '2028-10-03']
-  ]
-}
-
-const FIXED_FESTIVALS = [
-  ['元旦', '01-01'],
-  ['情人节', '02-14'],
-  ['劳动节', '05-01'],
-  ['儿童节', '06-01'],
-  ['高考', '06-07'],
-  ['国庆节', '10-01'],
-  ['圣诞节', '12-25']
 ]
 
 const BACKUP_HITOKOTO = [
@@ -218,32 +204,84 @@ function parseNews (json, sourceUrl) {
   }
 }
 
-function buildMoyuCalendar (date = new Date()) {
+async function buildMoyuCalendar (date = new Date()) {
   const start = startOfDay(date)
   const year = start.getFullYear()
-  const days = []
-
-  for (const y of [year, year + 1]) {
-    for (const [name, md] of FIXED_FESTIVALS) {
-      days.push({ name, date: parseDate(`${y}-${md}`) })
-    }
-    for (const [name, day] of FESTIVAL_TABLE[y] || []) {
-      days.push({ name, date: parseDate(day) })
-    }
-  }
-
-  const items = days
-    .map(item => ({
-      name: item.name,
-      date: getDateKey(item.date),
-      days: diffDays(start, item.date),
-      text: diffDays(start, item.date) === 0 ? `${item.name}就是今天！` : `距离${item.name}还有 ${diffDays(start, item.date)} 天`
-    }))
+  const holidayDays = await fetchHolidayDays(year)
+  const items = holidayDays
+    .map(item => {
+      const days = diffDays(start, item.date)
+      const kind = item.isOffDay ? '假期' : '调休补班'
+      return {
+        name: item.name,
+        date: getDateKey(item.date),
+        days,
+        isOffDay: item.isOffDay,
+        text: days === 0
+          ? `今天是 ${item.name} ${kind}`
+          : `距离 ${item.name} ${kind}还有 ${days} 天`
+      }
+    })
     .filter(item => item.days >= 0)
     .sort((a, b) => a.days - b.days)
     .slice(0, 6)
 
   return { items }
+}
+
+async function fetchHolidayDays (year) {
+  const years = [year - 1, year, year + 1]
+  const settled = await Promise.allSettled(years.map(fetchHolidayYear))
+  const days = settled.flatMap(item => item.status === 'fulfilled' ? item.value : [])
+  if (!days.length) throw new Error('节假日数据为空')
+  return [...new Map(days.map(item => [`${item.name}:${getDateKey(item.date)}:${item.isOffDay}`, item])).values()]
+}
+
+async function fetchHolidayYear (year) {
+  const config = setting.getConfig('config') || {}
+  const mainUrl = String(config.dailyReportHolidayUrl || DEFAULT_HOLIDAY_URL).trim()
+  const fallbackUrls = Array.isArray(config.dailyReportHolidayFallbackUrls)
+    ? config.dailyReportHolidayFallbackUrls
+    : DEFAULT_HOLIDAY_FALLBACK_URLS
+  const urls = [mainUrl, ...fallbackUrls].map(url => String(url || '').trim().replaceAll('{year}', String(year))).filter(Boolean)
+
+  for (const url of urls) {
+    try {
+      const json = await fetchJson(url, Number(config.dailyReportHolidayTimeout) || FETCH_TIMEOUT)
+      const days = parseHolidayCn(json, year)
+      if (days.length) {
+        await saveHolidayCache(year, days, config)
+        return days
+      }
+    } catch (err) {
+      logger.warn(`[AQ每日日报] 节假日数据源失败：${url}`)
+      logger.warn(err)
+    }
+  }
+
+  const cached = await loadCache(`${HOLIDAY_CACHE_PREFIX}${year}`)
+  return parseHolidayCn(cached, year)
+}
+
+function parseHolidayCn (json, year) {
+  const rawDays = Array.isArray(json) ? json : (Array.isArray(json?.days) ? json.days : [])
+  return rawDays.map(item => {
+    if (!item || typeof item.name !== 'string' || !item.name.trim() || typeof item.date !== 'string') return null
+    const date = parseDate(item.date)
+    if (date.getFullYear() !== year || Number.isNaN(date.getTime()) || typeof item.isOffDay !== 'boolean') return null
+    return { name: item.name.trim(), date, isOffDay: item.isOffDay }
+  }).filter(Boolean)
+}
+
+async function saveHolidayCache (year, days, config) {
+  if (!globalThis.redis) return
+  const ttl = Number(config.dailyReportHolidayCacheTtl) || DEFAULT_HOLIDAY_CACHE_TTL
+  try {
+    await redis.set(`${HOLIDAY_CACHE_PREFIX}${year}`, JSON.stringify(days.map(item => ({ ...item, date: getDateKey(item.date) }))), { EX: ttl })
+  } catch (err) {
+    logger.warn('[AQ每日日报] 写入节假日缓存失败')
+    logger.warn(err)
+  }
 }
 
 async function fetchTodayAnime (date = new Date()) {
@@ -344,16 +382,34 @@ async function fetchHitokoto () {
   return pickBackupHitokoto(new Date())
 }
 
-async function fetchJson (url) {
-  const res = await fetch(url, {
-    signal: timeoutSignal(FETCH_TIMEOUT),
-    headers: {
-      'user-agent': 'Mozilla/5.0 AQing-plugin DailyReport',
-      'accept': 'application/json,text/plain,*/*'
+async function fetchJson (url, timeout = FETCH_TIMEOUT) {
+  let lastError
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const res = await fetch(url, {
+        signal: timeoutSignal(timeout),
+        headers: {
+          'user-agent': 'Mozilla/5.0 AQing-plugin DailyReport',
+          'accept': 'application/json,text/plain,*/*'
+        }
+      })
+      if (res.ok) return await res.json()
+
+      const retryable = res.status === 408 || res.status === 425 || res.status === 429 || res.status >= 500
+      const retryAfter = Number(res.headers.get('retry-after'))
+      lastError = new Error(`HTTP ${res.status}`)
+      if (!retryable || attempt === 2) throw lastError
+      const delay = Number.isFinite(retryAfter) && retryAfter > 0
+        ? Math.min(retryAfter * 1000, 5000)
+        : 500 * (attempt + 1)
+      await new Promise(resolve => setTimeout(resolve, delay))
+    } catch (err) {
+      lastError = err
+      if (attempt === 2) throw err
+      await new Promise(resolve => setTimeout(resolve, 500 * (attempt + 1)))
     }
-  })
-  if (!res.ok) throw new Error(`HTTP ${res.status}`)
-  return await res.json()
+  }
+  throw lastError
 }
 
 function timeoutSignal (timeout) {

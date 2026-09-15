@@ -10,8 +10,13 @@ repeatBanStep: 1 #复读禁言每次阶梯叠加时长(分钟),默认1
 kawaiiStatus: false #可爱状态开关,默认false关闭;开启后「#状态」由阿晴出可爱状态图,并接管(替换)云崽本体的状态统计。主人可发「#开启可爱状态/#关闭可爱状态」热切换
 groupJoinCheck: false #入群审核开关,默认false关闭;开启后仅对下方群号列表生效。主人可在群内发「#开启入群审核/#关闭入群审核」热切换当前群
 groupJoinCheckGroups: [] #入群审核生效群号列表,空列表表示未开启任何群
-groupJoinCheckTime: 10 #入群申请审批等待超时(分钟),超时自动取消并群内提示
 dailyReportTime: 08:00 #每日日报定时发送时间（HH:mm）
+dailyReportHolidayUrl: https://fastly.jsdelivr.net/gh/NateScarlet/holiday-cn@master/{year}.json #中国节假日数据主源，{year}会替换为年份
+dailyReportHolidayFallbackUrls:
+  - https://cdn.jsdelivr.net/gh/NateScarlet/holiday-cn@master/{year}.json
+  - https://raw.githubusercontent.com/NateScarlet/holiday-cn/master/{year}.json
+dailyReportHolidayCacheTtl: 604800 #节假日数据缓存时间（秒）
+dailyReportHolidayTimeout: 8000 #节假日数据请求超时（毫秒）
 
 绝对主人:
   - 123456

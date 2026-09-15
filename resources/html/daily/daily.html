@@ -268,7 +268,7 @@
           {{if report.moyu.items.length}}
           {{each report.moyu.items item}}
           <div class="moyu-item">
-            <span class="moyu-name">{{if item.days === 0}}{{item.name}}就是今天！{{else}}距离 {{item.name}} 还有{{/if}}</span>
+            <span class="moyu-name">{{if item.days === 0}}{{item.name}} {{if item.isOffDay}}假期{{else}}调休补班{{/if}}就是今天！{{else}}距离 {{item.name}} {{if item.isOffDay}}假期{{else}}调休补班{{/if}} 还有{{/if}}</span>
             {{if item.days > 0}}<span class="moyu-days">{{item.days}} 天</span>{{/if}}
           </div>
           {{/each}}

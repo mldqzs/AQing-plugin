@@ -103,6 +103,34 @@ export function supportGuoba() {
             valueFormatter: ((value) => Number.parseInt(value)).toString(),
           },
         },
+        {
+          field: 'config.dailyReportHolidayUrl',
+          label: '日报节假日数据源',
+          bottomHelpMessage: '远程中国节假日数据地址，{year}会替换为年份；支持法定假期和调休补班，留空使用默认源',
+          component: 'Input',
+          componentProps: { placeholder: 'https://fastly.jsdelivr.net/gh/NateScarlet/holiday-cn@master/{year}.json' },
+        },
+        {
+          field: 'config.dailyReportHolidayFallbackUrls',
+          label: '日报节假日备用源',
+          bottomHelpMessage: '主数据源失败时依次尝试；每行一个地址，{year}会替换为年份',
+          component: 'GTags',
+          componentProps: { placeholder: '请输入备用地址', allowAdd: true, allowDel: true, showPrompt: true },
+        },
+        {
+          field: 'config.dailyReportHolidayCacheTtl',
+          label: '节假日缓存时间（秒）',
+          bottomHelpMessage: '远程数据成功后缓存时长，默认 604800 秒（7天）',
+          component: 'InputNumber',
+          componentProps: { min: 60, placeholder: '默认 604800' },
+        },
+        {
+          field: 'config.dailyReportHolidayTimeout',
+          label: '节假日请求超时（毫秒）',
+          bottomHelpMessage: '节假日远程请求超时后会尝试备用源和缓存，默认 8000 毫秒',
+          component: 'InputNumber',
+          componentProps: { min: 1000, max: 60000, placeholder: '默认 8000' },
+        },
 
         // ───────────────── 可爱状态 ─────────────────
         { component: 'SOFT_GROUP_BEGIN', label: '可爱状态' },
@@ -754,7 +782,7 @@ export function supportGuoba() {
         {
           field: 'config.groupJoinCheck',
           label: '入群审核开关',
-          bottomHelpMessage: '开启后，仅对下方群号列表生效；有人申请加群时机器人在群内播报申请人和验证消息，管理员/群主/主人回复「同意」或「拒绝」即可审批。主人也可在群内发「#开启入群审核 / #关闭入群审核」热切换当前群',
+          bottomHelpMessage: '开启后，仅对下方群号列表生效；有人申请加群时机器人在群内播报申请人和验证消息，申请会一直保留，管理员/群主/主人回复「同意」或「拒绝」即可审批。主人也可在群内发「#开启入群审核 / #关闭入群审核」热切换当前群',
           component: 'Switch',
         },
         {
@@ -770,13 +798,6 @@ export function supportGuoba() {
             promptProps: addGroupPromptProps,
             valueFormatter: ((value) => Number.parseInt(value)).toString(),
           },
-        },
-        {
-          field: 'config.groupJoinCheckTime',
-          label: '审批等待超时（分钟）',
-          bottomHelpMessage: '申请播报后超过该时间无人审批，自动取消并在群内提示，默认 10',
-          component: 'InputNumber',
-          componentProps: { min: 1, max: 1440, placeholder: '默认 10' },
         },
 
         // ───────────────── 伪造消息名单 ─────────────────

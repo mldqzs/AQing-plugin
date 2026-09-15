@@ -5,11 +5,6 @@ import Y from '../Yaml/y.js'
 const cfg = () => setting.getConfig('config') || {}
 const pending = new Map()
 
-const getTimeout = () => {
-  const t = parseInt(cfg().groupJoinCheckTime)
-  return Number.isFinite(t) && t > 0 ? t : 10
-}
-
 const isGroupEnabled = (group_id) => {
   const config = cfg()
   if (config.groupJoinCheck !== true) return false
@@ -60,35 +55,17 @@ function enqueueJoinRequest (e) {
   const list = pending.get(e.group_id)
   const dup = list.findIndex(i => i.user_id === e.user_id)
   if (dup >= 0) {
-    clearTimeout(list[dup].timer)
     list.splice(dup, 1)
   }
 
-  const item = {
+  list.push({
     flag: e.flag,
     user_id: e.user_id,
     comment: e.comment || '',
     approve: e.approve.bind(e),
     bot: e.bot,
     group_id: e.group_id,
-    timer: null,
-  }
-  item.timer = setTimeout(() => expire(e.group_id, item), getTimeout() * 60 * 1000)
-  list.push(item)
-}
-
-async function expire (group_id, item) {
-  const list = pending.get(group_id)
-  if (!list) return
-  const idx = list.indexOf(item)
-  if (idx < 0) return
-  list.splice(idx, 1)
-  if (!list.length) pending.delete(group_id)
-  try {
-    await item.bot.pickGroup(group_id).sendMsg(
-      `QQ ${item.user_id} 的入群申请已超时（${getTimeout()}分钟内未审批），已从待审列表移除`
-    )
-  } catch {}
+  })
 }
 
 export class GroupJoinApprove extends plugin {
@@ -129,7 +106,6 @@ export class GroupJoinApprove extends plugin {
           `验证：${e.comment || '无'}`,
           '',
           `发送 同意 / 拒绝 处理申请`,
-          `有效时间：${getTimeout()}分钟`,
         ].join('\n')
       ])
     } catch (err) {
@@ -163,7 +139,7 @@ export class GroupJoinApprove extends plugin {
     }
     const list = pending.get(e.group_id)
     await e.reply(isGroupEnabled(e.group_id)
-      ? `本群入群审核已开启，审批超时${getTimeout()}分钟；当前待审申请 ${list?.length || 0} 条`
+      ? `本群入群审核已开启；当前待审申请 ${list?.length || 0} 条`
       : '本群入群审核已关闭')
     return true
   }
@@ -179,7 +155,6 @@ export class GroupJoinApprove extends plugin {
 
     const approve = e.msg.startsWith('同意')
     const item = list.shift()
-    clearTimeout(item.timer)
     if (!list.length) pending.delete(e.group_id)
 
     try {

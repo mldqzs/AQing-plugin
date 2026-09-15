@@ -1,4 +1,5 @@
 import plugin from '../../../lib/plugins/plugin.js'
+import puppeteer from '../../../lib/puppeteer/puppeteer.js'
 import setting from '../utils/setting.js'
 import common from '../../../lib/common/common.js'
 import { parseBili } from '../utils/bili.js'
@@ -20,6 +21,8 @@ const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML,
 // 小红书 app_share 短链用 PC UA 会被踢到 /404，移动端 UA 才能正常拿到笔记页数据
 const MOBILE_UA = 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1'
 const TMP_DIR = './data/aq/tw'
+const CARD_TPL = './plugins/AQing-plugin/resources/html/video/video.html'
+const PLUGIN_PATH = process.cwd().replace(/\\/g, '/')
 
 const cfg = () => setting.getConfig('tw') || {}
 
@@ -34,6 +37,50 @@ function fmtDur(sec) {
   const m = Math.floor(sec / 60)
   const s = sec % 60
   return `${m}:${String(s).padStart(2, '0')}`
+}
+
+function getPlatformHint(platform) {
+  const map = {
+    '抖音': 'douyin',
+    'B站': 'bilibili',
+    '哔哩哔哩': 'bilibili',
+    '快手': 'kuaishou',
+    '小红书': 'xiaohongshu',
+    '小黑盒': 'heybox',
+  }
+  return map[platform] || String(platform || 'note').toLowerCase()
+}
+
+async function renderParseCard(r, statusText = '解析成功') {
+  if (cfg().renderCard === false) return null
+  const imageCount = r.images?.length || 0
+  const liveCount = r.liveVideos?.length || 0
+  const mediaCount = imageCount + liveCount
+  const isVideo = r.type === 'video'
+  const data = {
+    platform: r.platform || '图文',
+    platformHint: getPlatformHint(r.platform),
+    title: String(r.title || r.desc || '未命名作品').slice(0, 100),
+    author: String(r.author || '未知作者').slice(0, 40),
+    cover: r.cover || r.images?.[0] || '',
+    durationText: r.duration ? fmtDur(r.duration) : (isVideo ? '未知' : '图文'),
+    kindText: isVideo ? '视频笔记' : (mediaCount ? '图文 / 多图笔记' : '图文卡片'),
+    contentText: mediaCount ? `${mediaCount} 项媒体` : (r.desc ? `${String(r.desc).slice(0, 24)}${String(r.desc).length > 24 ? '…' : ''}` : '图文'),
+    statusText: String(statusText || '解析成功').slice(0, 60),
+    pageUrl: String(r.pageUrl || '').slice(0, 120),
+  }
+  try {
+    return await puppeteer.screenshot('video', {
+      tplFile: CARD_TPL,
+      pluResPath: PLUGIN_PATH,
+      saveId: `tw_${Date.now()}_${Math.floor(Math.random() * 1e6)}`,
+      imgType: 'png',
+      data,
+    })
+  } catch (err) {
+    logger.warn(`[图文解析] 详情卡片渲染失败，降级为普通消息：${err?.message || err}`)
+    return null
+  }
 }
 
 // 本机文件统一用 file:// 交给适配器，NapCat 直接从磁盘读，避免把大文件 base64 进内存
@@ -113,7 +160,7 @@ function collectText(e) {
 function detect(text) {
   let m
   // —— 小红书 ——（短链 xhslink.com / 笔记页 explore|discovery；务必保留 xsec_token 查询串）
-  if ((m = text.match(/https?:\/\/xhslink\.com\/[A-Za-z0-9/_-]+/i))) return { platform: 'xhs', url: m[0] }
+  if ((m = text.match(/https?:\/\/xhslink\.(?:com|cn)\/[A-Za-z0-9/_-]+/i))) return { platform: 'xhs', url: m[0] }
   if ((m = text.match(/https?:\/\/(?:www\.)?xiaohongshu\.com\/(?:explore|discovery\/item)\/[0-9a-fA-F]+[^\s'"<>]*/i))) return { platform: 'xhs', url: m[0] }
   // —— 小黑盒 ——（分享接口 / 站内链接 / 短链，link_id 在 parseHeybox 里再提取）
   if ((m = text.match(/https?:\/\/(?:[a-z0-9-]+\.)?(?:xiaoheihe\.cn|heybox\.cn)\/[^\s'"<>]+/i))) return { platform: 'heybox', url: m[0] }
@@ -177,7 +224,7 @@ async function parseXhs(rawUrl) {
 
   // 短链先跟随跳转，拿到带 noteId + xsec_token 的落地 URL（即便落到 /404，参数仍在 query 里）
   let url = rawUrl
-  if (/xhslink\.com/i.test(url)) {
+  if (/xhslink\.(?:com|cn)/i.test(url)) {
     try { url = (await fetch(url, { headers, redirect: 'follow' })).url } catch {}
   }
   // 从 URL 抽 noteId(24位hex) 和 xsec_token，重建标准 explore 笔记页再请求（绕开 app_share 落地的 /404）
@@ -450,38 +497,63 @@ async function sendResult(e, r) {
     r.duration ? `\n⏱️ ${fmtDur(r.duration)}` : '',
   ].join('')
 
-  // 视频笔记 → 标题 + 封面 + 视频本体
+  // 视频笔记 → 详情卡片 + 视频本体
   if (r.type === 'video') {
     const cover = r.cover ? segment.image(r.cover) : null
     if (!r.video || c.sendVideo === false) {
       const link = r.video?.url || r.pageUrl || ''
-      await e.reply([header, c.sendVideo === false ? '\n（已关闭视频发送）' : '\n（未取到视频）', cover ? '\n' : '', cover, link ? `\n🔗 ${link}` : ''].filter(Boolean), true)
+      const reason = c.sendVideo === false ? '已关闭视频发送' : '未取到视频'
+      const card = await renderParseCard(r, link ? `${reason} · 可打开直链` : reason)
+      if (card) {
+        await e.reply(card)
+        if (link) await e.reply(`🔗 ${link}`)
+      } else {
+        await e.reply([header, c.sendVideo === false ? '\n（已关闭视频发送）' : '\n（未取到视频）', cover ? '\n' : '', cover, link ? `\n🔗 ${link}` : ''].filter(Boolean), true)
+      }
       return
     }
     const overDur = r.duration && c.maxDuration && r.duration > Number(c.maxDuration)
     if (overDur) {
-      await e.reply([header, '\n（视频时长超限，直接甩直链👇）', cover ? '\n' : '', cover, `\n🔗 ${r.video.url || r.pageUrl}`].filter(Boolean), true)
+      const card = await renderParseCard(r, '视频时长超限 · 可打开直链')
+      if (card) {
+        await e.reply(card)
+        await e.reply(`🔗 ${r.video.url || r.pageUrl}`)
+      } else {
+        await e.reply([header, '\n（视频时长超限，直接甩直链👇）', cover ? '\n' : '', cover, `\n🔗 ${r.video.url || r.pageUrl}`].filter(Boolean), true)
+      }
       return
     }
-    await e.reply([header, cover ? '\n' : '', cover].filter(Boolean), true)
+    const card = await renderParseCard(r, '解析成功 · 视频可发送')
+    if (card) await e.reply(card)
+    else await e.reply([header, cover ? '\n' : '', cover].filter(Boolean), true)
     await sendOneVideo(e, r.video, maxMB, '视频')
     return
   }
 
-  // 卡片：标题 + 正文 + 封面 + 原链接（小黑盒视频/纯文本帖，拿不到媒体本体时）
+  // 卡片：详情卡片 + 原链接（小黑盒视频/纯文本帖，拿不到媒体本体时）
   if (r.type === 'card') {
     const cover = r.cover ? segment.image(r.cover) : null
     const desc = r.desc ? `\n\n${r.desc.slice(0, 300)}` : ''
-    await e.reply([header, desc, cover ? '\n' : '', cover, r.pageUrl ? `\n🔗 ${r.pageUrl}` : ''].filter(Boolean), true)
+    const card = await renderParseCard(r, '解析成功 · 图文卡片')
+    if (card) {
+      await e.reply(card)
+      if (r.desc) await e.reply(String(r.desc).slice(0, 300))
+      if (r.pageUrl) await e.reply(`🔗 ${r.pageUrl}`)
+    } else {
+      await e.reply([header, desc, cover ? '\n' : '', cover, r.pageUrl ? `\n🔗 ${r.pageUrl}` : ''].filter(Boolean), true)
+    }
     await sendEmbeds(e, r, maxMB)
     return
   }
 
-  // 图文/多图笔记 → 聊天记录（合并转发）折叠：标题+作者+正文 一条，多图随后
+  // 图文/多图笔记 → 详情卡片 + 聊天记录（合并转发）折叠：多图随后
+  const card = await renderParseCard(r, `图文解析成功 · 共 ${(r.images?.length || 0) + (r.liveVideos?.length || 0)} 项媒体`)
+  if (card) await e.reply(card)
+
   const nodes = []
   let head = header
   if (r.desc) head += `\n\n${r.desc}`
-  nodes.push(head)
+  nodes.push(card && r.desc ? `📝 ${r.desc}` : head)
   const imgs = (r.images || []).slice(0, maxImg)
   for (const u of imgs) nodes.push(segment.image(u))
   try {
@@ -489,7 +561,8 @@ async function sendResult(e, r) {
     await e.reply(forward)
   } catch (err) {
     logger.error(`[图文解析] 合并转发失败，改为直接发送：${err?.message || err}`)
-    await e.reply(head, true)
+    if (card && r.desc) await e.reply(String(r.desc).slice(0, 500), true)
+    else if (!card) await e.reply(head, true)
     if (imgs.length) await e.reply(imgs.map(u => segment.image(u)))
   }
 

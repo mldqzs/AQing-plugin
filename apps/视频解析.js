@@ -1,4 +1,5 @@
 import plugin from '../../../lib/plugins/plugin.js'
+import puppeteer from '../../../lib/puppeteer/puppeteer.js'
 import setting from '../utils/setting.js'
 import common from '../../../lib/common/common.js'
 import { parseBili } from '../utils/bili.js'
@@ -24,6 +25,8 @@ const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML,
 // 抖音/快手分享页需移动端 UA 才返回内嵌数据
 const MOBILE_UA = 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1'
 const TMP_DIR = './data/aq/video'
+const VIDEO_TPL = './plugins/AQing-plugin/resources/html/video/video.html'
+const PLUGIN_PATH = process.cwd().replace(/\\/g, '/')
 
 // 实时读取配置（getConfig = 默认配置 ∪ 用户配置，chokidar 热重载）
 const cfg = () => setting.getConfig('video') || {}
@@ -450,6 +453,49 @@ function buildHeader(r) {
   ].join('')
 }
 
+function getPlatformHint(platform) {
+  const map = {
+    '抖音': 'douyin',
+    'B站': 'bilibili',
+    '哔哩哔哩': 'bilibili',
+    '快手': 'kuaishou',
+    '小红书': 'xiaohongshu',
+    '小黑盒': 'heybox',
+  }
+  return map[platform] || String(platform || 'video').toLowerCase()
+}
+
+async function renderVideoCard(r, statusText = '解析成功') {
+  if (cfg().renderCard === false) return null
+  const imageCount = (r.images?.length || 0) + (r.liveVideos?.length || 0)
+  const isAlbum = imageCount > 0
+  const sizeMB = r.video?.size ? r.video.size / 1048576 : 0
+  const data = {
+    platform: r.platform || '视频',
+    platformHint: getPlatformHint(r.platform),
+    title: String(r.title || '未命名作品').slice(0, 100),
+    author: String(r.author || '未知作者').slice(0, 40),
+    cover: r.cover || r.images?.[0] || '',
+    durationText: r.duration ? fmtDur(r.duration) : (isAlbum ? '图集' : '未知'),
+    kindText: isAlbum ? '图文 / 图集作品' : '视频作品',
+    contentText: isAlbum ? `${imageCount} 项媒体` : (sizeMB ? `约 ${sizeMB.toFixed(1)} MB` : '视频'),
+    statusText: String(statusText || '解析成功').slice(0, 60),
+    pageUrl: String(r.pageUrl || '').slice(0, 120),
+  }
+  try {
+    return await puppeteer.screenshot('video', {
+      tplFile: VIDEO_TPL,
+      pluResPath: PLUGIN_PATH,
+      saveId: `video_${Date.now()}_${Math.floor(Math.random() * 1e6)}`,
+      imgType: 'png',
+      data,
+    })
+  } catch (err) {
+    logger.warn(`[短视频解析] 详情卡片渲染失败，降级为普通消息：${err?.message || err}`)
+    return null
+  }
+}
+
 // 从视频抽 BGM，发语音条 + mp3 文件
 async function sendBgmFromVideo(e, r, videoFile) {
   const mp3 = await extractAudio(videoFile)
@@ -478,21 +524,25 @@ async function sendResult(e, r) {
   const c = cfg()
   const header = buildHeader(r)
 
-  // 图文/图集笔记 → 标题 + 图片；其中「实况/动图」那几张单独按视频发
+  // 图文/图集笔记 → 详情卡片 + 图片；其中「实况/动图」那几张单独按视频发
   if (r.images?.length || r.liveVideos?.length) {
     const imgs = (r.images || []).slice(0, 12)
-    // 图集用「聊天记录」（合并转发）折叠，标题+多图收成一条，避免刷屏
+    const imageCount = (r.images?.length || 0) + (r.liveVideos?.length || 0)
+    const card = await renderVideoCard(r, `图集解析成功 · 共 ${imageCount} 项媒体`)
+    if (card) await e.reply(card)
+
+    // 图集用「聊天记录」（合并转发）折叠，避免多张图片刷屏；卡片失败时保留原标题节点
     if (imgs.length) {
-      const nodes = [header, ...imgs.map(u => segment.image(u))]
+      const nodes = [...(card ? [] : [header]), ...imgs.map(u => segment.image(u))]
       try {
         const forward = await common.makeForwardMsg(e, nodes, r.title || `${r.platform}图集`)
         await e.reply(forward)
       } catch (err) {
         logger.error(`[短视频解析] 合并转发失败，改为直接发送：${err?.message || err}`)
-        await e.reply(header, true)
+        if (!card) await e.reply(header, true)
         await e.reply(imgs.map(u => segment.image(u)))
       }
-    } else {
+    } else if (!card) {
       await e.reply(header, true)
     }
     if (r.liveVideos?.length) {
@@ -534,16 +584,25 @@ async function sendResult(e, r) {
     }
   }
 
-  // 超限/关闭/取不到本体 → 标题 + 封面 + 直链
+  // 超限/关闭/取不到本体 → 详情卡片 + 直链；渲染失败时回退旧格式
   if (reason) {
     const link = pickUserLink(r)
-    const tip = link ? `\n（${reason}，直接甩直链👇）` : `\n（${reason}）`
-    await e.reply([header, tip, cover ? '\n' : '', cover, link ? `\n🔗 ${link}` : ''].filter(Boolean), true)
+    const status = link ? `${reason} · 可打开直链` : reason
+    const card = await renderVideoCard(r, status)
+    if (card) {
+      await e.reply(card)
+      if (link) await e.reply(`🔗 ${link}`)
+    } else {
+      const tip = link ? `\n（${reason}，直接甩直链👇）` : `\n（${reason}）`
+      await e.reply([header, tip, cover ? '\n' : '', cover, link ? `\n🔗 ${link}` : ''].filter(Boolean), true)
+    }
     return
   }
 
-  // 标题 + 封面，再单独发视频
-  await e.reply([header, cover ? '\n' : '', cover].filter(Boolean), true)
+  // 详情卡片替代标题 + 独立封面，再单独发视频
+  const card = await renderVideoCard(r, '解析成功 · 视频可发送')
+  if (card) await e.reply(card)
+  else await e.reply([header, cover ? '\n' : '', cover].filter(Boolean), true)
 
   let localFile = null
   try {
