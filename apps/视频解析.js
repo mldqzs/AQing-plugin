@@ -60,10 +60,19 @@ function collectText(e) {
   return parts.join('\n').replace(/\\\//g, '/').replace(/&amp;/g, '&')
 }
 
+function extractSharePreview(text) {
+  const m = text.match(/["']preview["']\s*:\s*["'](https?:[^"']+)/i)
+  return m ? m[1].replace(/\\\//g, '/') : ''
+}
+
 // 识别平台与链接，返回 { platform, url } 或 null
 function detect(text) {
   let m
   // —— B站 ——
+  if ((m = text.match(/https?:\/\/live\.douyin\.com\/\d+[^\s'"]*/i))) return { platform: 'douyin', url: m[0] }
+  if ((m = text.match(/https?:\/\/www\.douyin\.com\/live\/\d+[^\s'"]*/i))) return { platform: 'douyin', url: m[0] }
+  if ((m = text.match(/https?:\/\/(?:live\.)?bilibili\.com\/live\/\d+[^\s'"]*/i))) return { platform: 'bili', url: m[0] }
+  if ((m = text.match(/https?:\/\/live\.bilibili\.com\/\d+[^\s'"]*/i))) return { platform: 'bili', url: m[0] }
   if ((m = text.match(/https?:\/\/(?:b23\.tv|bili2233\.cn)\/[A-Za-z0-9]+/i))) return { platform: 'bili', url: m[0] }
   if ((m = text.match(/https?:\/\/(?:www\.|m\.)?bilibili\.com\/video\/(?:BV[0-9A-Za-z]{10}|av\d+)[^\s'"]*/i))) return { platform: 'bili', url: m[0] }
   if ((m = text.match(/\bBV[0-9A-Za-z]{10}\b/))) return { platform: 'bili', url: `https://www.bilibili.com/video/${m[0]}` }
@@ -345,7 +354,70 @@ async function fetchDouyinExternal(rawUrl, id) {
   }
 }
 
+async function parseDouyinLive(rawUrl) {
+  const r = await fetch(rawUrl, { headers: { ...DOUYIN_HEADERS, Cookie: await getDouyinCookie() }, redirect: 'follow' })
+  const finalUrl = r.url || rawUrl
+  const html = await r.text()
+  // 抖音分享直播通常会跳到 webcast.amemv.com，页面 SSR 数据不一定包含直播间字段，
+  // 这时直接走公开的 reflow 接口；该接口返回的数据结构与 live.douyin.com 接口不同。
+  const roomId = finalUrl.match(/(?:live\.douyin\.com\/|live\/|reflow\/)(\d+)/i)?.[1] || rawUrl.match(/(?:live\.douyin\.com\/|live\/|reflow\/)(\d+)/i)?.[1]
+  const jsons = parseDouyinPageData(html)
+  if (/webcast\.amemv\.com/i.test(finalUrl) && roomId) {
+    try {
+      const api = `https://webcast.amemv.com/webcast/room/reflow/info/?type_id=0&live_id=1&sec_user_id=&version_code=99.99.99&app_id=1128&room_id=${roomId}`
+      const data = await (await fetch(api, { headers: { ...DOUYIN_HEADERS, Accept: 'application/json,text/plain,*/*' } })).json()
+      const room = data?.data?.room
+      if (room) {
+        const stream = room.stream_url || room.streamUrl || {}
+        const flv = stream.flv_pull_url?.HD1 || stream.flv_pull_url?.FULL_HD1 || stream.flv_pull_url?.SD1 || stream.flv_pull_url?.SD2
+        return {
+          platform: '抖音直播', title: room.title || '抖音直播', author: room.owner?.nickname || '',
+          cover: firstUrl(room.cover) || firstUrl(room.room_cover), online: room.user_count_str || room.user_count || '', live: true,
+          pageUrl: finalUrl, roomId, video: flv ? { url: flv, headers: { 'User-Agent': MOBILE_UA, Referer: 'https://webcast.amemv.com/' } } : null,
+        }
+      }
+    } catch (err) {
+      logger.debug?.(`[短视频解析] 抖音 webcast 直播接口失败：${err?.message || err}`)
+    }
+  }
+  let found = null
+  const walk = (v, seen = new Set()) => {
+    if (!v || typeof v !== 'object' || seen.has(v) || found) return
+    seen.add(v)
+    if (v.room_info || v.room || v.stream_url || v.streamUrl) {
+      const room = v.room_info || v.room || v
+      const stream = room.stream_url || room.streamUrl || room.stream
+      if (stream) found = { room, stream }
+    }
+    if (Array.isArray(v)) for (const x of v) walk(x, seen)
+    else for (const x of Object.values(v)) walk(x, seen)
+  }
+  for (const j of jsons) walk(j)
+  if (!found) throw new Error('抖音直播间信息获取失败（可能未开播或页面已改版）')
+  const room = found.room
+  const stream = found.stream
+  const flv = stream.flv_pull_url?.HD1 || stream.flv_pull_url?.FULL_HD1 || stream.flv_pull_url?.SD1 || stream.flv_pull_url?.SD2 || stream.flv_pull_url?.flv || stream.flv
+  const cover = firstUrl(room.cover) || firstUrl(room.room_cover) || firstUrl(room.owner?.avatar_thumb)
+  return {
+    platform: '抖音直播', title: room.title || room.room_title || '抖音直播', author: room.owner?.nickname || room.anchor?.nickname || '',
+    cover, online: room.user_count_str || room.user_count || '', live: true,
+    pageUrl: r.url || rawUrl, roomId,
+    video: flv ? { url: flv, headers: { 'User-Agent': MOBILE_UA, Referer: 'https://live.douyin.com/' } } : null,
+  }
+}
+
 async function parseDouyin(rawUrl) {
+  // v.douyin.com 短链可能跳到 webcast.amemv.com/douyin/webcast/reflow，
+  // 不能等取作品 ID 后再判断，否则直播分享会被误当成普通视频。
+  if (/live(?:\.douyin\.com|\/)|webcast\.amemv\.com\/douyin\/webcast\/reflow/i.test(rawUrl)) return parseDouyinLive(rawUrl)
+  if (/v\.douyin\.com/i.test(rawUrl)) {
+    try {
+      const probe = await fetch(rawUrl, { headers: DOUYIN_HEADERS, redirect: 'follow' })
+      if (/live(?:\.douyin\.com|\/)|webcast\.amemv\.com\/douyin\/webcast\/reflow/i.test(probe.url || '')) return parseDouyinLive(rawUrl)
+    } catch (err) {
+      logger.debug?.(`[短视频解析] 抖音短链类型探测失败：${err?.message || err}`)
+    }
+  }
   const id = await resolveDouyinId(rawUrl)
   if (!id) throw new Error('未取到抖音作品 ID')
 
@@ -402,9 +474,27 @@ async function parseKuaishou(rawUrl) {
   }
 
   const m = html.match(/window\.INIT_STATE\s*=\s*(.*?)<\/script>/s)
-  if (!m) throw new Error('快手页面结构变化，解析失败')
+  if (!m) {
+    // 快手直播分享页使用独立的 LiveRouter，不再下发作品 photo 字段。
+    // 先识别直播间并返回页面信息，避免把直播分享误报成普通视频解析失败。
+    if (/\/fw\/live\//i.test(finalUrl)) {
+      const title = html.match(/<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']+)/i)?.[1]
+        || html.match(/<title[^>]*>([^<]+)/i)?.[1] || '快手直播'
+      const cover = html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)/i)?.[1] || ''
+      return { platform: '快手直播', title: title.trim(), author: '', cover, online: '', live: true, pageUrl: finalUrl, video: null }
+    }
+    throw new Error('快手页面结构变化，解析失败')
+  }
   let data
   try { data = JSON.parse(m[1].trim()) } catch { throw new Error('快手页面数据解析失败') }
+
+  // 快手直播分享页也可能带 INIT_STATE，但其中没有作品 photo；不要按普通视频报错。
+  if (/\/fw\/live\//i.test(finalUrl)) {
+    const title = html.match(/<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']+)/i)?.[1]
+      || html.match(/<title[^>]*>([^<]+)/i)?.[1] || '快手直播'
+    const cover = html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)/i)?.[1] || ''
+    return { platform: '快手直播', title: title.trim(), author: '', cover, online: '', live: true, pageUrl: finalUrl, video: null }
+  }
 
   // 动态找含 photo 的那一项
   let photo = null
@@ -432,6 +522,31 @@ async function parseKuaishou(rawUrl) {
   return { platform: '快手', title, author, cover, duration, pageUrl: finalUrl, video, images: null }
 }
 
+async function downloadLiveSegment(url, headers, dest, seconds, maxMB) {
+  const res = await fetch(url, { headers: { 'User-Agent': UA, ...headers } })
+  if (!res.ok || !res.body) throw new Error(`直播流请求失败 HTTP ${res.status}`)
+  const limit = maxMB ? maxMB * 1048576 : 0
+  const file = fs.createWriteStream(dest)
+  const reader = res.body.getReader()
+  let bytes = 0
+  const deadline = Date.now() + seconds * 1000
+  try {
+    while (Date.now() < deadline) {
+      const { done, value } = await Promise.race([
+        reader.read(),
+        new Promise(resolve => setTimeout(() => resolve({ done: true }), Math.max(0, deadline - Date.now()))),
+      ])
+      if (done) break
+      bytes += value.byteLength
+      if (limit && bytes > limit) throw new Error(`直播片段超过 ${maxMB}MB`)
+      if (!file.write(Buffer.from(value))) await new Promise(resolve => file.once('drain', resolve))
+    }
+  } finally {
+    try { await reader.cancel() } catch {}
+    await new Promise(resolve => file.end(resolve))
+  }
+}
+
 /* ───────────── 发送 ───────────── */
 
 // 不发视频本体时给用户一个可点链接：优先给可直接播放的视频直链（B站 html5 渐进式
@@ -445,10 +560,14 @@ function isDouyinLongVideo(r) {
 }
 
 function buildHeader(r) {
+  const live = r.live ? '直播' : '解析'
   return [
-    `📺 ${r.platform}解析`,
+    `📺 ${r.platform}${live}`,
     r.title ? `\n📝 ${r.title}` : '',
     r.author ? `\n👤 ${r.author}` : '',
+    r.online ? `\n🏄‍♂️ 在线人数：${r.online}人正在观看` : '',
+    r.description ? `\n📄 ${r.description.replace(/<[^>]+>/g, '').trim()}` : '',
+    r.area ? `\n📍 分区：${r.area}` : '',
     r.duration ? `\n⏱️ ${fmtDur(r.duration)}` : '',
   ].join('')
 }
@@ -476,9 +595,9 @@ async function renderVideoCard(r, statusText = '解析成功') {
     title: String(r.title || '未命名作品').slice(0, 100),
     author: String(r.author || '未知作者').slice(0, 40),
     cover: r.cover || r.images?.[0] || '',
-    durationText: r.duration ? fmtDur(r.duration) : (isAlbum ? '图集' : '未知'),
-    kindText: isAlbum ? '图文 / 图集作品' : '视频作品',
-    contentText: isAlbum ? `${imageCount} 项媒体` : (sizeMB ? `约 ${sizeMB.toFixed(1)} MB` : '视频'),
+    durationText: r.live ? '直播' : (r.duration ? fmtDur(r.duration) : (isAlbum ? '图集' : '未知')),
+    kindText: r.live ? '直播' : (isAlbum ? '图文 / 图集作品' : '视频作品'),
+    contentText: r.live ? '直播' : (isAlbum ? `${imageCount} 项媒体` : (sizeMB ? `约 ${sizeMB.toFixed(1)} MB` : '视频')),
     statusText: String(statusText || '解析成功').slice(0, 60),
     pageUrl: String(r.pageUrl || '').slice(0, 120),
   }
@@ -523,6 +642,49 @@ async function sendBgmFromVideo(e, r, videoFile) {
 async function sendResult(e, r) {
   const c = cfg()
   const header = buildHeader(r)
+
+  if (r.live) {
+    const card = await renderVideoCard(r, '直播间识别成功')
+    if (card) await e.reply(card)
+    else await e.reply([header, r.cover ? '\n' : '', r.cover ? segment.image(r.cover) : ''].filter(Boolean), true)
+    // 快手直播页面的拉流地址由 LiveRouter 动态加载，统一返回独立播放器；
+    // 抖音、B站仍优先下载直播片段发送。
+    if (r.platform === '快手直播') {
+      await e.reply(`🔗 ${r.pageUrl}`)
+      return
+    }
+    if (!r.video) {
+      await e.reply(`🔗 ${r.pageUrl}`)
+      return
+    }
+    // 直播流按参考实现下载固定时长后发送，避免直接把 FLV 甩给 QQ 适配器。
+    let localFile = null
+    try {
+      ensureTmp()
+      localFile = path.join(TMP_DIR, `live_${Date.now()}_${Math.floor(Math.random() * 1e6)}.flv`)
+      const seconds = Math.max(1, Number(c.liveDuration) || 10)
+      const urls = [r.video.url, ...(r.video.alternatives || [])].filter(Boolean)
+      let lastError = null
+      for (const url of urls) {
+        try {
+          await downloadLiveSegment(url, r.video.headers || {}, localFile, seconds, Number(c.maxSize) || 100)
+          lastError = null
+          break
+        } catch (err) {
+          lastError = err
+          fs.unlinkSync(localFile, { force: true })
+        }
+      }
+      if (lastError) throw lastError
+      await e.reply(segment.video(fileUri(localFile)))
+    } catch (err) {
+      logger.error(`[短视频解析] 直播流发送失败：${err?.message || err}`)
+      await e.reply(`直播片段获取失败，直接甩直播流👇\n🔗 ${r.video.url}`)
+    } finally {
+      if (localFile) fs.unlink(localFile, () => {})
+    }
+    return
+  }
 
   // 图文/图集笔记 → 详情卡片 + 图片；其中「实况/动图」那几张单独按视频发
   if (r.images?.length || r.liveVideos?.length) {
@@ -653,8 +815,10 @@ export class videoParser extends plugin {
     const c = cfg()
     if (c.enable === false) return
 
-    const hit = detect(collectText(e))
+    const text = collectText(e)
+    const hit = detect(text)
     if (!hit) return
+    hit.preview = extractSharePreview(text)
 
     // 平台分开关
     if (c[PLATFORM_SWITCH[hit.platform]] === false) return
@@ -676,6 +840,7 @@ export class videoParser extends plugin {
     try {
       await e.reply(`🔍 正在解析${PLATFORM_CN[hit.platform]}链接…`, true, { recallMsg: 8 })
       const r = await parse(hit.platform, hit.url)
+      if (hit.preview && r.live && !r.cover) r.cover = hit.preview
       await sendResult(e, r)
     } catch (err) {
       logger.error(`[短视频解析] ${hit.platform} 失败：`, err)

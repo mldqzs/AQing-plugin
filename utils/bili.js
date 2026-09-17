@@ -30,12 +30,44 @@ async function getBuvid() {
   return ''
 }
 
+async function parseBiliLive(url) {
+  const roomId = new URL(url).pathname.match(/\/(\d+)/)?.[1]
+  if (!roomId) throw new Error('未识别到 B 站直播间号')
+  const info = await fetchJson(`https://api.live.bilibili.com/room/v1/Room/get_info?room_id=${roomId}`)
+  if (info?.code !== 0 || !info?.data) throw new Error(`B站直播间接口返回：${info?.message || info?.code || '未知错误'}`)
+  const room = info.data
+  let anchor = null
+  try {
+    const anchorData = await fetchJson(`https://api.live.bilibili.com/live_user/v1/UserInfo/get_anchor_in_room?roomid=${room.room_id || roomId}`)
+    anchor = anchorData?.data?.info || null
+  } catch {}
+  const result = {
+    platform: 'B站直播', title: room.title || '哔哩哔哩直播', author: room.uname || anchor?.uname || '',
+    cover: room.user_cover || room.keyframe || room.cover || '', duration: 0,
+    pageUrl: `https://live.bilibili.com/${roomId}`, live: true, online: room.online,
+    description: room.description || '', area: [room.parent_area_name, room.area_name].filter(Boolean).join('-'),
+    roomId, video: null,
+  }
+  // 部分房间的 live_status 与 playUrl 接口存在短暂不同步；只要接口仍返回有效流地址，
+  // 就交给发送层尝试抓取切片，失败时再回退到直播间链接。
+  try {
+    const stream = await fetchJson(`https://api.live.bilibili.com/room/v1/Room/playUrl?cid=${roomId}&qn=80&platform=web`)
+    const durls = Array.isArray(stream?.data?.durl) ? stream.data.durl.filter(item => item?.url) : []
+    if (stream?.code === 0 && durls.length) {
+      const headers = { Referer: 'https://live.bilibili.com/' }
+      result.video = { url: durls[0].url, headers, alternatives: durls.slice(1).map(item => item.url) }
+    }
+  } catch {}
+  return result
+}
+
 export async function parseBili(rawUrl) {
   // 还原 b23.tv / bili2233.cn 短链
   let url = rawUrl
   if (/b23\.tv|bili2233\.cn/i.test(url)) {
     try { url = (await fetch(url, { headers: { 'User-Agent': UA }, redirect: 'follow' })).url } catch {}
   }
+  if (/live\.bilibili\.com/i.test(url)) return parseBiliLive(url)
   const bvid = (url.match(/BV[0-9A-Za-z]{10}/) || [])[0]
   const aid = (url.match(/av(\d+)/i) || [])[1]
   if (!bvid && !aid) throw new Error('未识别到 B 站视频 ID')
