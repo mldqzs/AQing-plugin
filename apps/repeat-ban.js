@@ -10,15 +10,15 @@
  *     只有零点才会将档位归零（CONFIG.dailyReset = true）
  *     档位（banLevel）落盘到 data/repeat-ban.json，重启不丢失
  * - 复读机器人警告语本身也会被禁言
- * - 总开关在锅巴配置（config.repeatBan）中控制，关闭后整功能停用
- * - 管理员可通过「复读禁言 开启/关闭」单独控制本群开关
+ * - 生效群聊在锅巴配置（config.repeatBanGroups）中统一管理
+ * - 管理员可通过「复读禁言 开启/关闭」增删当前群
  * - 主人可通过「设置复读禁言时间 N」设置初始禁言时间（分钟）
  * - 主人可通过「设置复读禁言叠加 N」设置每次阶梯叠加时长（分钟），默认 1
  */
 
 import plugin from '../../../lib/plugins/plugin.js'
 import fs from 'node:fs'
-import yaml from 'yaml'
+import setting from '../utils/setting.js'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -26,9 +26,6 @@ import { fileURLToPath } from 'node:url'
 //  可配置项
 // ─────────────────────────────────────────────
 const CONFIG = {
-  /** 连续复读几条后触发警告 */
-  warnThreshold: 3,
-
   /** 警告语 */
   warnText: '再复读我要发飙啦！',
 
@@ -40,47 +37,42 @@ const CONFIG = {
 }
 
 // ─────────────────────────────────────────────
-//  总开关读取（锅巴配置 config.repeatBan，热生效）
-//  带 mtime 缓存：文件未变动时复用缓存，被锅巴/外部改写后自动重读
+//  生效群聊读取（锅巴配置 config.repeatBanGroups，热生效）
+//  统一走插件 Setting：锅巴写入后由 chokidar 清除缓存。
 // ─────────────────────────────────────────────
 const _dir = dirname(fileURLToPath(import.meta.url))
-const configPath = join(_dir, '../config/config/config.yaml')
-
-let _cfgCache = null
-let _cfgMtime = 0
 
 function loadCfg() {
-  try {
-    const stat = fs.statSync(configPath)
-    if (!_cfgCache || stat.mtimeMs !== _cfgMtime) {
-      _cfgCache = yaml.parse(fs.readFileSync(configPath, 'utf8')) || {}
-      _cfgMtime = stat.mtimeMs
-    }
-  } catch (err) {
-    logger.error('[复读禁言] 读取配置文件失败:', err)
-    _cfgCache = _cfgCache || {}
-  }
-  return _cfgCache
+  return setting.getConfig('config') || {}
 }
 
-// 写入运行时配置（修改某个键并保存，随后清空缓存以便热生效）
+// 写入运行时配置（修改某个键并保存）
 function writeCfg(key, value) {
-  let cfg = {}
-  try {
-    cfg = yaml.parse(fs.readFileSync(configPath, 'utf8')) || {}
-  } catch (err) {
-    logger.error('[复读禁言] 写入前读取配置失败:', err)
+  const cfg = { ...loadCfg(), [key]: value }
+  if (setting.setConfig('config', cfg) === false) {
+    throw new Error('写入配置失败')
   }
-  cfg[key] = value
-  fs.writeFileSync(configPath, yaml.stringify(cfg), 'utf8')
-  // 失效缓存，下次 loadCfg 重读
-  _cfgCache = null
-  _cfgMtime = 0
+  // setConfig 是同步写文件；立即清掉缓存，避免命令回复仍读取旧值。
+  delete setting.config.config
 }
 
-// 总开关，未配置时默认开启
-function repeatBanEnabled() {
-  return loadCfg().repeatBan ?? true
+// 仅配置列表中的群启用复读禁言
+function repeatBanEnabled(groupId) {
+  const groups = loadCfg().repeatBanGroups
+  return Array.isArray(groups) && groups.map(String).includes(String(groupId))
+}
+
+// 命令与锅巴共用同一份群聊列表
+function setRepeatBanEnabled(groupId, enabled) {
+  const cfg = loadCfg()
+  const groups = Array.isArray(cfg.repeatBanGroups)
+    ? cfg.repeatBanGroups.map(String)
+    : []
+  const id = String(groupId)
+  const next = enabled
+    ? [...new Set([...groups, id])]
+    : groups.filter(item => item !== id)
+  writeCfg('repeatBanGroups', next)
 }
 
 // 初始禁言时间（分钟），未配置/非法时默认 1
@@ -93,6 +85,20 @@ function repeatBanBaseTime() {
 function repeatBanStepTime() {
   const t = parseInt(loadCfg().repeatBanStep)
   return Number.isFinite(t) && t > 0 ? t : 1
+}
+
+// 连续复读达到指定条数后发出警告，未配置时默认 3 条
+function repeatBanWarnThreshold() {
+  const value = loadCfg().repeatBanThreshold
+  const threshold = Number(
+    typeof value === 'string' ? value.trim() : value
+  )
+
+  return Number.isInteger(threshold) &&
+    threshold >= 2 &&
+    threshold <= 20
+    ? threshold
+    : 3
 }
 
 // ─────────────────────────────────────────────
@@ -301,7 +307,6 @@ function buildFingerprint(segs, plain, raw) {
 //
 //  groupMeta[groupId] = {
 //    banLevel  : number,   // 【持久】本群累计禁言次数，不因复读链打断归零，零点归零
-//    enabled   : boolean,  // 本群复读禁言开关，默认 true
 //  }
 //
 //  chainState[groupId] = {
@@ -311,7 +316,7 @@ function buildFingerprint(segs, plain, raw) {
 //    timer       : TimeoutId // 无新消息后自动清除复读链
 //  }
 // ─────────────────────────────────────────────
-// groupMeta 持久化文件：重启后 banLevel / enabled 不丢失
+// groupMeta 持久化文件：重启后 banLevel 不丢失
 const dataDir  = join(_dir, '../data')
 const metaPath = join(dataDir, 'repeat-ban.json')
 
@@ -347,7 +352,7 @@ const chainState = {}           // 复读链（打断即重置，无需持久化
 // ── groupMeta 辅助 ────────────────────────────
 function getMeta(groupId) {
   if (!groupMeta[groupId]) {
-    groupMeta[groupId] = { banLevel: 0, enabled: true }
+    groupMeta[groupId] = { banLevel: 0 }
   }
   return groupMeta[groupId]
 }
@@ -435,25 +440,22 @@ export class RepeatBanPlugin extends plugin {
 
   // ── 开关命令处理 ──────────────────────────────
   async toggleSwitch(e) {
-    // 总开关关闭时，单群开关命令无意义
-    if (!repeatBanEnabled()) {
-      await e.reply('复读禁言总开关已关闭（可在锅巴配置中开启）', true)
-      return false
-    }
-
     const groupId = String(e.group_id)
-    const meta    = getMeta(groupId)
     const arg     = e.msg.trim().replace(/^复读禁言\s*/, '').toLowerCase()
     const turnOn  = arg === '开启' || arg === 'on'
 
-    meta.enabled = turnOn
-    saveMeta()
-    await e.reply(
-      turnOn
-        ? '复读禁言已开启，复读机们小心了！'
-        : '复读禁言已关闭，复读随意～',
-      true
-    )
+    try {
+      setRepeatBanEnabled(groupId, turnOn)
+      await e.reply(
+        turnOn
+          ? '复读禁言已开启，复读机们小心了！'
+          : '复读禁言已关闭，复读随意～',
+        true
+      )
+    } catch (err) {
+      logger.error('[复读禁言] 修改生效群聊失败:', err)
+      await e.reply('设置失败，请检查配置文件权限', true)
+    }
     return false
   }
 
@@ -505,19 +507,17 @@ export class RepeatBanPlugin extends plugin {
   async handleMessage(e) {
     if (!e.group_id) return false
 
-    // 总开关关闭时整功能停用
-    if (!repeatBanEnabled()) return false
-
     const groupId = String(e.group_id)
     const userId  = String(e.user_id)
     const selfId  = String(e.self_id)
 
+    // 仅处理锅巴列表或群命令开启的群聊
+    if (!repeatBanEnabled(groupId)) return false
+
     // 忽略机器人自身的消息
     if (userId === selfId) return false
 
-    // 本群开关关闭时直接跳过
     const meta = getMeta(groupId)
-    if (!meta.enabled) return false
 
     // 生成当前消息指纹
     const fingerprint = buildFingerprint(e.message, e.msg, e.raw_message)
@@ -550,7 +550,7 @@ export class RepeatBanPlugin extends plugin {
     touchChainTimer(groupId)
 
     // 达到阈值且未警告 → 发出警告
-    if (chain.count >= CONFIG.warnThreshold && !chain.warned) {
+    if (chain.count >= repeatBanWarnThreshold() && !chain.warned) {
       chain.warned = true
       await e.reply(CONFIG.warnText, false)
       return false

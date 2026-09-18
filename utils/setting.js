@@ -98,6 +98,8 @@ class Setting {
     let file = this.getFilePath(app, type)
     try {
       fs.writeFileSync(file, YAML.stringify(Object), 'utf8')
+      // 写入后立即失效缓存，避免锅巴保存配置后当前进程继续读取旧值。
+      delete this[type][app]
     } catch (error) {
       logger.error(`[${app}] 写入失败 ${error}`)
       return false

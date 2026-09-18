@@ -3,7 +3,7 @@
 这里是一个基于 [TRSS-Yunzai](https://github.com/TimeRainStarSky/Yunzai) 的综合娱乐小插件~ 
 虽然最初只是自用练手，但不知不觉也攒下了不少好玩的功能。如果能给你和群友带来快乐，那就最好不过啦！欢迎尝鲜哦 ฅ^•ﻌ•^ฅ
 
-[![version](https://img.shields.io/badge/version-1.10.4-9b8cff?style=flat-square)](./CHANGELOG.md)
+[![version](https://img.shields.io/badge/version-1.10.5-9b8cff?style=flat-square)](./CHANGELOG.md)
 [![Yunzai](https://img.shields.io/badge/TRSS--Yunzai-V3-66ccff?style=flat-square)](https://github.com/TimeRainStarSky/Yunzai)
 [![Gitee](https://img.shields.io/badge/Gitee-aayhg-c71d23?style=flat-square&logo=gitee)](https://gitee.com/aayhg/AQing-plugin)
 [![GitHub](https://img.shields.io/badge/GitHub-mldqzs-181717?style=flat-square&logo=github)](https://github.com/mldqzs/AQing-plugin)
@@ -23,7 +23,7 @@
 | 分类 | 阿晴的技能 | 用法小抄 |
 | :--- | :--- | :--- |
 | 🛡️ 群管 | 复读机 | `复读开启/关闭`，开启后大家刷屏的重复内容，阿晴也会跟着一起复读（如 `11→111`） |
-| 🛡️ 群管 | 复读禁言 | 复读刷屏太狠了？达到阈值阿晴会先警告，不听话就会被阶梯禁言（锅巴里可以精细调控哦） |
+| 🛡️ 群管 | 复读禁言 | 复读刷屏太狠了？达到阈值阿晴会先警告，不听话就会被阶梯禁言；启用群聊与警告条数均可在锅巴配置 |
 | 🛡️ 群管 | 被艾特禁言 | 艾特机器人自动送上禁言套餐，支持按群开关和自定义时长 |
 | 🛡️ 群管 | 入群审核 | 有人申请加群时群内播报，管理员/群主/主人回复 `同意` 或 `拒绝` 即可审批（申请会一直保留到明确处理）；在目标群发送 `#开启/关闭入群审核` 切换本群 |
 | 🎨 状态 | 可爱状态 | 发送 `#状态` 召唤猫爪果冻风状态图（随机背景），接管云崽本体状态，超好看！ |
@@ -69,7 +69,7 @@ pnpm install
 
 ### 🎵 & 🎬 全能解析（短视频/图文/音乐）
 **不用发指令！** 直接往群里扔分享链接或卡片（纯文本也行），阿晴就会乖乖帮你解析：
-- **视频类**（抖音/快手/B站）：自动发出标题、封面和视频本体。如果是图集，就会乖乖发图片。视频太大还会贴心地转成直链，不吃你的服务器流量。（在锅巴里还能开启抽取 BGM 语音的功能哦！）
+- **视频类**（抖音/快手/B站）：自动发出标题、封面和视频本体。如果是图集，就会乖乖发图片；目前也已初步支持三家平台的直播分享解析。视频太大还会贴心地转成直链，不吃你的服务器流量。（在锅巴里还能开启抽取 BGM 语音的功能哦！）
 - **图文类**（小红书/小黑盒）：自动把长篇笔记和多张图片打包成折叠聊天记录，清爽又好看。
 - **音乐类**（网易/QQ/酷狗/酷我）：自动带上完整的折叠歌词、歌曲信息和 MP3 音乐。
 > 📌 **进阶玩法**：想解锁 VIP 音乐或小黑盒高风控内容？去锅巴的对应分类里填上你的网页端 Cookie 就可以啦。

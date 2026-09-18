@@ -644,44 +644,53 @@ async function sendResult(e, r) {
   const header = buildHeader(r)
 
   if (r.live) {
-    const card = await renderVideoCard(r, '直播间识别成功')
-    if (card) await e.reply(card)
-    else await e.reply([header, r.cover ? '\n' : '', r.cover ? segment.image(r.cover) : ''].filter(Boolean), true)
-    // 快手直播页面的拉流地址由 LiveRouter 动态加载，统一返回独立播放器；
-    // 抖音、B站仍优先下载直播片段发送。
+    // 快手直播使用独立播放器，不探测或下载直播流。
     if (r.platform === '快手直播') {
+      const card = await renderVideoCard(r, '直播间识别成功')
+      if (card) await e.reply(card)
+      else await e.reply([header, r.cover ? '\n' : '', r.cover ? segment.image(r.cover) : ''].filter(Boolean), true)
       await e.reply(`🔗 ${r.pageUrl}`)
       return
     }
+
     if (!r.video) {
-      await e.reply(`🔗 ${r.pageUrl}`)
+      await e.reply('未开启直播')
       return
     }
-    // 直播流按参考实现下载固定时长后发送，避免直接把 FLV 甩给 QQ 适配器。
-    let localFile = null
-    try {
-      ensureTmp()
-      localFile = path.join(TMP_DIR, `live_${Date.now()}_${Math.floor(Math.random() * 1e6)}.flv`)
-      const seconds = Math.max(1, Number(c.liveDuration) || 10)
-      const urls = [r.video.url, ...(r.video.alternatives || [])].filter(Boolean)
-      let lastError = null
-      for (const url of urls) {
-        try {
-          await downloadLiveSegment(url, r.video.headers || {}, localFile, seconds, Number(c.maxSize) || 100)
-          lastError = null
-          break
-        } catch (err) {
-          lastError = err
-          fs.unlinkSync(localFile, { force: true })
-        }
+
+    // 抖音、B站按参考实现下载固定时长的直播流，再作为视频发送。
+    ensureTmp()
+    const localFile = path.join(TMP_DIR, `live_${Date.now()}_${Math.floor(Math.random() * 1e6)}.flv`)
+    const seconds = Math.max(1, Number(c.liveDuration) || 10)
+    const urls = [r.video.url, ...(r.video.alternatives || [])].filter(Boolean)
+    let streamError = null
+    for (const url of urls) {
+      try {
+        await downloadLiveSegment(url, r.video.headers || {}, localFile, seconds, Number(c.maxSize) || 100)
+        streamError = null
+        break
+      } catch (err) {
+        streamError = err
+        // 下载失败时文件可能尚未创建，清理不能覆盖原始直播流错误。
+        fs.rmSync(localFile, { force: true })
       }
-      if (lastError) throw lastError
+    }
+    if (streamError) {
+      logger.warn(`[短视频解析] 直播流不可用：${streamError?.message || streamError}`)
+      await e.reply('未开启直播')
+      return
+    }
+
+    try {
+      const card = await renderVideoCard(r, '直播间识别成功')
+      if (card) await e.reply(card)
+      else await e.reply([header, r.cover ? '\n' : '', r.cover ? segment.image(r.cover) : ''].filter(Boolean), true)
       await e.reply(segment.video(fileUri(localFile)))
     } catch (err) {
-      logger.error(`[短视频解析] 直播流发送失败：${err?.message || err}`)
-      await e.reply(`直播片段获取失败，直接甩直播流👇\n🔗 ${r.video.url}`)
+      logger.error(`[短视频解析] 直播视频发送失败：${err?.message || err}`)
+      await e.reply('直播视频发送失败')
     } finally {
-      if (localFile) fs.unlink(localFile, () => {})
+      fs.unlink(localFile, () => {})
     }
     return
   }
