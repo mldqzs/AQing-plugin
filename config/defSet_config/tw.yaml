@@ -1,6 +1,8 @@
 # 图文解析（小红书 / 小黑盒）配置
 # 总开关
 enable: true
+# 禁用图文解析的群号
+disabledGroups: []
 # 小红书解析开关
 xhsEnable: true
 # 小黑盒解析开关

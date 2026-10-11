@@ -26,6 +26,32 @@ const PLUGIN_PATH = process.cwd().replace(/\\/g, '/')
 
 const cfg = () => setting.getConfig('tw') || {}
 
+function disabledGroupIds () {
+  const list = cfg().disabledGroups
+  return Array.isArray(list) ? list.map(String) : []
+}
+
+function isGroupDisabled (groupId) {
+  return groupId != null && disabledGroupIds().includes(String(groupId))
+}
+
+function setGroupDisabled (groupId, disabled) {
+  const current = cfg()
+  const id = String(groupId)
+  const groups = disabledGroupIds()
+  const next = disabled
+    ? [...new Set([...groups, id])]
+    : groups.filter(item => item !== id)
+  if (setting.setConfig('tw', { ...current, disabledGroups: next }) === false) {
+    throw new Error('写入配置失败')
+  }
+  return next
+}
+
+function canManageGroup (e) {
+  return e.isMaster || e.member?.is_owner === true || e.member?.is_admin === true
+}
+
 /* ───────────── 工具 ───────────── */
 
 function ensureTmp() {
@@ -588,7 +614,44 @@ export class twParser extends plugin {
       dsc: '小红书/小黑盒 链接解析',
       event: 'message',
       priority: 4000,
+      rule: [
+        { reg: '^#?(开启|开|打开|关闭|关)(图文|图文链接)解析$', fnc: 'toggleGroup', permission: 'admin' },
+        { reg: '^#?(图文|图文链接)解析状态$', fnc: 'groupStatus' },
+      ],
     })
+  }
+
+  async toggleGroup (e) {
+    if (!e.isGroup) {
+      await e.reply('图文解析分群开关需要在群里使用哦~')
+      return true
+    }
+    if (!canManageGroup(e)) {
+      await e.reply('只有群主、管理员或机器人主人才能开关本群图文解析哦~')
+      return true
+    }
+    const enabled = /开启|开|打开/.test(e.msg)
+    try {
+      const groups = setGroupDisabled(e.group_id, !enabled)
+      await e.reply(enabled
+        ? `本群图文解析已开启~ 当前关闭 ${groups.length} 个群`
+        : `本群图文解析已关闭~ 当前关闭 ${groups.length} 个群`)
+    } catch (err) {
+      logger.error('[图文解析] 修改群开关失败：', err)
+      await e.reply('设置失败，请检查配置文件权限')
+    }
+    return true
+  }
+
+  async groupStatus (e) {
+    if (!e.isGroup) {
+      await e.reply('图文解析状态请在群里查看哦~')
+      return true
+    }
+    await e.reply(isGroupDisabled(e.group_id)
+      ? '本群图文解析已关闭'
+      : '本群图文解析已开启')
+    return true
   }
 
   async accept(e) {
@@ -598,6 +661,9 @@ export class twParser extends plugin {
 
     const hit = detect(collectText(e))
     if (!hit) return
+
+    // 按群关闭仅影响图文解析，私聊不受影响。
+    if (e.isGroup && isGroupDisabled(e.group_id)) return
 
     // 平台分开关
     if (c[PLATFORM_SWITCH[hit.platform]] === false) return

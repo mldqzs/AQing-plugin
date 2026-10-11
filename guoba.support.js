@@ -386,6 +386,20 @@ export function supportGuoba() {
           component: 'Switch',
         },
         {
+          field: 'video.disabledGroups',
+          label: '关闭短视频解析的群聊',
+          bottomHelpMessage: '列表中的群聊不会自动解析抖音、快手、B站链接；也可在群内发送「#关闭短视频解析 / #开启短视频解析」热切换，私聊不受影响',
+          component: 'GTags',
+          componentProps: {
+            placeholder: '请输入群号',
+            allowAdd: true,
+            allowDel: true,
+            showPrompt: true,
+            promptProps: addGroupPromptProps,
+            valueFormatter: ((value) => String(value)).toString(),
+          },
+        },
+        {
           field: 'video.parseBili',
           label: 'B站解析',
           bottomHelpMessage: '官方 API 自解析',
@@ -553,6 +567,20 @@ export function supportGuoba() {
           label: '小黑盒解析',
           bottomHelpMessage: '小黑盒图文/视频帖解析',
           component: 'Switch',
+        },
+        {
+          field: 'tw.disabledGroups',
+          label: '关闭图文解析的群聊',
+          bottomHelpMessage: '列表中的群聊不会自动解析小红书、小黑盒链接；也可在群内发送「#关闭图文解析 / #开启图文解析」热切换，私聊不受影响',
+          component: 'GTags',
+          componentProps: {
+            placeholder: '请输入群号',
+            allowAdd: true,
+            allowDel: true,
+            showPrompt: true,
+            promptProps: addGroupPromptProps,
+            valueFormatter: ((value) => String(value)).toString(),
+          },
         },
         { component: 'Divider', label: '小红书' },
         {

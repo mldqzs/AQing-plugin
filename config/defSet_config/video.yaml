@@ -12,6 +12,7 @@
 #   · 快手   移动分享页 INIT_STATE
 
 enable: true              # 总开关
+disabledGroups: []        # 禁用短视频解析的群号
 parseBili: true           # B站解析开关
 parseDouyin: true         # 抖音解析开关
 parseKuaishou: true       # 快手解析开关
