@@ -4,3 +4,8 @@ config/config/
 # 数据与依赖
 data/
 node_modules/
+
+# SQLite 运行时数据库及 WAL sidecar
+/guild*.db
+/guild*.db-wal
+/guild*.db-shm

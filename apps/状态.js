@@ -1,11 +1,7 @@
 /**
- * AQ：可爱状态 — 猫爪果冻风格的服务器/机器人状态图
+ * AQ 状态图：展示机器人运行环境、资源占用与适配器消息统计
  * 触发：#状态 / #status / #云崽状态 / #zt / #阿晴状态
- * 开关：config.yaml 的 kawaiiStatus（或锅巴 → 可爱状态）
- *   - 开启：#状态 由阿晴出可爱状态图，并拦截云崽本体的「状态统计」
- *   - 关闭：#状态 交还给云崽本体，阿晴不接管
- * 主人可直接发「#开启可爱状态 / #关闭可爱状态」热切换。
- * 数据用 systeminformation（缺失则自动回退 os 模块）。
+ * 开关：锅巴中的状态图开关，或主人发送「#开启可爱状态 / #关闭可爱状态」
  */
 
 import plugin from '../../../lib/plugins/plugin.js'
@@ -14,9 +10,7 @@ import setting from '../utils/setting.js'
 import fs from 'fs'
 import path from 'path'
 import os from 'os'
-import https from 'https'
-import http from 'http'
-import { execSync } from 'child_process'
+import { execFile, execFileSync, execSync } from 'child_process'
 import { fileURLToPath } from 'url'
 
 const __filename = fileURLToPath(import.meta.url)
@@ -27,64 +21,124 @@ try { si = (await import('systeminformation')).default } catch (_) {}
 
 const NET_MAX = 30
 const netHist = { up: [], down: [] }
+let npmVersionPromise
+const runtimePackage = (() => {
+  try {
+    return JSON.parse(fs.readFileSync(path.join(process.cwd(), 'package.json'), 'utf8'))
+  } catch (_) {
+    return {}
+  }
+})()
 
 const _path = process.cwd().replace(/\\/g, '/')
 const TPL = './plugins/AQing-plugin/resources/html/status/status.html'
-
-// 读取「可爱状态」开关
 const isOn = () => setting.getConfig('config')?.kawaiiStatus === true
 
-// ─── 背景图（每次触发重新拉取，接口随机返回不同二次元横屏壁纸）──
-// 按顺序尝试，任一成功即用；全部失败则返回 null，模板退回兜底渐变
-const BG_APIS = [
-  'https://www.loliapi.com/acg/',   // 主：精选二次元横屏
-  'https://www.dmoe.cc/random.php', // 备用
-  'https://t.mwm.moe/pc'            // 备用
-]
-async function getBg () {
-  for (const u of BG_APIS) {
-    try {
-      const b64 = await fetchB64(u)
-      if (b64) return b64
-    } catch (_) {}
+function getNpmVersion () {
+  if (npmVersionPromise) return npmVersionPromise
+
+  const userAgentVersion = process.env.npm_config_user_agent?.match(/(?:^|\s)npm\/(\d+\.\d+\.\d+)/)?.[1]
+  if (userAgentVersion) {
+    npmVersionPromise = Promise.resolve(`v${userAgentVersion}`)
+    return npmVersionPromise
   }
-  return null
+
+  npmVersionPromise = new Promise(resolve => {
+    try {
+      execFile('npm', ['--version'], { timeout: 1500, windowsHide: true }, (err, stdout) => {
+        const version = stdout?.trim().match(/^v?\d+\.\d+\.\d+(?:[-+][\w.-]+)?$/)?.[0]
+        resolve(err || !version ? '未知' : `v${version.replace(/^v/, '')}`)
+      })
+    } catch (_) {
+      resolve('未知')
+    }
+  })
+  return npmVersionPromise
 }
 
-// ─── 通用 HTTP/HTTPS 下载转 base64（支持重定向）──────────────
-function fetchB64 (url, maxRedirects = 5) {
-  return new Promise((resolve, reject) => {
-    const get = (u, left) => {
-      const isHttps = u.startsWith('https')
-      const mod = isHttps ? https : http
-      const req = mod.get(u, { timeout: 8000 }, res => {
-        if ([301, 302, 303, 307, 308].includes(res.statusCode) && res.headers.location && left > 0) {
-          res.resume()
-          return get(res.headers.location, left - 1)
-        }
-        if (res.statusCode !== 200) return reject(new Error(`HTTP ${res.statusCode}`))
-        const chunks = []
-        res.on('data', c => chunks.push(c))
-        res.on('end', () => {
-          const buf = Buffer.concat(chunks)
-          const mime = res.headers['content-type']?.split(';')[0] || 'image/jpeg'
-          resolve(`data:${mime};base64,${buf.toString('base64')}`)
-        })
-        res.on('error', reject)
-      })
-      req.on('error', reject)
-      req.on('timeout', () => { req.destroy(); reject(new Error('timeout')) })
-    }
-    get(url, maxRedirects)
-  })
+function getFrameworkInfo () {
+  const packageName = String(runtimePackage.name || '').trim()
+  const normalizedName = packageName.toLowerCase()
+  const displayNames = {
+    'miao-yunzai': 'Miao-Yunzai',
+    'trss-yunzai': 'TRSS-Yunzai',
+    'a-yunzai': 'A-Yunzai',
+    'yunzai': 'Yunzai-Bot',
+    'yunzai-bot': 'Yunzai-Bot',
+  }
+  const version = String(runtimePackage.version || '').trim().replace(/^v/i, '')
+
+  return {
+    name: displayNames[normalizedName] || (packageName ? packageName[0].toUpperCase() + packageName.slice(1) : '未知框架'),
+    version: version ? `v${version}` : '未知',
+  }
 }
+
+function getGpuName (controllers) {
+  const names = []
+  const invalid = /^(unknown|undefined|null|n\/?a|none|generic|未检测到|未知)$/i
+  const isUsable = value => value && !invalid.test(value)
+  const addName = name => {
+    if (isUsable(name) && !names.some(item => item.toLowerCase() === name.toLowerCase())) names.push(name)
+  }
+
+  for (const controller of Array.isArray(controllers) ? controllers : []) {
+    const model = String(controller?.model || '').trim()
+    const controllerName = String(controller?.name || '').trim()
+    const vendor = String(controller?.vendor || '').trim()
+    const label = isUsable(model) ? model : isUsable(controllerName) ? controllerName : ''
+    if (!label) continue
+
+    addName(vendor && isUsable(vendor) && !label.toLowerCase().includes(vendor.toLowerCase())
+      ? `${vendor} ${label}`
+      : label)
+  }
+
+  if (!names.length && process.platform === 'linux') {
+    try {
+      const devices = execFileSync('lspci', ['-nn'], {
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'ignore'],
+        timeout: 1500,
+      })
+      for (const line of devices.split(/\r?\n/)) {
+        const match = line.match(/(?:VGA compatible controller|3D controller|Display controller)(?:\s+\[[^\]]+\])?:\s*(.+)$/i)
+        if (match) addName(match[1].trim())
+      }
+    } catch (_) {}
+  }
+
+  return names.length ? names.join(' / ') : '未检测到可用 GPU'
+}
+
+function getPluginVersion () {
+  try {
+    const pluginPackage = JSON.parse(fs.readFileSync(path.join(__dirname, '../package.json'), 'utf8'))
+    return pluginPackage.version ? `v${pluginPackage.version}` : '未知'
+  } catch (_) {
+    return '未知'
+  }
+}
+
+
+function parseCount (value) {
+  if (value == null || String(value).trim() === '') return null
+  const count = Number(value)
+  return Number.isFinite(count) && count >= 0 ? Math.trunc(count) : null
+}
+
+function formatCount (value) {
+  const count = parseCount(value)
+  return count == null ? '—' : count.toLocaleString('en-US')
+}
+
 
 // ─── 插件类（单一导出）────────────────────────────────────────
 export class KawaiiStatus extends plugin {
   constructor () {
     super({
-      name: 'AQ：可爱状态',
-      dsc: '猫爪果冻风格状态图',
+      name: 'AQ：状态图',
+      dsc: '查看机器人运行环境、系统资源与适配器消息统计',
       event: 'message',
       priority: 500, // 抢在云崽本体「状态统计」(默认5000) 之前
       rule: [
@@ -94,15 +148,14 @@ export class KawaiiStatus extends plugin {
     })
   }
 
-  // 主人热切换开关
   async toggle (e) {
-    if (!e.isMaster) { await e.reply('只有主人能开关可爱状态哦~ ฅ(>﹏<)ฅ'); return true }
+    if (!e.isMaster) { await e.reply('只有主人可以切换状态图开关。'); return true }
     const on = /开启|开|打开/.test(e.msg)
     const cur = setting.getConfig('config') || {}
     setting.setConfig('config', { ...cur, kawaiiStatus: on })
     await e.reply(on
-      ? '可爱状态已开启~ 以后发「#状态」就由我来出图啦 ฅ^•ﻌ•^ฅ'
-      : '可爱状态已关闭~ 「#状态」交还给云崽本体啦 (=^･ω･^=)')
+      ? '状态图已开启，发送「#状态」即可查看运行信息。'
+      : '状态图已关闭，「#状态」将交还给云崽本体处理。')
     return true
   }
 
@@ -110,21 +163,20 @@ export class KawaiiStatus extends plugin {
     // 开关关闭：不接管，交还给云崽本体的「状态统计」
     if (!isOn()) return false
 
-    await e.reply('正在查服务器状态… ฅ^•ﻌ•^ฅ')
+    await e.reply('正在整理运行状态，请稍候…')
     try {
-      const [d, avatarB64, bgB64] = await Promise.all([
+      const [d, avatarB64] = await Promise.all([
         collect(e),
         getAvatar(e),
-        getBg(),
       ])
       updateNet(d.net)
-      const data = buildData(d, avatarB64, bgB64)
+      const data = buildData(d, avatarB64)
       const img = await puppeteer.screenshot('status', data)
       if (img) await e.reply(img)
-      else await e.reply('出图失败了，待会再试试吧 ฅ(>﹏<)ฅ')
+      else await e.reply('状态图生成失败，请稍后重试。')
     } catch (err) {
-      logger.error('[AQ可爱状态]', err)
-      await e.reply(`查状态摔了一跤：${err.message}`)
+      logger.error('[AQ状态图]', err)
+      await e.reply(`状态图生成失败：${err.message || '未知错误'}`)
     }
     return true // 已接管，拦截本体状态
   }
@@ -135,8 +187,28 @@ async function getAvatar (e) {
   try {
     const selfId = e.self_id || Bot?.uin || Bot?.account?.uin
     if (!selfId) return null
-    return await fetchB64(`https://q1.qlogo.cn/g?b=qq&nk=${selfId}&s=640`)
+    return await fetchB64(`https://q1.qlogo.cn/g?b=qq&nk=${encodeURIComponent(selfId)}&s=640`)
   } catch (_) { return null }
+}
+
+async function fetchB64 (url) {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), 4000)
+  try {
+    const response = await fetch(url, { signal: controller.signal })
+    if (!response.ok) return null
+
+    const type = response.headers.get('content-type')?.split(';')[0]
+    if (!type?.startsWith('image/')) return null
+
+    const data = Buffer.from(await response.arrayBuffer())
+    if (!data.length || data.length > 2 * 1024 * 1024) return null
+    return `data:${type};base64,${data.toString('base64')}`
+  } catch (_) {
+    return null
+  } finally {
+    clearTimeout(timer)
+  }
 }
 
 // ─── 数据收集 ─────────────────────────────────────────────────
@@ -154,13 +226,13 @@ async function collect (e) {
         graphics: 'controllers',
       })
     } catch (err) {
-      logger.warn('[AQ可爱状态] si.get() 失败，回退到 os 模块:', err.message)
+      logger.warn('[AQ状态图] systeminformation 获取失败，回退到 os 模块:', err.message)
     }
   }
 
   // ── CPU ──
   const cpuOsInfo = os.cpus()
-  let cpuModel = cpuOsInfo[0]?.model?.trim() || 'The Emperor\'s New CPU'
+  let cpuModel = cpuOsInfo[0]?.model?.trim() || '未知 CPU'
   if (cpuModel.length > 40) cpuModel = cpuModel.slice(0, 40) + '…'
   const cpuCores = cpuOsInfo.length
 
@@ -255,47 +327,35 @@ async function collect (e) {
   // ── OS & GPU ──
   let osName = `${os.type()} ${os.release()}`
   let arch = os.arch()
-  let gpuName = "The Emperor's New GPU"
+  const gpuName = getGpuName(siData.graphics?.controllers)
   if (siData.osInfo) {
     const o = siData.osInfo
     osName = `${o.distro || ''} ${o.release || ''}`.trim() || osName
     arch = o.arch || arch
   }
-  if (siData.graphics?.controllers?.[0]?.model) {
-    gpuName = siData.graphics.controllers[0].model
-  }
 
   const sysUptime = formatUptime(os.uptime())
   const botUptime = formatUptime(process.uptime())
 
-  // ── Yunzai 版本 ──
-  let yunzaiVer = 'v3.x'
-  for (const rel of ['../../package.json', '../../../package.json']) {
-    try {
-      const p = path.resolve(__dirname, rel)
-      if (fs.existsSync(p)) {
-        yunzaiVer = 'v' + JSON.parse(fs.readFileSync(p, 'utf8')).version
-        break
-      }
-    } catch (_) {}
-  }
+  const { name: frameworkName, version: frameworkVer } = getFrameworkInfo()
+  const pluginVersion = getPluginVersion()
+  const npmVer = await getNpmVersion()
 
   // ── 插件数量 ──
   let pluginCount = '0', jsCount = '0'
   try {
     const pluginsDir = path.resolve(__dirname, '../../../plugins')
-    const excludedDirs = ['example', 'genshin', 'other', 'system', 'bin', 'adapter']
+    const coreDirs = new Set(['system', 'other', 'example', 'adapter', 'genshin'])
     if (fs.existsSync(pluginsDir)) {
       const pluginFolders = fs.readdirSync(pluginsDir).filter(name => {
         try {
-          return fs.statSync(path.join(pluginsDir, name)).isDirectory() &&
-                 !excludedDirs.includes(name)
+          return fs.statSync(path.join(pluginsDir, name)).isDirectory() && !coreDirs.has(name)
         } catch { return false }
       })
       pluginCount = String(pluginFolders.length)
-      const exampleDir = path.join(pluginsDir, 'example')
-      jsCount = fs.existsSync(exampleDir)
-        ? String(fs.readdirSync(exampleDir).filter(f => f.endsWith('.js')).length)
+      const jsPluginDir = path.join(pluginsDir, 'example')
+      jsCount = fs.existsSync(jsPluginDir)
+        ? String(fs.readdirSync(jsPluginDir).filter(file => file.endsWith('.js')).length)
         : '0'
     }
   } catch (_) {}
@@ -313,7 +373,7 @@ async function collect (e) {
   } catch (_) {}
 
   // ── 适配器 / 收发消息 ──
-  let adapter = 'NapCat.Onebot', adapterVer = '', msgSent = '0', msgRecv = '0'
+  let adapter = '未知适配器', adapterVer = '', msgSent = '—', msgRecv = '—'
   try {
     const uin = e.self_id || Bot?.uin || ''
     const bot = Bot[uin] || Bot
@@ -322,10 +382,8 @@ async function collect (e) {
     adapterVer = ver.app_version || ver.version || ''
     const rSent = uin ? await redis.get(`Yz:count:send:msg:bot:${uin}:total`).catch(() => null) : null
     const rRecv = uin ? await redis.get(`Yz:count:receive:msg:bot:${uin}:total`).catch(() => null) : null
-    msgSent = rSent ? String(parseInt(rSent)).replace(/\B(?=(\d{3})+(?!\d))/g, ',')
-      : String(bot?.stat?.sent_msg_cnt ?? 0)
-    msgRecv = rRecv ? String(parseInt(rRecv)).replace(/\B(?=(\d{3})+(?!\d))/g, ',')
-      : String(bot?.stat?.recv_msg_cnt ?? 0)
+    msgSent = formatCount(parseCount(rSent) ?? bot?.stat?.sent_msg_cnt)
+    msgRecv = formatCount(parseCount(rRecv) ?? bot?.stat?.recv_msg_cnt)
   } catch (_) {}
 
   const now = new Date()
@@ -338,7 +396,8 @@ async function collect (e) {
     diskPct, diskUsedG, diskTotG,
     net: { up: netUp, dn: netDn, upKB: parseFloat(netUpKB), dnKB: parseFloat(netDnKB) },
     osName, arch, gpuName, sysUptime, botUptime,
-    yunzaiVer, pluginCount, jsCount,
+    frameworkName, frameworkVer, pluginVersion, npmVer,
+    pluginCount, jsCount,
     friendCount, groupCount, botName, botId, adapter, adapterVer, msgSent, msgRecv,
     nodeVer: process.version,
     dt,
@@ -353,19 +412,15 @@ function updateNet ({ upKB, dnKB }) {
 
 
 // ─── 组装模板数据（圆环 / 网络图均服务端预生成 SVG）──────────
-function buildData (d, avatarB64, bgB64) {
+function buildData (d, avatarB64) {
   const col = pct => pct > 85 ? '#ff8fb3' : pct > 60 ? '#ffb27a' : null
   const cpuCol = col(d.cpuPct) || '#5fc8f8'
   const ramCol = col(d.ramPct) || '#ff86c8'
   const swpCol = col(d.swpPct) || '#b69bff'
   const diskCol = col(d.diskPct) || '#ffac6b'
 
-  const bgStyle = bgB64
-    ? `background-image:url('${bgB64}');`
-    : `background:linear-gradient(160deg,#cfe0ff 0%,#e6d6ff 50%,#ffd9ec 100%);`
-
   const avatarHtml = avatarB64
-    ? `<img class="avimg" src="${avatarB64}" alt="av">`
+    ? `<img class="avimg" src="${avatarB64}" alt="avatar">`
     : `<div class="avfb">${escHtml(d.botName.charAt(0) || '◍')}</div>`
 
   // 圆环（三枚）
@@ -380,30 +435,21 @@ function buildData (d, avatarB64, bgB64) {
     netHist.down.length ? netHist.down : [0]
   )
 
-  // 随机问候 & 涂鸦，避免每次出图都是同一套模板感
-  const pick = a => a[Math.floor(Math.random() * a.length)]
-  const greet = pick([
-    '今天也元气满满哒~', '一切正常，喵呜~', '服务器乖乖运行中~',
-    '状态良好，继续冲鸭!', '在线摸鱼ing…开玩笑啦~', '嗯哼，我很好哦~'
-  ])
-  const kao = pick(['ฅ^•ﻌ•^ฅ', '(=^･ω･^=)', '=^._.^=', '(｡･ω･｡)', 'ฅ(՞•ﻌ•՞)ฅ', 'ﾉ(´ω｀*)'])
-  const doo = ['🌸', '✨', '🐾', '💗', '⭐', '🌷', '🫧', '🍓', '🐱', '🍰'].sort(() => Math.random() - 0.5)
-
-  // 磁盘条尾部爪印位置
   const diskPawLeft = `max(4px, calc(${d.diskPct}% - 14px))`
 
   return {
     tplFile: TPL, pluResPath: _path, saveId: 'status', imgType: 'png',
-    bgStyle, avatarHtml, ringsHtml, netSvg,
+    avatarHtml, ringsHtml, netSvg,
     botName: d.botName, botId: d.botId,
-    yunzaiVer: d.yunzaiVer, adapter: d.adapter, adapterVer: d.adapterVer,
+    frameworkName: d.frameworkName, frameworkVer: d.frameworkVer,
+    pluginVersion: d.pluginVersion, npmVer: d.npmVer, nodeVer: d.nodeVer,
+    adapter: d.adapter, adapterVer: d.adapterVer,
     botUptime: d.botUptime, pluginCount: d.pluginCount, jsCount: d.jsCount,
     friendCount: d.friendCount, groupCount: d.groupCount, dt: d.dt,
     diskUsedG: d.diskUsedG, diskTotG: d.diskTotG, diskPct: d.diskPct, diskColor: diskCol, diskPawLeft,
     netUp: d.net.up, netDn: d.net.dn,
     osName: d.osName, arch: d.arch, cpuModel: d.cpuModel, cpuCores: d.cpuCores, cpuFreq: d.cpuFreq,
-    gpuName: d.gpuName, nodeVer: d.nodeVer, msgRecv: d.msgRecv, msgSent: d.msgSent, sysUptime: d.sysUptime,
-    greet, kao, d1: doo[0], d2: doo[1], d3: doo[2], d4: doo[3], d5: doo[4]
+    gpuName: d.gpuName, msgRecv: d.msgRecv, msgSent: d.msgSent, sysUptime: d.sysUptime,
   }
 }
 
