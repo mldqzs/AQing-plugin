@@ -172,6 +172,22 @@ async function downloadToFile(url, headers, dest, maxMB) {
   return dest
 }
 
+// 只在下载失败时换 CDN，不重试 QQ 发送，也不绕过体积限制。
+async function downloadVideo(video, dest, maxMB) {
+  const urls = [...new Set([video.url, ...(video.alternatives || [])])].filter(Boolean)
+  let lastError
+  for (const url of urls) {
+    try {
+      return await downloadToFile(url, video.headers || {}, dest, maxMB)
+    } catch (err) {
+      if (/超过上限/.test(err?.message || '')) throw err
+      lastError = err
+      logger.warn(`[短视频解析] 视频节点下载失败：${err?.message || err}`)
+    }
+  }
+  throw lastError || new Error('未取到视频地址')
+}
+
 // 本机文件统一用 file:// URI 交给适配器：NapCat 直接从磁盘读，
 // 不在云崽进程里把整文件 base64 进内存，大幅降低发大视频时的内存峰值
 const fileUri = (p) => 'file://' + path.resolve(p)
@@ -575,8 +591,7 @@ async function downloadLiveSegment(url, headers, dest, seconds, maxMB) {
 
 /* ───────────── 发送 ───────────── */
 
-// 不发视频本体时给用户一个可点链接：优先给可直接播放的视频直链（B站 html5 渐进式
-// 直链实测免 Referer 可直接打开，只是有时效、约几小时后失效）；取不到直链再退回页面链接
+// 不发视频本体时保留原功能：优先返回视频直链，取不到时才用页面链接。
 function pickUserLink(r) {
   return r.video?.url || r.pageUrl || ''
 }
@@ -806,7 +821,7 @@ async function sendResult(e, r) {
     ensureTmp()
     localFile = path.join(TMP_DIR, `v_${Date.now()}_${Math.floor(Math.random() * 1e6)}.mp4`)
     // downloadToFile 内部按 maxMB 卡 content-length，超限会抛错 → 落到 catch 甩直链
-    await downloadToFile(r.video.url, r.video.headers || {}, localFile, maxMB)
+    await downloadVideo(r.video, localFile, maxMB)
     await e.reply(segment.video(fileUri(localFile)))
     // 背景音乐（默认关，锅巴可开）
     if (c.sendBgm) await sendBgmFromVideo(e, r, localFile)

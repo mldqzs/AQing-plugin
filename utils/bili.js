@@ -8,8 +8,42 @@
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36'
 
 async function fetchJson(url, extraHeaders = {}) {
-  const res = await fetch(url, { headers: { 'User-Agent': UA, ...extraHeaders } })
-  return res.json()
+  const res = await fetch(url, {
+    headers: { 'User-Agent': UA, Referer: 'https://www.bilibili.com/', Accept: 'application/json', ...extraHeaders },
+    signal: AbortSignal.timeout(15000),
+  })
+  const endpoint = new URL(url).pathname
+  if (!res.ok) {
+    await res.body?.cancel()
+    throw new Error(`B站 ${endpoint} 请求失败 HTTP ${res.status}（可能为风控或网络错误页）`)
+  }
+  const body = await res.text()
+  try {
+    return JSON.parse(body)
+  } catch {
+    const kind = /^\s*</.test(body) ? 'HTML 网页，可能被风控或代理拦截' : '非 JSON 内容'
+    throw new Error(`B站 ${endpoint} 返回了${kind}，请检查机器人服务器访问 api.bilibili.com 是否正常`)
+  }
+}
+
+async function fetchVideoInfo(query) {
+  let lastError
+  for (const endpoint of ['view', 'wbi/view']) {
+    try {
+      const view = await fetchJson(`https://api.bilibili.com/x/web-interface/${endpoint}?${query}`)
+      // 删除、私有等业务错误不反复请求；只有网络/风控异常才换接口。
+      if (view?.code !== 0 && ![-352, -412, -500, -503].includes(view?.code)) {
+        throw Object.assign(new Error(`B站接口返回：${view?.message || view?.code}`), { terminal: true })
+      }
+      if (view?.code !== 0 || !view?.data) throw new Error(`B站接口返回：${view?.message || view?.code || '视频信息为空'}`)
+      return view.data
+    } catch (err) {
+      if (err.terminal) throw err
+      lastError = err
+      globalThis.logger?.warn?.(`[B站解析] ${endpoint} 失败：${err?.message || err}`)
+    }
+  }
+  throw lastError
 }
 
 let buvidCache = { value: '', ts: 0 }
@@ -72,26 +106,32 @@ export async function parseBili(rawUrl) {
   const aid = (url.match(/av(\d+)/i) || [])[1]
   if (!bvid && !aid) throw new Error('未识别到 B 站视频 ID')
 
-  const view = await fetchJson(`https://api.bilibili.com/x/web-interface/view?${bvid ? `bvid=${bvid}` : `aid=${aid}`}`)
-  if (view.code !== 0) throw new Error(`B站接口返回：${view.message || view.code}`)
-  const d = view.data
+  const d = await fetchVideoInfo(bvid ? `bvid=${bvid}` : `aid=${aid}`)
   const cid = d.cid || d.pages?.[0]?.cid
   const avid = d.aid
 
-  // 渐进式 MP4（fnval=1 单文件，免 ffmpeg 合流）；platform=html5 免登录，画质约 360/480p、体积小适合发送
+  // 保持 HTML5 渐进式 MP4 优先，地址可直接播放；PC 只用于下载接口兜底。
   let video = null
-  try {
-    const buvid = await getBuvid()
-    const pu = await fetchJson(
-      `https://api.bilibili.com/x/player/playurl?avid=${avid}&cid=${cid}&qn=64&fnval=1&fnver=0&fourk=0&platform=html5&high_quality=1`,
-      { Referer: 'https://www.bilibili.com', Cookie: `buvid3=${buvid}` }
-    )
-    const durl = pu?.data?.durl?.[0]
-    if (pu.code === 0 && durl?.url) {
-      video = { url: durl.url, size: durl.size, headers: { Referer: 'https://www.bilibili.com' } }
+  const buvid = await getBuvid()
+  for (const platform of ['html5', 'pc']) {
+    try {
+      const pu = await fetchJson(
+        `https://api.bilibili.com/x/player/playurl?avid=${avid}&cid=${cid}&qn=64&fnval=1&fnver=0&fourk=0&platform=${platform}&high_quality=1`,
+        { Referer: 'https://www.bilibili.com/', Cookie: `buvid3=${buvid}` }
+      )
+      const durl = pu?.data?.durl?.[0]
+      if (pu?.code !== 0 || !durl?.url) {
+        throw new Error(`接口返回 ${pu?.code}：${pu?.message || '未返回单文件视频地址'}`)
+      }
+      video = {
+        url: durl.url, size: durl.size,
+        headers: { Referer: 'https://www.bilibili.com/' },
+        alternatives: [...new Set(durl.backup_url || [])].filter(u => typeof u === 'string' && /^https?:\/\//i.test(u) && u !== durl.url),
+      }
+      break
+    } catch (err) {
+      globalThis.logger?.warn?.(`[B站解析] playurl (${platform}) 失败：${err?.message || err}`)
     }
-  } catch (err) {
-    logger.warn(`[B站解析] playurl 失败：${err?.message || err}`)
   }
 
   const pageUrl = `https://www.bilibili.com/video/${bvid || `av${avid}`}`
