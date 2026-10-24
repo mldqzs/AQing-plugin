@@ -2,7 +2,7 @@ import plugin from '../../../lib/plugins/plugin.js'
 import common from '../../../lib/common/common.js'
 import setting from '../utils/setting.js'
 import { collectMusicText, detectMusicLink, parseMusic } from '../utils/music.js'
-import { createKugouQr, createQQMusicQr, pollKugouQr, pollQQMusicQr } from '../utils/musicLogin.js'
+import { closeQr, createKugouQr, createQQMusicQr, pollKugouQr, pollQQMusicQr } from '../utils/musicLogin.js'
 import fs from 'node:fs'
 import path from 'node:path'
 import { execFile } from 'node:child_process'
@@ -266,12 +266,13 @@ export class musicParse extends plugin {
   }
 
   async qqQrLogin (e) {
+    let qr
     try {
       const c = cfg()
       const timeoutSec = Math.max(30, Math.min(300, Number(c.loginTimeout) || 120))
-      await e.reply('请使用 QQ音乐/手机QQ 扫码登录。', true)
-      const qr = await createQQMusicQr({ timeout: Math.max(5, Number(c.timeout) || 20) * 1000 })
-      await e.reply(segment.image(qr.image), true)
+      await e.reply('请使用手机QQ 扫码登录，并按页面提示确认授权 QQ音乐。', true)
+      qr = await createQQMusicQr({ timeout: Math.max(5, Number(c.timeout) || 20) * 1000 })
+      if (await e.reply(segment.image(qr.image), true) === false) throw new Error('二维码发送失败，请稍后重试')
       const login = await pollQQMusicQr(qr, { timeoutSec })
       const next = setting.getConfig('music') || {}
       next.qqCookie = login.cookie
@@ -280,17 +281,20 @@ export class musicParse extends plugin {
     } catch (err) {
       logger.error('[音乐解析][QQ扫码]', err)
       await e.reply(`QQ音乐扫码失败：${err?.message || err}`, true)
+    } finally {
+      await closeQr(qr)
     }
     return true
   }
 
   async kugouQrLogin (e) {
+    let qr
     try {
       const c = cfg()
       const timeoutSec = Math.max(30, Math.min(300, Number(c.loginTimeout) || 120))
       await e.reply('请使用酷狗音乐 App 扫码登录。', true)
-      const qr = await createKugouQr({ timeout: Math.max(5, Number(c.timeout) || 20) * 1000 })
-      await e.reply(segment.image(qr.image), true)
+      qr = await createKugouQr({ timeout: Math.max(5, Number(c.timeout) || 20) * 1000 })
+      if (await e.reply(segment.image(qr.image), true) === false) throw new Error('二维码发送失败，请稍后重试')
       const login = await pollKugouQr(qr, { timeoutSec })
       const next = setting.getConfig('music') || {}
       next.kugouCookie = login.cookie
@@ -301,6 +305,8 @@ export class musicParse extends plugin {
     } catch (err) {
       logger.error('[音乐解析][酷狗扫码]', err)
       await e.reply(`酷狗音乐扫码失败：${err?.message || err}`, true)
+    } finally {
+      await closeQr(qr)
     }
     return true
   }

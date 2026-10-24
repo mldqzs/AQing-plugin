@@ -63,6 +63,7 @@ async function waitForSelectorInFrame (frame, selectors, timeout = 20000) {
         const visible = await el.evaluate(node => {
           const rect = node.getBoundingClientRect()
           const style = getComputedStyle(node)
+          if (node.tagName === 'IMG' && (!node.complete || node.naturalWidth < 20 || node.naturalHeight < 20)) return false
           return rect.width > 20 && rect.height > 20 && style.display !== 'none' && style.visibility !== 'hidden' && style.opacity !== '0'
         }).catch(() => false)
         if (visible) return el
@@ -154,13 +155,13 @@ function watchQQLoginTraffic (page) {
 }
 
 function qqLoginInfo (cookie = '') {
-  const uin = cookieValue(cookie, 'uin') || cookieValue(cookie, 'qqmusic_uin') || cookieValue(cookie, 'wxuin') || cookieValue(cookie, 'psrf_qqopenid')
-  const key = cookieValue(cookie, 'p_skey') || cookieValue(cookie, 'skey') || cookieValue(cookie, 'qqmusic_key') || cookieValue(cookie, 'qm_keyst') || cookieValue(cookie, 'psrf_musickey') || cookieValue(cookie, 'psrf_qqaccess_token')
-  const hasQQ = /(?:^|;\s*)(uin|qqmusic_uin|wxuin|psrf_qqopenid|p_skey|skey|qqmusic_key|qm_keyst|psrf_musickey|psrf_qqaccess_token|psrf_qqrefresh_token|qqmusic_fromtag)=/i.test(cookie)
-  return { uin, key, hasQQ }
+  const uin = cookieValue(cookie, 'uin') || cookieValue(cookie, 'qqmusic_uin') || cookieValue(cookie, 'wxuin')
+  const key = cookieValue(cookie, 'qqmusic_key') || cookieValue(cookie, 'qm_keyst') || cookieValue(cookie, 'psrf_musickey')
+  // QQ 授权临时态（skey、fromtag 等）不能代表已登录 QQ音乐。
+  return { uin, key }
 }
 
-async function closeQr (qr) {
+export async function closeQr (qr) {
   try { await qr?.browser?.close?.() } catch {}
 }
 
@@ -257,13 +258,13 @@ export async function pollQQMusicQr (qr, { timeoutSec = 120, intervalMs = 2500 }
       const cookie = await cookiesOfPage(qr.page, [QQ_REFERER, QQ_PROFILE, 'https://graph.qq.com/', 'https://ssl.ptlogin2.qq.com/', 'https://xui.ptlogin2.qq.com/'])
       lastCookie = mergeCookie(lastCookie, cookie)
       const info = qqLoginInfo(lastCookie)
-      if (info.key || info.hasQQ) return { cookie: lastCookie, uin: info.uin ? info.uin.replace(/^o/, '') : '', nick: '' }
+      if (info.uin && info.key) return { cookie: lastCookie, uin: info.uin.replace(/^o/, ''), nick: '' }
 
 
       await sleep(intervalMs)
     }
     const finalInfo = qqLoginInfo(lastCookie)
-    if (finalInfo.key || finalInfo.hasQQ) return { cookie: lastCookie, uin: finalInfo.uin ? finalInfo.uin.replace(/^o/, '') : '', nick: '' }
+    if (finalInfo.uin && finalInfo.key) return { cookie: lastCookie, uin: finalInfo.uin.replace(/^o/, ''), nick: '' }
     const names = [...new Set(String(lastCookie).split(';').map(v => v.trim().split('=')[0]).filter(Boolean))]
     throw new Error(`QQ音乐扫码超时，未捕获到 QQ音乐 Cookie。已捕获 Cookie 名称：${names.slice(0, 40).join(', ') || '无'}`)
   } finally {
