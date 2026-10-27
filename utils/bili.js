@@ -5,6 +5,8 @@
  * Object.keys(module)[0] 取插件类，多导出且类名字母靠后会被取错。共享逻辑一律放这里。
  */
 
+import { extractVideoStats } from './videoStats.js'
+
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36'
 
 async function fetchJson(url, extraHeaders = {}) {
@@ -191,5 +193,5 @@ export async function parseBili(rawUrl) {
     throw new Error('B站播放接口被 HTTP 412 拦截，尚未提取到视频，请检查服务器出口是否被 B站拦截')
   }
 
-  return { platform: 'B站', title: d.title, cover: d.pic, author: d.owner?.name, duration: d.duration, pageUrl, video, images: null }
+  return { platform: 'B站', title: d.title, cover: d.pic, author: d.owner?.name, duration: d.duration, pageUrl, stats: extractVideoStats('bili', d.stat), video, images: null }
 }

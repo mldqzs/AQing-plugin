@@ -3,6 +3,8 @@ import puppeteer from '../../../lib/puppeteer/puppeteer.js'
 import setting from '../utils/setting.js'
 import common from '../../../lib/common/common.js'
 import { parseBili } from '../utils/bili.js'
+import { parseKuaishou } from '../utils/kuaishou.js'
+import { extractVideoStats, buildVideoStats } from '../utils/videoStats.js'
 import fs from 'node:fs'
 import path from 'node:path'
 import { execFile } from 'node:child_process'
@@ -385,6 +387,7 @@ async function fetchDouyinExternal(rawUrl, id) {
       author: d.author?.name || '',
       cover: item.cover || item.cover_gif || d.author?.avatar || '',
       duration: Math.round(Number(item.duration || 0)),
+      stats: extractVideoStats('douyin', item.statistics, item.stats, item, d.statistics, d.stats),
       pageUrl: id ? `https://www.douyin.com/video/${id}` : rawUrl,
       bgmTitle: '',
       video: vurl ? { url: vurl, size: Number(item.size) || 0, headers: { 'User-Agent': MOBILE_UA, Referer: 'https://www.douyin.com' } } : null,
@@ -475,21 +478,18 @@ async function parseDouyin(rawUrl) {
   const cover = firstUrl(item.video?.cover) || firstUrl(item.video?.origin_cover) || firstUrl(item.cover)
   const pageUrl = `https://www.douyin.com/video/${id}`
   const bgmTitle = item.music?.title || ''
+  const stats = extractVideoStats('douyin', item.statistics, item.stats, item)
 
-  // 图文/图集笔记：images 非空。逐张区分——自带小视频的是「实况/动图」，按视频发；其余发静态图
+  // QQ 图集只发静态图片；实况/动图也取静态封面，不再转换成视频。
   if (Array.isArray(item.images) && item.images.length) {
     const images = []
-    const liveVideos = []
     for (const im of item.images) {
-      const v = firstUrl(im?.video?.play_addr) || firstUrl(im?.video?.download_addr)
-      if (v) {
-        liveVideos.push({ url: v.replace('playwm', 'play'), headers: { 'User-Agent': MOBILE_UA, Referer: 'https://www.douyin.com' } })
-      } else {
-        const u = firstUrl(im) || firstUrl(im?.display_image) || firstUrl(im?.download_url_list)
-        if (u) images.push(u)
-      }
+      const u = [im?.display_image, im?.download_url_list, im, im?.video?.cover, im?.video?.origin_cover]
+        .map(firstUrl).find(url => /^https?:\/\//i.test(url))
+      if (u) images.push(u)
     }
-    if (images.length || liveVideos.length) return { platform: '抖音', title, author, cover, duration: 0, pageUrl, video: null, images, liveVideos }
+    if (!images.length) throw new Error('未取到抖音图集的静态图片')
+    return { platform: '抖音', title, author, cover, stats, duration: 0, pageUrl, video: null, images }
   }
 
   const duration = Math.round((item.video?.duration || item.duration || 0) / 1000)
@@ -498,71 +498,11 @@ async function parseDouyin(rawUrl) {
   vurl = vurl.replace('playwm', 'play')
   const video = vurl ? { url: vurl, headers: { 'User-Agent': MOBILE_UA, Referer: 'https://www.douyin.com' } } : null
   if (!video) throw new Error('未取到抖音视频直链')
-  return { platform: '抖音', title, author, cover, duration, pageUrl, bgmTitle, video, images: null }
+  return { platform: '抖音', title, author, cover, stats, duration, pageUrl, bgmTitle, video, images: null }
 }
 
 
-/* ───────────── 快手：移动分享页 INIT_STATE 自解析 ───────────── */
-
-async function parseKuaishou(rawUrl) {
-  // 还原短链；快手分享落到 m.chenzhongtech.com / m.gifshow.com 的 /fw/photo/ 页
-  const r = await fetch(rawUrl, { headers: { 'User-Agent': MOBILE_UA, Referer: 'https://v.kuaishou.com/' }, redirect: 'follow' })
-  const finalUrl = (r.url || rawUrl).replace('/fw/long-video/', '/fw/photo/')
-  let html
-  if (finalUrl !== r.url) {
-    html = await (await fetch(finalUrl, { headers: { 'User-Agent': MOBILE_UA, Referer: 'https://v.kuaishou.com/' } })).text()
-  } else {
-    html = await r.text()
-  }
-
-  const m = html.match(/window\.INIT_STATE\s*=\s*(.*?)<\/script>/s)
-  if (!m) {
-    // 快手直播分享页使用独立的 LiveRouter，不再下发作品 photo 字段。
-    // 先识别直播间并返回页面信息，避免把直播分享误报成普通视频解析失败。
-    if (/\/fw\/live\//i.test(finalUrl)) {
-      const title = html.match(/<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']+)/i)?.[1]
-        || html.match(/<title[^>]*>([^<]+)/i)?.[1] || '快手直播'
-      const cover = html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)/i)?.[1] || ''
-      return { platform: '快手直播', title: title.trim(), author: '', cover, online: '', live: true, pageUrl: finalUrl, video: null }
-    }
-    throw new Error('快手页面结构变化，解析失败')
-  }
-  let data
-  try { data = JSON.parse(m[1].trim()) } catch { throw new Error('快手页面数据解析失败') }
-
-  // 快手直播分享页也可能带 INIT_STATE，但其中没有作品 photo；不要按普通视频报错。
-  if (/\/fw\/live\//i.test(finalUrl)) {
-    const title = html.match(/<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']+)/i)?.[1]
-      || html.match(/<title[^>]*>([^<]+)/i)?.[1] || '快手直播'
-    const cover = html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)/i)?.[1] || ''
-    return { platform: '快手直播', title: title.trim(), author: '', cover, online: '', live: true, pageUrl: finalUrl, video: null }
-  }
-
-  // 动态找含 photo 的那一项
-  let photo = null
-  for (const k in data) {
-    if (data[k] && typeof data[k] === 'object' && data[k].photo) { photo = data[k].photo; break }
-  }
-  if (!photo) throw new Error('快手作品获取失败（可能已删除、需要登录，或页面已改版）')
-
-  const title = photo.caption || ''
-  const author = photo.userName || ''
-  const cover = photo.coverUrls?.[0]?.url || ''
-  const duration = Math.round((photo.duration || 0) / 1000)
-
-  // 图集（atlas）：cdnList 主机 + list 路径
-  const atlas = photo.ext_params?.atlas
-  if (atlas?.cdnList?.length && atlas?.list?.length) {
-    const host = atlas.cdnList[0]?.cdn || atlas.cdnList[0]
-    const images = atlas.list.map(route => `https://${host}/${route}`).filter(Boolean)
-    if (images.length) return { platform: '快手', title, author, cover, duration: 0, pageUrl: finalUrl, video: null, images }
-  }
-
-  const vurl = photo.mainMvUrls?.[0]?.url || ''
-  if (!vurl) throw new Error('未取到快手视频直链')
-  const video = { url: vurl, headers: { 'User-Agent': MOBILE_UA, Referer: 'https://v.kuaishou.com/' } }
-  return { platform: '快手', title, author, cover, duration, pageUrl: finalUrl, video, images: null }
-}
+/* ───────────── 快手：解析逻辑在 utils/kuaishou.js ───────────── */
 
 async function downloadLiveSegment(url, headers, dest, seconds, maxMB) {
   const res = await fetch(url, { headers: { 'User-Agent': UA, ...headers } })
@@ -610,6 +550,7 @@ function buildHeader(r) {
     r.description ? `\n📄 ${r.description.replace(/<[^>]+>/g, '').trim()}` : '',
     r.area ? `\n📍 分区：${r.area}` : '',
     r.duration ? `\n⏱️ ${fmtDur(r.duration)}` : '',
+    !r.live ? `\n📊 ${buildVideoStats(r).map(item => `${item.label} ${item.value}`).join(' · ')}` : '',
   ].join('')
 }
 
@@ -627,7 +568,7 @@ function getPlatformHint(platform) {
 
 async function renderVideoCard(r, statusText = '解析成功') {
   if (cfg().renderCard === false) return null
-  const imageCount = (r.images?.length || 0) + (r.liveVideos?.length || 0)
+  const imageCount = r.images?.length || 0
   const isAlbum = imageCount > 0
   const sizeMB = r.video?.size ? r.video.size / 1048576 : 0
   const data = {
@@ -640,7 +581,7 @@ async function renderVideoCard(r, statusText = '解析成功') {
     kindText: r.live ? '直播' : (isAlbum ? '图文 / 图集作品' : '视频作品'),
     contentText: r.live ? '直播' : (isAlbum ? `${imageCount} 项媒体` : (sizeMB ? `约 ${sizeMB.toFixed(1)} MB` : '视频')),
     statusText: String(statusText || '解析成功').slice(0, 60),
-    pageUrl: String(r.pageUrl || '').slice(0, 120),
+    stats: buildVideoStats(r),
   }
   try {
     return await puppeteer.screenshot('video', {
@@ -736,42 +677,29 @@ async function sendResult(e, r) {
     return
   }
 
-  // 图文/图集笔记 → 详情卡片 + 图片；其中「实况/动图」那几张单独按视频发
-  if (r.images?.length || r.liveVideos?.length) {
-    const imgs = (r.images || []).slice(0, 12)
-    const imageCount = (r.images?.length || 0) + (r.liveVideos?.length || 0)
-    const card = await renderVideoCard(r, `图集解析成功 · 共 ${imageCount} 项媒体`)
+  if (r.images?.length) {
+    const imgs = r.images
+    const batchSize = 12
+    const batchCount = Math.ceil(imgs.length / batchSize)
+    const card = await renderVideoCard(r, `图集解析成功 · 共 ${imgs.length} 张图片`)
     if (card) await e.reply(card)
 
-    // 图集用「聊天记录」（合并转发）折叠，避免多张图片刷屏；卡片失败时保留原标题节点
-    if (imgs.length) {
-      const nodes = [...(card ? [] : [header]), ...imgs.map(u => segment.image(u))]
+    // 全量分批转发，避免长图集被截断；单批失败只回退这一批。
+    for (let start = 0; start < imgs.length; start += batchSize) {
+      const batch = imgs.slice(start, start + batchSize)
+      const batchIndex = Math.floor(start / batchSize) + 1
+      const batchTitle = batchCount > 1
+        ? `${r.platform}图集 · ${batchIndex}/${batchCount} · 第 ${start + 1}–${start + batch.length} 张`
+        : r.title || `${r.platform}图集`
+      const nodes = [...(!card && start === 0 ? [header] : []), ...batch.map(u => segment.image(u))]
       try {
-        const forward = await common.makeForwardMsg(e, nodes, r.title || `${r.platform}图集`)
-        await e.reply(forward)
+        const forward = await common.makeForwardMsg(e, nodes, batchTitle)
+        const sent = await e.reply(forward)
+        if (sent === false || sent?.error) throw new Error('合并转发发送失败')
       } catch (err) {
         logger.error(`[短视频解析] 合并转发失败，改为直接发送：${err?.message || err}`)
-        if (!card) await e.reply(header, true)
-        await e.reply(imgs.map(u => segment.image(u)))
-      }
-    } else if (!card) {
-      await e.reply(header, true)
-    }
-    if (r.liveVideos?.length) {
-      const maxMB = Number(c.maxSize) || 100
-      for (const lv of r.liveVideos) {
-        let f = null
-        try {
-          ensureTmp()
-          f = path.join(TMP_DIR, `v_${Date.now()}_${Math.floor(Math.random() * 1e6)}.mp4`)
-          await downloadToFile(lv.url, lv.headers || {}, f, maxMB)
-          await e.reply(segment.video(fileUri(f)))
-        } catch (err) {
-          logger.error(`[短视频解析] 实况/动图发送失败：${err?.message || err}`)
-          await e.reply(lv.url ? `有张动图发送失败，直接甩直链👇\n🔗 ${lv.url}` : '动图发送失败')
-        } finally {
-          if (f) fs.unlink(f, () => {})
-        }
+        if (!card && start === 0) await e.reply(header, true)
+        for (const u of batch) await e.reply(segment.image(u))
       }
     }
     return
@@ -928,7 +856,7 @@ export class videoParser extends plugin {
     }
 
     try {
-      await e.reply(`🔍 正在解析${PLATFORM_CN[hit.platform]}链接…`, true, { recallMsg: 8 })
+      await e.reply(`🔍 正在解析${PLATFORM_CN[hit.platform]}链接…`, true)
       const r = await parse(hit.platform, hit.url)
       if (hit.preview && r.live && !r.cover) r.cover = hit.preview
       await sendResult(e, r)
