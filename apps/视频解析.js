@@ -484,8 +484,8 @@ async function parseDouyin(rawUrl) {
   if (Array.isArray(item.images) && item.images.length) {
     const images = []
     for (const im of item.images) {
-      const u = [im?.display_image, im?.download_url_list, im, im?.video?.cover, im?.video?.origin_cover]
-        .map(firstUrl).find(url => /^https?:\/\//i.test(url))
+      const u = [im?.url_list, im?.display_image, im, im?.video?.cover, im?.video?.origin_cover]
+        .map(firstUrl).find(url => /^https?:\/\//i.test(url) && !/watermark|-water:/i.test(url.split('?')[0]))
       if (u) images.push(u)
     }
     if (!images.length) throw new Error('未取到抖音图集的静态图片')

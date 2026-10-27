@@ -33,9 +33,8 @@ const files = fs.readdirSync('./plugins/AQing-plugin/apps').filter(file => file.
 let ret = []
 logger.info(`🌴―――――――――――――――――――――――――――🌴`)
 logger.info(` 阿晴插件载入成功,感谢您的使用!!!`)
-logger.info(` 阿晴最可爱！`)
-logger.info(` 阿晴专用插件~~~~`)
-logger.info(`🌴――――――――――――――――――――――――――――🌴`)
+logger.info(` 有问题请加群反馈：912363090`)
+logger.info(`🌴―――――――――――――――――――――――――――🌴`)
 
 files.forEach((file) => {
     ret.push(import(`./apps/${file}`))
