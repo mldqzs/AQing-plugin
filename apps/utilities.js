@@ -28,7 +28,6 @@ const CONFIG = {
   LINK_EXPIRE_MIN: 60,
   LINK_MAX_VIEWS: 0,
   FILE_PUBLIC_BASE_URL: '',
-  CDN_SCRAMBLE_ID: 220980,
 }
 
 let axios = createJmAxios()
@@ -37,7 +36,7 @@ function normalizeJmAssetUrl (url) {
   if (typeof url !== 'string') return url
   try {
     const u = new URL(url)
-    if (/^png\.18comic-[^.]+\.vip$/i.test(u.hostname)) {
+    if (/^png(?:new)?\.18comic-[^.]+\.vip$/i.test(u.hostname)) {
       u.hostname = 'png.xajtl.com'
       return u.toString()
     }
@@ -52,131 +51,6 @@ function createJmAxios (options = {}) {
     return config
   })
   return instance
-}
-
-const JM_DIRECT_CDN_HOSTS = [
-  'https://cdn-msp3.jmapiproxy2.cc',
-  'https://png.xajtl.com',
-  'https://cdn-msp.comic18j-jobi.me',
-  'https://cdn-msp2.comic18j-jobi.me',
-  'https://cdn-msp3.comic18j-jobi.me',
-  'https://cdn-msp.18comic-mygo.vip',
-  'https://cdn-msp2.18comic-mygo.vip'
-]
-
-async function fetchDirectJmImage (aid, page) {
-  const name = `${String(page).padStart(5, '0')}.webp`
-  const headers = {
-    'user-agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/120 Safari/537.36',
-    referer: `https://${CONFIG.BASE_URL}/album/${aid}/`
-  }
-
-  for (const host of JM_DIRECT_CDN_HOSTS) {
-    const url = `${host}/media/photos/${aid}/${name}`
-    try {
-      const res = await axios.get(url, {
-        responseType: 'arraybuffer',
-        timeout: 15000,
-        validateStatus: () => true,
-        headers
-      })
-      const type = String(res.headers?.['content-type'] || '')
-      const buf = Buffer.from(res.data || [])
-      if (res.status !== 200 || !type.startsWith('image/') || buf.length <= 1000) {
-        throw new Error(`returned ${res.status}, type=${type || 'unknown'}, size=${buf.length}`)
-      }
-
-      // 强制完整解码一次，避免 CDN 返回 200 但内容截断/不完整时被当成成功图片。
-      await sharp(buf).metadata()
-      return buf
-    } catch (err) {
-      if (CONFIG.DEBUG) logger?.debug?.(`[JMComic] [${aid}] CDN ${host} 第 ${page} 页失败：${err?.message || err}`)
-    }
-  }
-
-  return null
-}
-
-function getJmImageSplitNum (scrambleId, aid, filename) {
-  const sid = Number(scrambleId) || 220980
-  const albumId = Number(aid)
-  if (!Number.isFinite(albumId) || albumId < sid) return 0
-  if (albumId < 268850) return 10
-  const mod = albumId < 421926 ? 10 : 8
-  const hex = crypto.createHash('md5').update(`${albumId}${filename}`).digest('hex')
-  return (hex.charCodeAt(hex.length - 1) % mod) * 2 + 2
-}
-
-async function decodeJmImageBuffer (buffer, aid, filename) {
-  const num = getJmImageSplitNum(CONFIG.CDN_SCRAMBLE_ID, aid, filename)
-  if (!num) return buffer
-  const meta = await sharp(buffer).metadata()
-  const width = meta.width
-  const height = meta.height
-  if (!width || !height) return buffer
-
-  const over = height % num
-  const move = Math.floor(height / num)
-  const parts = []
-  for (let i = 0; i < num; i++) {
-    const partHeight = i === 0 ? move + over : move
-    const top = height - (move * (i + 1)) - over
-    parts.push({
-      input: await sharp(buffer).extract({ left: 0, top, width, height: partHeight }).toBuffer(),
-      left: 0,
-      top: i === 0 ? 0 : over + move * i
-    })
-  }
-
-  return sharp({
-    create: {
-      width,
-      height,
-      channels: 3,
-      background: { r: 255, g: 255, b: 255 }
-    }
-  }).composite(parts).jpeg({ quality: 90 }).toBuffer()
-}
-
-async function createDirectCdnJmPdf (aid) {
-  const maxPages = Math.max(1, Number(CONFIG.MAX_PAGES) || 100)
-  const concurrency = Math.max(1, Number(CONFIG.CONCURRENCY) || 3)
-  const missLimit = Math.max(2, Number(CONFIG.CDN_MISS_LIMIT) || 3)
-  const images = []
-  let consecutiveMisses = 0
-
-  for (let start = 1; start <= maxPages && consecutiveMisses < missLimit; start += concurrency) {
-    const pages = Array.from({ length: Math.min(concurrency, maxPages - start + 1) }, (_, i) => start + i)
-    const batch = await Promise.all(pages.map(async page => {
-      const buffer = await fetchDirectJmImage(aid, page)
-      return { page, buffer }
-    }))
-
-    for (const item of batch.sort((a, b) => a.page - b.page)) {
-      if (item.buffer) {
-        images.push(item)
-        consecutiveMisses = 0
-      } else if (images.length) {
-        consecutiveMisses++
-      }
-    }
-  }
-
-  if (!images.length) throw new Error('获取漫画失败: 请检查 ID 是否存在或无权限查看')
-
-  logger?.mark?.(`[JMComic] [${aid}] 直连 CDN 图片 ${images.length} 张`)
-  const pdf = await PDFDocument.create()
-  for (const image of images.sort((a, b) => a.page - b.page)) {
-    const filename = String(image.page).padStart(5, '0')
-    const jpg = await decodeJmImageBuffer(image.buffer, aid, filename)
-    const embedded = await pdf.embedJpg(jpg)
-    const page = pdf.addPage([embedded.width, embedded.height])
-    page.drawImage(embedded, { x: 0, y: 0, width: embedded.width, height: embedded.height })
-  }
-  if (CONFIG.PASSWORD) pdf.encrypt({ userPassword: String(CONFIG.PASSWORD), ownerPassword: String(CONFIG.PASSWORD) })
-  const outFile = path.join(CONFIG.OUTPUT_DIR || 'temp', `${aid}.pdf`)
-  await fs.writeFile(outFile, await pdf.save())
-  return outFile
 }
 
 async function sendJmPdf (e, aid, file) {
@@ -349,14 +223,15 @@ export class example extends plugin {
 
     await e.reply(`开始下载本子 ${aid}，请稍候…`, true)
     try {
-      let file
-      try {
-        file = await new ComicPDFGenerator().create(aid)
-      } catch (err) {
-        if (!/获取漫画失败|ID 是否存在|无权限查看/.test(err?.message || String(err))) throw err
-        logger?.mark?.(`[JMComic] [${aid}] 页面解析失败，尝试使用直连 CDN 下载`)
-        file = await createDirectCdnJmPdf(aid)
+      const generator = new ComicPDFGenerator()
+      const getImage = generator.getImage.bind(generator)
+      generator.getImage = async (...args) => {
+        const image = await getImage(...args)
+        if (!image) throw new Error(`第 ${args[3]} 页下载失败，已停止生成 PDF`)
+        return image
       }
+      await fs.mkdir(CONFIG.OUTPUT_DIR, { recursive: true })
+      const file = await generator.create(aid)
       await sendJmPdf(e, aid, file)
       await fs.unlink(file).catch(err => logger.error('[禁漫天堂] 文件清理失败：', err))
     } catch (err) {

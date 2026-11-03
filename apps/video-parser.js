@@ -10,6 +10,7 @@ import path from 'node:path'
 import { execFile } from 'node:child_process'
 import { Readable, Transform } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
+import sharp from 'sharp'
 
 /*
  * 短视频解析（抖音 / 快手 / B站）
@@ -679,28 +680,31 @@ async function sendResult(e, r) {
 
   if (r.images?.length) {
     const imgs = r.images
-    const batchSize = 12
+    const batchSize = r.platform === '抖音' ? 4 : 12
     const batchCount = Math.ceil(imgs.length / batchSize)
     const card = await renderVideoCard(r, `图集解析成功 · 共 ${imgs.length} 张图片`)
     if (card) await e.reply(card)
 
-    // 全量分批转发，避免长图集被截断；单批失败只回退这一批。
     for (let start = 0; start < imgs.length; start += batchSize) {
       const batch = imgs.slice(start, start + batchSize)
       const batchIndex = Math.floor(start / batchSize) + 1
       const batchTitle = batchCount > 1
         ? `${r.platform}图集 · ${batchIndex}/${batchCount} · 第 ${start + 1}–${start + batch.length} 张`
         : r.title || `${r.platform}图集`
-      const nodes = [...(!card && start === 0 ? [header] : []), ...batch.map(u => segment.image(u))]
-      try {
-        const forward = await common.makeForwardMsg(e, nodes, batchTitle)
-        const sent = await e.reply(forward)
-        if (sent === false || sent?.error) throw new Error('合并转发发送失败')
-      } catch (err) {
-        logger.error(`[短视频解析] 合并转发失败，改为直接发送：${err?.message || err}`)
-        if (!card && start === 0) await e.reply(header, true)
-        for (const u of batch) await e.reply(segment.image(u))
-      }
+      const images = await Promise.all(batch.map(async url => {
+        if (r.platform !== '抖音') return segment.image(url)
+        const res = await fetch(url, {
+          headers: { 'User-Agent': MOBILE_UA, Referer: 'https://www.douyin.com/' },
+          signal: AbortSignal.timeout(20000),
+        })
+        if (!res.ok) throw new Error(`图集图片下载失败 HTTP ${res.status}`)
+        const buffer = await sharp(Buffer.from(await res.arrayBuffer())).jpeg({ quality: 90 }).toBuffer()
+        return segment.image(buffer)
+      }))
+      const nodes = [...(!card && start === 0 ? [header] : []), ...images]
+      const forward = await common.makeForwardMsg(e, nodes, batchTitle)
+      const sent = await e.reply(forward)
+      if (sent === false || sent?.error) throw new Error(`图集第 ${batchIndex}/${batchCount} 批发送失败`)
     }
     return
   }
