@@ -1,7 +1,6 @@
 import plugin from '../../../lib/plugins/plugin.js'
 import puppeteer from '../../../lib/puppeteer/puppeteer.js'
 import setting from '../utils/setting.js'
-import common from '../../../lib/common/common.js'
 import { parseBili } from '../utils/bili.js'
 import { parseKuaishou } from '../utils/kuaishou.js'
 import { extractVideoStats, buildVideoStats } from '../utils/videoStats.js'
@@ -702,9 +701,18 @@ async function sendResult(e, r) {
         return segment.image(buffer)
       }))
       const nodes = [...(!card && start === 0 ? [header] : []), ...images]
-      const forward = await common.makeForwardMsg(e, nodes, batchTitle)
+      const messages = [batchTitle, ...nodes].map(message => ({
+        user_id: e.self_id,
+        nickname: '阿晴图集',
+        message,
+      }))
+      const target = e.isGroup ? e.group : e.friend
+      const forward = await target.makeForwardMsg(messages)
       const sent = await e.reply(forward)
-      if (sent === false || sent?.error) throw new Error(`图集第 ${batchIndex}/${batchCount} 批发送失败`)
+      if (sent === false || sent?.error) {
+        const cause = Array.isArray(sent?.error) ? sent.error[0] : sent?.error
+        throw new Error(`图集第 ${batchIndex}/${batchCount} 批发送失败：${cause?.message || cause || '适配器未返回发送结果'}`, { cause })
+      }
     }
     return
   }
