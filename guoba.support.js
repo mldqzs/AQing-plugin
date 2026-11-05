@@ -183,35 +183,57 @@ export function supportGuoba() {
         {
           field: 'hideImg.enable',
           label: '小番茄总开关',
-          bottomHelpMessage: '开启后支持「小番茄混图 / 小番茄解图」，可发图、引用图或图片链接；结果默认上传外部图床并返回纯文本链接',
+          bottomHelpMessage: '开启后支持「小番茄混图 / 小番茄解图」，可发图、引用图或图片链接；结果按下方「结果发送方式」发出',
           component: 'Switch',
         },
         {
-          field: 'hideImg.linkMode',
-          label: '结果链接模式',
-          bottomHelpMessage: 'external=外部图床（默认，返回公网链接）；local=机器人本地图链（不出站，但公网访问取决于你的云崽 server.url 配置）',
+          field: 'hideImg.sendMode',
+          label: '结果发送方式',
+          bottomHelpMessage: 'forward=QQ 合并转发发送图片本体（默认，不暴露公网地址）；link=返回临时网址，方便复制到别处解图。指令后加「链接」或「转发」可临时覆盖',
           component: 'Select',
           componentProps: {
-            placeholder: '请选择链接模式',
+            placeholder: '请选择结果发送方式',
             options: [
-              { label: '外部图床（默认）', value: 'external' },
-              { label: '本地图链', value: 'local' },
+              { label: '合并转发（默认）', value: 'forward' },
+              { label: '临时网址', value: 'link' },
             ],
           },
         },
         {
-          field: 'hideImg.externalProvider',
-          label: '外部图床',
-          bottomHelpMessage: 'auto=自动兜底（Catbox → Litterbox）；Catbox 为长期图床，Litterbox 为约 1 小时临时图床',
+          field: 'hideImg.linkProvider',
+          label: '临时网址来源',
+          bottomHelpMessage: '仅结果发送方式为「临时网址」时生效。auto=先外部图床，失败再本地图链；local=只用本地图链（需公网地址）；catbox/litterbox=只用对应图床',
           component: 'Select',
           componentProps: {
-            placeholder: '请选择外部图床',
+            placeholder: '请选择临时网址来源',
             options: [
-              { label: '自动（Catbox → Litterbox）', value: 'auto' },
-              { label: 'Catbox', value: 'catbox' },
-              { label: 'Litterbox（临时）', value: 'litterbox' },
+              { label: '自动（图床 → 本地）', value: 'auto' },
+              { label: '仅本地图链', value: 'local' },
+              { label: 'Catbox 图床', value: 'catbox' },
+              { label: 'Litterbox 临时图床', value: 'litterbox' },
             ],
           },
+        },
+        {
+          field: 'hideImg.linkExpireMin',
+          label: '本地链接有效期（分钟）',
+          bottomHelpMessage: '仅本地图链使用，默认 10 分钟',
+          component: 'InputNumber',
+          componentProps: { min: 1, max: 1440, placeholder: '默认 10' },
+        },
+        {
+          field: 'hideImg.linkMaxViews',
+          label: '本地链接访问次数',
+          bottomHelpMessage: '仅本地图链使用；0 表示不限次数，只按有效期过期，默认 0',
+          component: 'InputNumber',
+          componentProps: { min: 0, max: 1000, placeholder: '默认 0（不限次数）' },
+        },
+        {
+          field: 'hideImg.linkPublicBaseUrl',
+          label: '本地链接公网地址',
+          bottomHelpMessage: '云崽 server.url 很多环境默认是 localhost，别人打不开。这里填公网地址，如 http://1.2.3.4:2536 或 https://你的域名；留空则用云崽原始地址',
+          component: 'Input',
+          componentProps: { placeholder: '如 http://1.2.3.4:2536' },
         },
         {
           field: 'hideImg.maxMB',
@@ -223,7 +245,7 @@ export function supportGuoba() {
         {
           field: 'hideImg.outputFormat',
           label: '输出格式',
-          bottomHelpMessage: 'png=全部 PNG（推荐，最适合 QQ 下载/转发后再解图）；auto=混图 JPG、解图 PNG；jpg=全部 JPG（文件小但更容易糊）',
+          bottomHelpMessage: 'png=全部 PNG（推荐，QQ 传输后再解图更稳）；auto=混图 JPG、解图 PNG；jpg=全部 JPG（文件小但更容易糊）',
           component: 'Select',
           componentProps: {
             placeholder: '请选择输出格式',
@@ -247,27 +269,6 @@ export function supportGuoba() {
           bottomHelpMessage: '混图前先限制最大边，再做抗压缩放大，避免图片过大。默认 1600；填 0 表示不限制',
           component: 'InputNumber',
           componentProps: { min: 0, max: 4096, placeholder: '默认 1600' },
-        },
-        {
-          field: 'hideImg.localExpireMin',
-          label: '本地图链有效期（分钟）',
-          bottomHelpMessage: '仅 linkMode=local 或外部图床失败兜底时使用，默认 10 分钟',
-          component: 'InputNumber',
-          componentProps: { min: 1, max: 1440, placeholder: '默认 10' },
-        },
-        {
-          field: 'hideImg.localMaxViews',
-          label: '本地图链访问次数',
-          bottomHelpMessage: '仅 linkMode=local 或外部图床失败兜底时使用；填 0 表示不限次数，只按有效期过期。默认 0，避免点开一次/预览一次就失效',
-          component: 'InputNumber',
-          componentProps: { min: 0, max: 1000, placeholder: '默认 0（不限次数）' },
-        },
-        {
-          field: 'hideImg.localPublicBaseUrl',
-          label: '本地图链公网地址',
-          bottomHelpMessage: '云崽 server.url 很多环境默认是 localhost，别人打不开；这里填你的公网地址，如 http://1.2.3.4:2536 或 https://你的域名。留空则使用云崽原始地址',
-          component: 'Input',
-          componentProps: { placeholder: '如 http://1.2.3.4:2536' },
         },
 
         // ───────────────── 涩图打分 ─────────────────

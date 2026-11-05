@@ -1,14 +1,19 @@
 /* ─────────────────────────────────────────────────────────────
  * 小番茄图片混淆
  * 指令：
- *   小番茄解图 + 图片/引用图片/图片链接 → 解混淆后发图
- *   小番茄混图 + 图片/引用图片/图片链接 → 混淆后发图
+ *   小番茄解图 + 图片/引用图片/图片链接 → 解混淆后发出结果
+ *   小番茄混图 + 图片/引用图片/图片链接 → 混淆后发出结果
+ *
+ * 结果发送方式（锅巴配置默认值，指令后缀可临时覆盖）：
+ *   合并转发（默认） → 「小番茄解图 转发」
+ *   临时网址         → 「小番茄解图 链接」
  *
  * ⚠️ 加载器铁律：apps/ 下文件只导出插件类，公共逻辑放 utils/。
  * ───────────────────────────────────────────────────────────── */
 
 import plugin from '../../../lib/plugins/plugin.js'
 import setting from '../utils/setting.js'
+import common from '../../../lib/common/common.js'
 import { hideImgTransform } from '../utils/hideImg.js'
 
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/126 Safari/537.36'
@@ -61,7 +66,21 @@ function pickUrl (msg = '') {
   return (String(msg).match(/https?:\/\/[^\s\]"'<>]+/i) || [])[0] || ''
 }
 
-function rewriteLocalUrl (rawUrl, publicBaseUrl) {
+/** 发送方式：forward=合并转发, link=临时网址 */
+function sendMode () {
+  const mode = String(cfg().sendMode || 'forward').toLowerCase()
+  return mode === 'link' ? 'link' : 'forward'
+}
+
+/** 指令后缀临时覆盖：链接/link/网址，转发/forward/合并（先剔除图片链接本身，避免误判） */
+function pickModeByMsg (msg = '') {
+  const text = String(msg).replace(/https?:\/\/[^\s\]"'<>]+/gi, ' ')
+  if (/(链接|网址|link|url)/i.test(text)) return 'link'
+  if (/(转发|合并|聊天记录|forward)/i.test(text)) return 'forward'
+  return ''
+}
+
+function rewriteLinkUrl (rawUrl, publicBaseUrl) {
   const base = String(publicBaseUrl || '').trim().replace(/\/+$/, '')
   if (!base) return String(rawUrl)
   try {
@@ -76,64 +95,74 @@ function rewriteLocalUrl (rawUrl, publicBaseUrl) {
   }
 }
 
-async function bufferToImageUrl (buf, prefix = 'hideimg', ext = 'jpg', mime = 'image/jpeg') {
-  const c = cfg()
-  const filename = `${prefix}-${Date.now()}.${ext}`
-  const linkMode = String(c.linkMode || 'external').toLowerCase()
-  const provider = String(c.externalProvider || 'auto').toLowerCase()
+/** 外部图床：返回公网临时链接，不暴露服务器 IP */
+async function uploadExternal (buf, filename, ext, mime, provider) {
+  const allBeds = [
+    {
+      key: 'catbox',
+      name: 'Catbox',
+      url: 'https://catbox.moe/user/api.php',
+      fields: { reqtype: 'fileupload', userhash: '' }
+    },
+    {
+      key: 'litterbox',
+      name: 'Litterbox',
+      url: 'https://litterbox.catbox.moe/resources/internals/api.php',
+      fields: { reqtype: 'fileupload', time: '1h' }
+    }
+  ]
+  const beds = provider === 'catbox' || provider === 'litterbox'
+    ? allBeds.filter(v => v.key === provider)
+    : allBeds
 
-  // 外部图床：返回真正的公网 http 链接，而不是 QQ 图片消息。
-  // 默认 external + auto：先 catbox，再 litterbox；如果用户在锅巴选 local，就只走本地图链。
-  if (linkMode !== 'local') {
-    const allBeds = [
-      {
-        key: 'catbox',
-        name: 'catbox',
-        url: 'https://catbox.moe/user/api.php',
-        fields: { reqtype: 'fileupload', userhash: '' }
-      },
-      {
-        key: 'litterbox',
-        name: 'litterbox',
-        url: 'https://litterbox.catbox.moe/resources/internals/api.php',
-        fields: { reqtype: 'fileupload', time: '1h' }
-      }
-    ]
-    const beds = provider === 'catbox' || provider === 'litterbox'
-      ? allBeds.filter(v => v.key === provider)
-      : allBeds
+  for (const bed of beds) {
+    try {
+      const form = new FormData()
+      for (const [k, v] of Object.entries(bed.fields)) form.append(k, v)
+      form.append('fileToUpload', new Blob([buf], { type: mime }), filename)
 
-    for (const bed of beds) {
-      try {
-        const form = new FormData()
-        for (const [k, v] of Object.entries(bed.fields)) form.append(k, v)
-        form.append('fileToUpload', new Blob([buf], { type: mime }), filename)
-
-        const res = await fetch(bed.url, { method: 'POST', body: form })
-        const text = (await res.text()).trim()
-        if (res.ok && /^https?:\/\//i.test(text)) return { url: text, source: bed.name }
-        logger?.warn?.(`[小番茄图片混淆] ${bed.name} 图床上传失败：${res.status} ${text.slice(0, 120)}`)
-      } catch (err) {
-        logger?.warn?.(`[小番茄图片混淆] ${bed.name} 图床上传异常：${err?.message || err}`)
-      }
+      const res = await fetch(bed.url, { method: 'POST', body: form })
+      const text = (await res.text()).trim()
+      if (res.ok && /^https?:\/\//i.test(text)) return { url: text, source: bed.name }
+      logger.warn(`[小番茄图片混淆] ${bed.name} 上传失败：${res.status} ${text.slice(0, 120)}`)
+    } catch (err) {
+      logger.warn(`[小番茄图片混淆] ${bed.name} 上传异常：${err?.message || err}`)
     }
   }
+  return null
+}
 
-  if (typeof Bot?.fileToUrl === 'function') {
-    const expire = Math.max(1, Math.min(1440, Number(c.localExpireMin) || 10))
-    const viewsRaw = Number(c.localMaxViews)
-    const views = Number.isFinite(viewsRaw) && viewsRaw > 0
-      ? Math.min(1000, Math.floor(viewsRaw))
-      : false // false=不传 times，云崽不会扣次数，只靠有效期过期
-    const opts = { time: expire * 60000, times: views || false }
-    const rawUrl = await Bot.fileToUrl({
-      name: filename,
-      buffer: buf
-    }, opts)
-    return { url: rewriteLocalUrl(rawUrl, c.localPublicBaseUrl), source: 'local' }
+/** 本地临时链接：Bot.fileToUrl 生成带有效期的链接，不出站 */
+async function makeLocalLink (buf, filename) {
+  if (typeof Bot?.fileToUrl !== 'function') return null
+  const c = cfg()
+  const expire = Math.max(1, Math.min(1440, Number(c.linkExpireMin) || 10))
+  const viewsRaw = Number(c.linkMaxViews)
+  const views = Number.isFinite(viewsRaw) && viewsRaw > 0
+    ? Math.min(1000, Math.floor(viewsRaw))
+    : false
+  const rawUrl = await Bot.fileToUrl({ name: filename, buffer: buf }, {
+    time: expire * 60000,
+    times: views || false
+  })
+  return { url: rewriteLinkUrl(rawUrl, c.linkPublicBaseUrl), source: 'local' }
+}
+
+/** 生成临时网址，按配置选择外部图床或本地链接 */
+async function makeImageLink (buf, prefix, ext, mime) {
+  const c = cfg()
+  const filename = `${prefix}-${Date.now()}.${ext}`
+  const provider = String(c.linkProvider || 'auto').toLowerCase()
+
+  if (provider !== 'local') {
+    const external = await uploadExternal(buf, filename, ext, mime, provider)
+    if (external) return external
   }
-
-  throw new Error('外部图床上传失败，且当前环境没有可用的本地图链服务')
+  if (provider === 'local' || provider === 'auto') {
+    const local = await makeLocalLink(buf, filename)
+    if (local) return local
+  }
+  throw new Error('临时网址生成失败，请检查图床网络或本地图链配置')
 }
 
 async function downloadImage (src) {
@@ -191,19 +220,22 @@ export class hideImg extends plugin {
   async status (e) {
     if (cfg().enable === false) return false
     const c = cfg()
-    const mode = String(c.linkMode || 'external').toLowerCase() === 'local' ? '本地图链' : '外部图床'
-    const provider = String(c.externalProvider || 'auto').toLowerCase()
+    const output = String(c.outputFormat || 'png').toLowerCase()
+    const outputText = output === 'auto' ? '自动（混图 JPG / 解图 PNG）' : output.toUpperCase()
+    const mode = sendMode()
+    const provider = String(c.linkProvider || 'auto').toLowerCase()
+    const providerText = provider === 'local'
+      ? '本地临时链接'
+      : provider === 'auto' ? '自动（外部图床 → 本地图链）' : provider === 'catbox' ? 'Catbox' : 'Litterbox'
     await e.reply([
       '🍅 小番茄图片混淆配置',
-      `\n· 链接模式：${mode}`,
-      `\n· 外部图床：${provider === 'auto' ? '自动（Catbox → Litterbox）' : provider}`,
+      `\n· 结果发送：${mode === 'link' ? '临时网址' : 'QQ 合并转发'}`,
+      `\n· 临时网址来源：${providerText}`,
       `\n· 图片上限：${Number(c.maxMB) || DEFAULT_MAX_MB}MB`,
-      `\n· 输出格式：${String(c.outputFormat || 'png').toLowerCase()}（推荐png，QQ里复制链接解图更稳）`,
+      `\n· 输出格式：${outputText}`,
       `\n· QQ抗压缩倍数：${Number(c.qqSafeScale) || 1}x`,
       `\n· 混图最大边：${Number(c.maxSide) || 0 || '不限制'}`,
-      `\n· 本地图链有效期：${Number(c.localExpireMin) || 10}分钟`,
-      `\n· 本地图链访问次数：${Number(c.localMaxViews) > 0 ? `${Number(c.localMaxViews)}次` : '不限次数'}`,
-      `\n· 本地公网地址：${c.localPublicBaseUrl || '未设置（使用云崽原始地址）'}`,
+      '\n· 临时切换：指令后加「链接」或「转发」',
       '\n\n可在锅巴：AQing-plugin → 小番茄图片混淆 里修改。'
     ])
     return true
@@ -216,16 +248,18 @@ export class hideImg extends plugin {
   async run (e, mode) {
     if (cfg().enable === false) return false
     await this.cancel(e)
+    const send = pickModeByMsg(e.msg) || sendMode()
     const img = await this.findImage(e)
     if (!img) {
       waitUser[e.user_id] = {
         mode,
+        send,
         timer: setTimeout(() => { delete waitUser[e.user_id] }, 60000)
       }
       await e.reply([segment.at(e.user_id), mode === 'decrypt' ? ' 把要解的小番茄图发来，或引用图片发「小番茄解图」' : ' 把要混淆的图片发来，或引用图片发「小番茄混图」'])
       return true
     }
-    await this.process(e, mode, img)
+    await this.process(e, mode, img, send)
     return true
   }
 
@@ -236,7 +270,7 @@ export class hideImg extends plugin {
     await this.cancel(e)
     const img = await this.findImage(e)
     if (!img) return false
-    await this.process(e, st.mode, img)
+    await this.process(e, st.mode, img, st.send || sendMode())
     return false
   }
 
@@ -248,7 +282,7 @@ export class hideImg extends plugin {
     return pickUrl(e.msg)
   }
 
-  async process (e, mode, src) {
+  async process (e, mode, src, send = sendMode()) {
     try {
       await e.reply(mode === 'decrypt' ? '收到，正在解图...' : '收到，正在混图...')
       const input = await downloadImage(src)
@@ -256,10 +290,32 @@ export class hideImg extends plugin {
         upscale: Number(cfg().qqSafeScale) || 1,
         maxSide: Number(cfg().maxSide) || 0
       })
-      const ret = await bufferToImageUrl(out.buffer, mode === 'decrypt' ? 'tomato-decode' : 'tomato-encode', out.ext, out.mime)
-      const tip = ret.source === 'local' ? '本地临时链接' : `外部图床：${ret.source}`
-      const title = mode === 'decrypt' ? '解图完成' : '混图完成'
-      await e.reply(`${title}（${tip}，${out.ext.toUpperCase()}）：\n${ret.url}`, true)
+      const title = mode === 'decrypt' ? '小番茄解图完成' : '小番茄混图完成'
+      const brief = `🍅 ${title}（${out.ext.toUpperCase()}）`
+      const prefix = mode === 'decrypt' ? 'tomato-decode' : 'tomato-encode'
+
+      if (send === 'link') {
+        try {
+          const ret = await makeImageLink(out.buffer, prefix, out.ext, out.mime)
+          const tip = ret.source === 'local' ? '本地临时链接' : `外部图床：${ret.source}`
+          await e.reply(`${brief}（${tip}，有效期有限）：\n${ret.url}`, true)
+          return
+        } catch (err) {
+          logger.warn(`[小番茄图片混淆] 临时网址生成失败，改为合并转发：${err?.message || err}`)
+        }
+      }
+
+      try {
+        // 结果以「合并转发聊天记录」发送图片本体，不生成任何图片链接，
+        // 也不依赖外部图床 / 本地图链公网地址，公网 IP 不会出现在消息里。
+        const forward = await common.makeForwardMsg(e, [segment.image(out.buffer)], brief)
+        // 合并转发本身是独立消息，不要再加引用，否则会被拆成「空引用 + 转发」两条
+        const sent = await e.reply(forward, false)
+        if (sent === false || sent?.error) throw new Error('合并转发发送失败')
+      } catch (err) {
+        logger.warn(`[小番茄图片混淆] 合并转发失败，改为直接发图：${err?.message || err}`)
+        await e.reply([brief, segment.image(out.buffer)], true)
+      }
     } catch (err) {
       logger.error('[小番茄图片混淆] error', err)
       await e.reply(`处理失败：${err?.message || err}`)
