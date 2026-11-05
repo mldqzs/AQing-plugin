@@ -1,14 +1,15 @@
 /* ─────────────────────────────────────────────────────────────
  * 小番茄图片混淆
  * 指令：
- *   小番茄解图 + 图片/引用图片/图片链接 → 解混淆后发图
- *   小番茄混图 + 图片/引用图片/图片链接 → 混淆后发图
+ *   小番茄解图 + 图片/引用图片/图片链接 → 解混淆后按合并转发发出图片本体
+ *   小番茄混图 + 图片/引用图片/图片链接 → 混淆后按合并转发发出图片本体
  *
  * ⚠️ 加载器铁律：apps/ 下文件只导出插件类，公共逻辑放 utils/。
  * ───────────────────────────────────────────────────────────── */
 
 import plugin from '../../../lib/plugins/plugin.js'
 import setting from '../utils/setting.js'
+import common from '../../../lib/common/common.js'
 import { hideImgTransform } from '../utils/hideImg.js'
 
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/126 Safari/537.36'
@@ -59,81 +60,6 @@ async function getReplyImg (e) {
 
 function pickUrl (msg = '') {
   return (String(msg).match(/https?:\/\/[^\s\]"'<>]+/i) || [])[0] || ''
-}
-
-function rewriteLocalUrl (rawUrl, publicBaseUrl) {
-  const base = String(publicBaseUrl || '').trim().replace(/\/+$/, '')
-  if (!base) return String(rawUrl)
-  try {
-    const src = new URL(String(rawUrl))
-    const dst = new URL(base)
-    dst.pathname = src.pathname
-    dst.search = src.search
-    dst.hash = src.hash
-    return dst.toString()
-  } catch {
-    return String(rawUrl)
-  }
-}
-
-async function bufferToImageUrl (buf, prefix = 'hideimg', ext = 'jpg', mime = 'image/jpeg') {
-  const c = cfg()
-  const filename = `${prefix}-${Date.now()}.${ext}`
-  const linkMode = String(c.linkMode || 'external').toLowerCase()
-  const provider = String(c.externalProvider || 'auto').toLowerCase()
-
-  // 外部图床：返回真正的公网 http 链接，而不是 QQ 图片消息。
-  // 默认 external + auto：先 catbox，再 litterbox；如果用户在锅巴选 local，就只走本地图链。
-  if (linkMode !== 'local') {
-    const allBeds = [
-      {
-        key: 'catbox',
-        name: 'catbox',
-        url: 'https://catbox.moe/user/api.php',
-        fields: { reqtype: 'fileupload', userhash: '' }
-      },
-      {
-        key: 'litterbox',
-        name: 'litterbox',
-        url: 'https://litterbox.catbox.moe/resources/internals/api.php',
-        fields: { reqtype: 'fileupload', time: '1h' }
-      }
-    ]
-    const beds = provider === 'catbox' || provider === 'litterbox'
-      ? allBeds.filter(v => v.key === provider)
-      : allBeds
-
-    for (const bed of beds) {
-      try {
-        const form = new FormData()
-        for (const [k, v] of Object.entries(bed.fields)) form.append(k, v)
-        form.append('fileToUpload', new Blob([buf], { type: mime }), filename)
-
-        const res = await fetch(bed.url, { method: 'POST', body: form })
-        const text = (await res.text()).trim()
-        if (res.ok && /^https?:\/\//i.test(text)) return { url: text, source: bed.name }
-        logger?.warn?.(`[小番茄图片混淆] ${bed.name} 图床上传失败：${res.status} ${text.slice(0, 120)}`)
-      } catch (err) {
-        logger?.warn?.(`[小番茄图片混淆] ${bed.name} 图床上传异常：${err?.message || err}`)
-      }
-    }
-  }
-
-  if (typeof Bot?.fileToUrl === 'function') {
-    const expire = Math.max(1, Math.min(1440, Number(c.localExpireMin) || 10))
-    const viewsRaw = Number(c.localMaxViews)
-    const views = Number.isFinite(viewsRaw) && viewsRaw > 0
-      ? Math.min(1000, Math.floor(viewsRaw))
-      : false // false=不传 times，云崽不会扣次数，只靠有效期过期
-    const opts = { time: expire * 60000, times: views || false }
-    const rawUrl = await Bot.fileToUrl({
-      name: filename,
-      buffer: buf
-    }, opts)
-    return { url: rewriteLocalUrl(rawUrl, c.localPublicBaseUrl), source: 'local' }
-  }
-
-  throw new Error('外部图床上传失败，且当前环境没有可用的本地图链服务')
 }
 
 async function downloadImage (src) {
@@ -191,19 +117,15 @@ export class hideImg extends plugin {
   async status (e) {
     if (cfg().enable === false) return false
     const c = cfg()
-    const mode = String(c.linkMode || 'external').toLowerCase() === 'local' ? '本地图链' : '外部图床'
-    const provider = String(c.externalProvider || 'auto').toLowerCase()
+    const output = String(c.outputFormat || 'png').toLowerCase()
+    const outputText = output === 'auto' ? '自动（混图 JPG / 解图 PNG）' : output.toUpperCase()
     await e.reply([
       '🍅 小番茄图片混淆配置',
-      `\n· 链接模式：${mode}`,
-      `\n· 外部图床：${provider === 'auto' ? '自动（Catbox → Litterbox）' : provider}`,
+      '\n· 结果发送：QQ 合并转发（只发图片本体，不返回任何链接）',
       `\n· 图片上限：${Number(c.maxMB) || DEFAULT_MAX_MB}MB`,
-      `\n· 输出格式：${String(c.outputFormat || 'png').toLowerCase()}（推荐png，QQ里复制链接解图更稳）`,
+      `\n· 输出格式：${outputText}`,
       `\n· QQ抗压缩倍数：${Number(c.qqSafeScale) || 1}x`,
       `\n· 混图最大边：${Number(c.maxSide) || 0 || '不限制'}`,
-      `\n· 本地图链有效期：${Number(c.localExpireMin) || 10}分钟`,
-      `\n· 本地图链访问次数：${Number(c.localMaxViews) > 0 ? `${Number(c.localMaxViews)}次` : '不限次数'}`,
-      `\n· 本地公网地址：${c.localPublicBaseUrl || '未设置（使用云崽原始地址）'}`,
       '\n\n可在锅巴：AQing-plugin → 小番茄图片混淆 里修改。'
     ])
     return true
@@ -256,10 +178,19 @@ export class hideImg extends plugin {
         upscale: Number(cfg().qqSafeScale) || 1,
         maxSide: Number(cfg().maxSide) || 0
       })
-      const ret = await bufferToImageUrl(out.buffer, mode === 'decrypt' ? 'tomato-decode' : 'tomato-encode', out.ext, out.mime)
-      const tip = ret.source === 'local' ? '本地临时链接' : `外部图床：${ret.source}`
-      const title = mode === 'decrypt' ? '解图完成' : '混图完成'
-      await e.reply(`${title}（${tip}，${out.ext.toUpperCase()}）：\n${ret.url}`, true)
+      const title = mode === 'decrypt' ? '小番茄解图完成' : '小番茄混图完成'
+      const brief = `🍅 ${title}（${out.ext.toUpperCase()}）`
+      try {
+        // 结果直接以「合并转发聊天记录」发送图片本体，全程不生成任何图片链接，
+        // 也不依赖外部图床 / 本地图链公网地址，公网 IP 不会出现在消息里。
+        const forward = await common.makeForwardMsg(e, [segment.image(out.buffer)], brief)
+        // 合并转发本身是独立消息，不要再加引用，否则会被拆成「空引用 + 转发」两条
+        const sent = await e.reply(forward, false)
+        if (sent === false || sent?.error) throw new Error('合并转发发送失败')
+      } catch (err) {
+        logger.warn(`[小番茄图片混淆] 合并转发失败，改为直接发图：${err?.message || err}`)
+        await e.reply([brief, segment.image(out.buffer)], true)
+      }
     } catch (err) {
       logger.error('[小番茄图片混淆] error', err)
       await e.reply(`处理失败：${err?.message || err}`)
