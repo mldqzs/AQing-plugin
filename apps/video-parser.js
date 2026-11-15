@@ -200,6 +200,20 @@ function runFFmpeg(args, timeout = 120000) {
     execFile('ffmpeg', args, { timeout, maxBuffer: 1024 * 1024 * 16 }, (err) => resolve(!err))
   })
 }
+// 直播录下来的是 FLV 裸流，QQ 侧（NapCat / XQBridge 等）只认 MP4，直接发会报
+// 「无法读取 MP4 视频或生成缩略图」。先无损换封装，失败再转码；都失败返回 null
+async function liveToMp4(flvFile) {
+  const mp4 = flvFile.replace(/\.flv$/i, '') + '.mp4'
+  const ok = () => { try { return fs.statSync(mp4).size > 1024 } catch { return false } }
+  const input = ['-y', '-hide_banner', '-loglevel', 'error', '-i', flvFile]
+  if (await runFFmpeg([...input, '-c', 'copy', '-movflags', '+faststart', mp4], 60000) && ok()) return mp4
+  fs.rmSync(mp4, { force: true })
+  if (await runFFmpeg([...input, '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '26', '-pix_fmt', 'yuv420p',
+    '-c:a', 'aac', '-b:a', '128k', '-movflags', '+faststart', mp4], 180000) && ok()) return mp4
+  fs.rmSync(mp4, { force: true })
+  return null
+}
+
 async function extractAudio(videoFile) {
   const mp3 = videoFile.replace(/\.[^.]+$/, '') + '_bgm.mp3'
   const ok = await runFFmpeg(['-y', '-hide_banner', '-loglevel', 'error', '-i', videoFile, '-vn', '-acodec', 'libmp3lame', '-q:a', '4', mp3])
@@ -663,16 +677,27 @@ async function sendResult(e, r) {
       return
     }
 
+    let mp4File = null
     try {
       const card = await renderVideoCard(r, '直播间识别成功')
       if (card) await e.reply(card)
       else await e.reply([header, r.cover ? '\n' : '', r.cover ? segment.image(r.cover) : ''].filter(Boolean), true)
-      await e.reply(segment.video(fileUri(localFile)))
+
+      mp4File = await liveToMp4(localFile)
+      if (!mp4File) {
+        logger.warn('[短视频解析] 直播片段转 MP4 失败，请确认已安装 ffmpeg')
+        await e.reply(`直播片段转码失败（需要 ffmpeg），可直接打开直播间：${r.pageUrl || ''}`.trim())
+        return
+      }
+      // 云崽的 reply 发送失败时不抛异常，而是返回 { error }，需要主动判断
+      const res = await e.reply(segment.video(fileUri(mp4File)))
+      if (res?.error?.length) throw res.error[0]
     } catch (err) {
       logger.error(`[短视频解析] 直播视频发送失败：${err?.message || err}`)
       await e.reply('直播视频发送失败')
     } finally {
       fs.unlink(localFile, () => {})
+      if (mp4File) fs.unlink(mp4File, () => {})
     }
     return
   }
