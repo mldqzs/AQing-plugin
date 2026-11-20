@@ -248,6 +248,9 @@ async function sendAudio (e, r) {
   }
 }
 
+// 同一平台同时只允许一个扫码登录，避免重复开浏览器/重复轮询
+const qrLoginBusy = {}
+
 export class musicParse extends plugin {
   constructor () {
     super({
@@ -265,50 +268,64 @@ export class musicParse extends plugin {
     })
   }
 
-  async qqQrLogin (e) {
+  async qrLogin (e, { name, tip, create, poll, save }) {
+    if (qrLoginBusy[name]) {
+      await e.reply(`${name}扫码登录正在进行中，请先完成或等待超时。`, true)
+      return true
+    }
+    qrLoginBusy[name] = true
     let qr
     try {
       const c = cfg()
       const timeoutSec = Math.max(30, Math.min(300, Number(c.loginTimeout) || 120))
-      await e.reply('请使用手机QQ 扫码登录，并按页面提示确认授权 QQ音乐。', true)
-      qr = await createQQMusicQr({ timeout: Math.max(5, Number(c.timeout) || 20) * 1000 })
-      if (await e.reply(segment.image(qr.image), true) === false) throw new Error('二维码发送失败，请稍后重试')
-      const login = await pollQQMusicQr(qr, { timeoutSec })
+      qr = await create({ timeout: Math.max(5, Number(c.timeout) || 20) * 1000 })
+      const sent = await e.reply([`${tip}（${timeoutSec} 秒内有效）`, segment.image(qr.image)], true)
+      qr.image = null
+      if (sent === false) throw new Error('二维码发送失败，请稍后重试')
+      const login = await poll(qr, {
+        timeoutSec,
+        onScanned: () => e.reply('已扫码，请在手机上确认登录。', true).catch(() => {})
+      })
       const next = setting.getConfig('music') || {}
-      next.qqCookie = login.cookie
+      const msg = save(next, login)
       setting.setConfig('music', next)
-      await e.reply(`✅ QQ音乐 Cookie 获取成功并已保存${login.nick ? `：${login.nick}` : ''}${login.uin ? `（${login.uin}）` : ''}。`, true)
+      await e.reply(`✅ ${name} Cookie 获取成功并已保存${msg}。`, true)
     } catch (err) {
-      logger.error('[音乐解析][QQ扫码]', err)
-      await e.reply(`QQ音乐扫码失败：${err?.message || err}`, true)
+      logger.error(`[音乐解析][${name}扫码]`, err)
+      await e.reply(`${name}扫码失败：${err?.message || err}`, true)
     } finally {
       await closeQr(qr)
+      delete qrLoginBusy[name]
     }
     return true
   }
 
+  async qqQrLogin (e) {
+    return this.qrLogin(e, {
+      name: 'QQ音乐',
+      tip: '请使用手机QQ 扫码，并确认登录 QQ音乐',
+      create: createQQMusicQr,
+      poll: pollQQMusicQr,
+      save: (next, login) => {
+        next.qqCookie = login.cookie
+        return `${login.nick ? `：${login.nick}` : ''}${login.uin ? `（${login.uin}）` : ''}`
+      }
+    })
+  }
+
   async kugouQrLogin (e) {
-    let qr
-    try {
-      const c = cfg()
-      const timeoutSec = Math.max(30, Math.min(300, Number(c.loginTimeout) || 120))
-      await e.reply('请使用酷狗音乐 App 扫码登录。', true)
-      qr = await createKugouQr({ timeout: Math.max(5, Number(c.timeout) || 20) * 1000 })
-      if (await e.reply(segment.image(qr.image), true) === false) throw new Error('二维码发送失败，请稍后重试')
-      const login = await pollKugouQr(qr, { timeoutSec })
-      const next = setting.getConfig('music') || {}
-      next.kugouCookie = login.cookie
-      next.kugouUserId = login.userId
-      next.kugouToken = login.token
-      setting.setConfig('music', next)
-      await e.reply(`✅ 酷狗音乐 Cookie 获取成功并已保存（KugooID：${login.userId}）。`, true)
-    } catch (err) {
-      logger.error('[音乐解析][酷狗扫码]', err)
-      await e.reply(`酷狗音乐扫码失败：${err?.message || err}`, true)
-    } finally {
-      await closeQr(qr)
-    }
-    return true
+    return this.qrLogin(e, {
+      name: '酷狗音乐',
+      tip: '请使用酷狗音乐 App 扫码登录',
+      create: createKugouQr,
+      poll: pollKugouQr,
+      save: (next, login) => {
+        next.kugouCookie = login.cookie
+        next.kugouUserId = login.userId
+        next.kugouToken = login.token
+        return `${login.nick ? `：${login.nick}` : ''}（KugooID：${login.userId}）`
+      }
+    })
   }
 
   async musicCkStatus (e) {
