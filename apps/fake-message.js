@@ -1,441 +1,314 @@
-import plugin from '../../../lib/plugins/plugin.js';
+/**
+ * 伪造消息：把「@某人 + 内容」拼成一条以假乱真的合并转发
+ *
+ *  伪造消息@甲 你好|在吗 @乙 [图片]
+ *  伪造消息^123456 你好 ^654321 不在        （不 @ 也能指定 QQ）
+ *
+ *  名单（仅主人）：#伪造加白/删白、#伪造加黑/删黑、#伪造白名单/黑名单
+ */
+import plugin from '../../../lib/plugins/plugin.js'
 import cfg from '../../../lib/config/config.js'
-const _path = process.cwd();
 import Y from '../Yaml/y.js'
 
 const BM_PATH = './plugins/AQing-plugin/config/config/bm.yaml'
+const PLUGIN_CFG = './plugins/AQing-plugin/config/config/config.yaml'
 
-const direction = "使用方法：\n一条消息的格式为【@一名群友+ta的发言内容】。可叠加多条消息，示例：\n" +
-  "伪造消息@甲这是甲说的话@乙这是乙说的第一句话|这是乙说的第二句话@丙这是丙发送的图片\n" +
-  "\n名单管理（仅主人）：\n" +
-  "#伪造加白xx / #伪造删白xx —— 白名单：不可被伪造（主人自动保护）\n" +
-  "#伪造加黑xx / #伪造删黑xx —— 黑名单：禁止使用伪造功能\n" +
-  "#伪造白名单 / #伪造黑名单 —— 查看名单"
+/** 单次最多伪造的消息条数，防刷屏 */
+const MAX_NODES = 100
 
+/** 原样放进转发里的消息段类型（表情、大表情、视频、动图等） */
+const PASS_TYPES = new Set(['face', 'mface', 'bface', 'sface', 'video', 'dice', 'rps', 'poke', 'markdown'])
 
+/** ^123456 形式指定发言人 */
+const QQ_TOKEN = /[\^＾](\d{5,11})/
 
-//prompt //这个是在消息列表看到的消息摘要，可按需改动，例如改成“QQ红包”即可伪装成红包
-//brief //转发消息未点开前的可以看到的几条消息
-//title//【注意】经测试，此项必须以“的聊天记录”结尾，否则会有bug。这个是聊天窗口看到的合并转发消息的大标题，以及点开之后的顶部文本。
-//summary //这个是聊天窗口看到的合并转发消息的底部描述，默认是“查看xx条”,置空则保持原内容不更改
+const USAGE = [
+  '【伪造消息】',
+  '格式：伪造消息@某人 内容@另一个人 内容',
+  '· 同一人多句用 | 分隔：@甲 第一句|第二句',
+  '· 不想 @ 时可写 ^QQ号：^123456 你好',
+  '· 支持图片、QQ表情、大表情、视频',
+  '',
+  '名单管理（仅主人）：',
+  '#伪造加白/删白 @某人 —— 白名单不可被伪造（主人自动保护）',
+  '#伪造加黑/删黑 @某人 —— 黑名单禁止使用伪造',
+  '#伪造白名单 / #伪造黑名单 —— 查看名单'
+].join('\n')
 
+const LIST_INFO = {
+  白名单: { add: '已将该用户加入伪造白名单（不可被伪造）', del: '已将该用户移出伪造白名单', title: '伪造白名单（不可被伪造）' },
+  黑名单: { add: '已将该用户加入伪造黑名单（禁止使用伪造）', del: '已将该用户移出伪造黑名单', title: '伪造黑名单（禁止使用）' }
+}
+
+/* ───────────── 工具函数 ───────────── */
+
+/** 配置里的 QQ 可能是数字也可能是字符串，两种都要匹配 */
+const idForms = id => [...new Set([Number(id), String(id)])].filter(v => v && !Number.isNaN(v))
+const inList = (yaml, key, id) => idForms(id).some(v => yaml.value(key, v))
 
 export class Fakemessage extends plugin {
-  constructor() {
-      super({
-          /** 功能名称 */
-          name: 'AQ：伪造消息',
-          /** 功能描述 */
-          dsc: '伪造消息',
-          /** https://oicqjs.github.io/oicq/#events */
-          event: 'message',
-          /** 优先级，数字越小等级越高 */
-          priority: 5000,
-          rule: [
-              {
-                  /** 命令正则匹配 */
-                  // reg: "^#*伪造消息(.*)$", //匹配消息正则，命令正则
-              reg: "^#*伪造消息([\\s\\S]*)$",  //匹配消息正则，命令正则
-                  /** 执行方法 */
-              fnc: 'Fakemessage'
-              },{
-              reg: "^#?伪造加白.*$",
-              fnc: 'addWhite'
-             },{
-              reg: "^#?伪造删白.*$",
-              fnc: 'delWhite'
-             },{
-              reg: "^#?伪造加黑.*$",
-              fnc: 'addBlack'
-             },{
-              reg: "^#?伪造删黑.*$",
-              fnc: 'delBlack'
-             },{
-              reg: "^#?伪造白名单$",
-              fnc: 'listWhite'
-             },{
-              reg: "^#?伪造黑名单$",
-              fnc: 'listBlack'
-        }
+  constructor () {
+    super({
+      name: 'AQ：伪造消息',
+      dsc: '伪造消息',
+      event: 'message',
+      priority: 5000,
+      rule: [
+        { reg: '^[#＃/]*伪造消息([\\s\\S]*)$', fnc: 'Fakemessage' },
+        { reg: '^#?伪造加白.*$', fnc: 'addWhite' },
+        { reg: '^#?伪造删白.*$', fnc: 'delWhite' },
+        { reg: '^#?伪造加黑.*$', fnc: 'addBlack' },
+        { reg: '^#?伪造删黑.*$', fnc: 'delBlack' },
+        { reg: '^#?伪造白名单$', fnc: 'listWhite' },
+        { reg: '^#?伪造黑名单$', fnc: 'listBlack' }
       ]
     })
   }
-  async Fakemessage(e) {
-    // 黑名单：禁止使用伪造功能（主人不受限）
-    if (!e.isMaster && this.inList('黑名单', e.user_id)) {
-      e.reply([segment.at(e.user_id), ' 你已被禁止使用伪造消息功能'])
+
+  /* ═════════════ 伪造消息 ═════════════ */
+
+  async Fakemessage (e) {
+    const bm = new Y(BM_PATH)
+
+    if (!e.isMaster && inList(bm, '黑名单', e.user_id)) {
+      await e.reply([segment.at(e.user_id), ' 你已被禁止使用伪造消息功能'])
       return true
     }
 
-    let prompt = '';
-    let brief = [];
-    let title = '';
-    let summary = '';
-    let rawmsg = e.message;
+    // 复制一份再处理，不改动 e.message（避免影响后续插件）
+    const segs = this.stripCommand(e, (e.message || []).map(s => ({ ...s })))
+    if (!segs) return this.usage(e)
 
-    // 获取当前群配置（注意 TRSS 签名为 getGroup(bot_id, group_id)）
-    let conf = cfg.getGroup(e.self_id, e.group_id);
+    const result = await this.buildNodes(e, segs, bm)
+    if (result === 'protected') return true
+    if (!result?.length) return this.usage(e)
 
-    // 去掉开头的 @机器人 / 回复引用，定位到真正的指令文本段
-    while (rawmsg.length && rawmsg[0].type !== 'text') {
-      if (rawmsg[0].type === 'at' && String(rawmsg[0].qq) === String(e.self_id)) {
-        rawmsg.shift();
-      } else if (rawmsg[0].type === 'reply') {
-        rawmsg.shift();
-      } else {
-        break;
-      }
+    const nodes = result.slice(0, MAX_NODES)
+    return this.send(e, nodes)
+  }
+
+  usage (e) {
+    e.reply(USAGE)
+    return true
+  }
+
+  /**
+   * 去掉开头的 @机器人 / 引用回复，以及「(机器人别名)#伪造消息」前缀
+   * @returns 处理后的消息段；无法识别指令时返回 null
+   */
+  stripCommand (e, segs) {
+    while (segs.length && segs[0].type !== 'text') {
+      const s = segs[0]
+      if (s.type === 'reply' || (s.type === 'at' && String(s.qq) === String(e.self_id))) segs.shift()
+      else break
+    }
+    if (segs[0]?.type !== 'text' || typeof segs[0].text !== 'string') return null
+
+    // TRSS 签名为 getGroup(bot_id, group_id)
+    const alias = cfg.getGroup(e.self_id, e.group_id)?.botAlias || []
+    const escape = s => String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    // TRSS 会把 / 当成 # 处理（e.msg 里是 #，原始消息段里仍是 /），三种前缀都要去掉
+    const prefix = new RegExp(`^\\s*(?:(?:${alias.map(escape).join('|') || '(?!)'})\\s*)?[#＃/]*伪造消息`)
+    segs[0].text = segs[0].text.replace(prefix, '')
+    return segs
+  }
+
+  /**
+   * 把消息段转成转发节点 [{ user_id, nickname, message }]
+   * @returns 节点数组；目标受保护时返回 'protected'；格式不对返回 null
+   */
+  async buildNodes (e, segs, bm) {
+    const nodes = []
+    const checked = new Map() // qq → 是否受保护，避免重复查
+    let speaker = null
+
+    const setSpeaker = async (qq, name) => {
+      qq = String(qq)
+      if (!checked.has(qq)) checked.set(qq, await this.checkProtected(e, qq, bm))
+      if (checked.get(qq)) return false
+      speaker = { user_id: qq, nickname: name || await this.getName(e, qq) }
+      return true
+    }
+    const push = message => {
+      if (!speaker) return false
+      nodes.push({ ...speaker, message })
+      return true
     }
 
-    // 第一段不是文本则无法解析指令
-    if (!rawmsg.length || rawmsg[0].type !== 'text' || typeof rawmsg[0].text !== 'string') {
-      e.reply([direction]);
-      return true;
-    }
-
-    // 剥离机器人别名前缀及“伪造消息”指令前缀
-    for (let val of (conf.botAlias || [])) {
-      let regBotName = new RegExp(val + "#*＃*伪造消息");
-      rawmsg[0].text = rawmsg[0].text.replace(regBotName, "");
-    }
-    rawmsg[0].text = rawmsg[0].text.replace(/#*＃*伪造消息/, "");
-
-    console.log(rawmsg[0].text);
-  
-    let regExpQQ = /(\^|＾)\d{5,10}/g;
-    let regBrief = /(\^|＾)b.+/g;
-    let regPrompt = /(\^|＾)p.+/g;
-    let regTitle = /(\^|＾)t.+/g;
-    let regSummary = /(\^|＾)s.+/g;
-  
-    let isqq = regExpQQ.test(rawmsg[0].text);
-    console.log("isqq", isqq);
-  
-    if (!e.at && !isqq) {
-      e.reply([direction]); // 没有@则提示
-      return true;
-    }
-  
-    // 提取title.brief,summary
-    for (let val of rawmsg[0].text.split("|")) {
-      let smry, titl, brf, prom;
-      brf = val.match(regBrief);
-      smry = val.match(regSummary);
-      titl = val.match(regTitle);
-      prom = val.match(regPrompt);
-  
-      if (brf) {
-        brief = brf[0].substring(2);
-        brief = brief.replace(/\[|\]/g, '').split(',').map(element => element.trim()); // 提取[]内内容
-        rawmsg[0].text = rawmsg[0].text.replace(`${brf[0]}|`, "");
-      }
-      if (prom) {
-        prompt = prom[0].substring(2);
-        rawmsg[0].text = rawmsg[0].text.replace(`${prom[0]}|`, "");
-      }
-      if (titl) {
-        title = titl[0].substring(2);
-        rawmsg[0].text = rawmsg[0].text.replace(`${titl[0]}|`, "");
-      }
-      if (smry) {
-        summary = smry[0].substring(2);
-        rawmsg[0].text = rawmsg[0].text.replace(`${smry[0]}|`, "");
-      }
-    }
-  
-    console.log("brf:", brief);
-    console.log("prom:", prompt);
-    console.log("smry:", summary);
-    console.log("tit:", title);
-    console.log(rawmsg);
-  
-    let qq = null;
-    let name = "";
-    let data_msg = []; // 存放消息
-  
-    // 对e.message中的成员逐个处理：
-    for (let i = 0; i < rawmsg.length; i++) {
-      if (rawmsg[i].type === "at") {
-        qq = rawmsg[i].qq;
-        name = (rawmsg[i].text || "").replace(/@/g, "");
-        if (!name) name = await this.getname(qq, e);
-        if (await this.checkProtected(e, qq)) {
-          return true;
+    for (const seg of segs) {
+      switch (seg.type) {
+        case 'at': {
+          const name = String(seg.text || '').replace(/^@/, '').trim()
+          if (!await setSpeaker(seg.qq, name)) return 'protected'
+          break
         }
-        continue;
-      } else if (rawmsg[i].type === "text") {
-        // 去空格后为空则跳过：剥离"伪造消息"前缀或 @ 前后常残留纯空格段，
-        // 若按 === "" 判断会漏过空格段，导致 qq 尚未赋值就误回提示
-        if (rawmsg[i].text.trim() === "") continue;
-  
-        let txt = rawmsg[i].text.trim().split("|");
-        for (let val of txt) {
-          let resqq = val.match(regExpQQ);
-          if (resqq) {
-            qq = resqq[0].substring(1);
-            name = await this.getname(qq, e);
-            if (await this.checkProtected(e, qq)) {
-              return true;
+        case 'text': {
+          // "^123456 内容" 拆成 [前文, qq, 内容, qq, 内容 ...]，QQ 后面的内容不再丢失
+          const tokens = seg.text.split(new RegExp(QQ_TOKEN.source))
+          for (let i = 0; i < tokens.length; i++) {
+            if (i % 2 === 1) {
+              if (!await setSpeaker(tokens[i])) return 'protected'
+              continue
             }
-            continue;
+            for (const line of tokens[i].split('|')) {
+              const text = line.trim()
+              if (text && !push(text)) return null
+            }
           }
-          if (!qq) {
-            e.reply(direction);
-            return true;
-          }
-          if (val !== "") {
-            data_msg.push({
-              message: val,
-              nickname: name,
-              user_id: qq,
-            });
-          }
+          break
         }
-      } else if (rawmsg[i].type === "image") {
-        data_msg.push({
-          message: segment.image(rawmsg[i].url),
-          nickname: name,
-          user_id: qq,
-        });
-      } else {
-        console.log("【伪造消息】出现了预设之外的类型：", rawmsg[i].type);
+        case 'image': {
+          if (!push(segment.image(seg.url || seg.file))) return null
+          break
+        }
+        default: {
+          if (PASS_TYPES.has(seg.type) && !push(seg)) return null
+        }
       }
     }
-  
-    console.log("【data_msg】:", data_msg);
-  
-    if (data_msg.length === 0) {
-      e.reply([segment.text(direction)]);
-      return true;
-    }
-  
-    // 优先走 NapCat/OneBotv11 原生 forward API：每个节点显式带 user_id/nickname，
-    // 否则 NapCat 取不到发送者，会把整条转发回退成机器人自己
-    if (await this.sendByApi(e, data_msg, { prompt, brief, title, summary })) return true;
-
-    // 回退：旧的 makeForwardMsg 方式（非 OneBotv11 适配器时）
-    return this.legacyReply(e, data_msg, { prompt, brief, title, summary });
+    return nodes
   }
 
-  // NapCat 原生发送：复用适配器 makeMsg 生成 content（保留图片下载兼容），
-  // 但节点显式补 user_id/nickname，避免发送者回退成机器人。失败返回 false 走回退。
-  async sendByApi(e, data_msg, { prompt, brief, title, summary }) {
-    const bot = (typeof Bot !== "undefined" && Bot[e.self_id]) || e.bot;
-    const adapter = bot?.adapter;
-    if (!bot?.sendApi || typeof adapter?.makeMsg !== "function") {
-      return false;
-    }
+  /**
+   * 目标是否受保护（主人 / 绝对主人 / 白名单），受保护则提示并禁言伪造者。
+   * 操作者是主人时不受限制。
+   */
+  async checkProtected (e, qq, bm) {
+    if (e.isMaster) return false
 
-    const isGroup = e.isGroup ?? !!e.group_id;
+    const botMasters = (cfg.master?.[e.self_id] || []).map(String)
+    const isMaster = cfg.masterQQ.map(String).includes(qq) ||
+      botMasters.includes(qq) ||
+      inList(new Y(PLUGIN_CFG), '绝对主人', qq)
+    if (!isMaster && !inList(bm, '白名单', qq)) return false
+
+    await e.reply([segment.at(e.user_id), isMaster ? ' 不可以伪造主人哦！' : ' 不可以这样！'])
+    const muteMin = Number(bm.get('禁言时间')) || 5
+    if (e.group?.muteMember) await e.group.muteMember(e.user_id, muteMin * 60)?.catch?.(() => {})
+    return true
+  }
+
+  /** 昵称：群名片 → 陌生人/好友信息 → QQ 号（兼容 TRSS 的 pickMember 与 icqq 的 getGroupMemberInfo） */
+  async getName (e, qq) {
+    const uin = Number(qq)
+    const bot = e.bot || Bot[e.self_id] || Bot
+    const tries = [
+      async () => {
+        if (!e.isGroup) return
+        const m = await (e.group?.pickMember?.(uin) ?? bot.pickMember?.(e.group_id, uin))?.getInfo?.()
+        return m?.card || m?.nickname
+      },
+      async () => {
+        if (!e.isGroup || !Bot.getGroupMemberInfo) return
+        const m = await Bot.getGroupMemberInfo(e.group_id, uin)
+        return m?.card || m?.nickname
+      },
+      async () => (await bot.sendApi?.('get_stranger_info', { user_id: uin }))?.data?.nickname,
+      async () => (await bot.pickFriend?.(uin)?.getInfo?.())?.nickname,
+      async () => (await Bot.getStrangerInfo?.(uin))?.nickname
+    ]
+    for (const fn of tries) {
+      try {
+        const name = await fn()
+        if (name) return name
+      } catch {}
+    }
+    return String(qq)
+  }
+
+  /* ═════════════ 发送 ═════════════ */
+
+  /**
+   * OneBot v11（NapCat 等）走原生 forward API：每个节点同时写 user_id/nickname 和 uin/name。
+   * NapCat 只认 user_id/nickname，Yunzai 通用转发只写 uin/name，会导致发言人全变成机器人，
+   * 所以原生发送失败时直接报错，不再静默回退成「机器人本人」。
+   * 其他适配器（icqq 等）没有 sendApi，走通用 makeForwardMsg。
+   */
+  async send (e, nodes) {
+    const bot = (typeof Bot !== 'undefined' && Bot[e.self_id]) || e.bot
+    const adapter = bot?.adapter
+    if (!bot?.sendApi || typeof adapter?.makeMsg !== 'function') return this.sendGeneric(e, nodes)
+
     try {
-      const messages = [];
-      for (const i of data_msg) {
-        const [content] = await adapter.makeMsg(i.message);
-        if (!content?.length) continue;
-        const uid = String(Number(i.user_id) || 80000000);
-        const name = i.nickname || "匿名消息";
-        messages.push({
-          type: "node",
-          data: {
-            user_id: uid,   // NapCat 读这两个字段决定发送者
-            nickname: name,
-            uin: uid,       // 兼容 go-cqhttp 老格式
-            name,
-            content,
-          },
-        });
+      const messages = []
+      for (const node of nodes) {
+        // 复用适配器 makeMsg 生成 content（保留图片下载等兼容处理）
+        const [content] = await adapter.makeMsg(node.message)
+        if (!content?.length) continue
+        const uid = String(Number(node.user_id) || 80000000)
+        const name = String(node.nickname || '匿名消息')
+        messages.push({ type: 'node', data: { user_id: uid, nickname: name, uin: uid, name, content } })
       }
-      if (!messages.length) return false;
+      if (!messages.length) return this.usage(e)
 
-      const payload = isGroup
-        ? { group_id: e.group_id, messages }
-        : { user_id: e.user_id, messages };
-
-      const safeNews = Array.isArray(brief) && brief.some(t => t !== "")
-        ? brief.filter(t => t !== "").map(text => ({ text }))
-        : [{ text: prompt || title || summary || "聊天记录" }];
-      payload.news = safeNews;
-
-      // 仅在用户用 ^p/^t/^s/^b 显式指定时才覆盖外显/标题/底部/预览，否则用 NapCat 自然默认
-      if (prompt) payload.prompt = prompt;
-      if (title) payload.source = title;
-      if (summary) payload.summary = summary;
-
-      const action = isGroup ? "send_group_forward_msg" : "send_private_forward_msg";
-      await bot.sendApi(action, payload);
-      return true;
+      const isGroup = e.isGroup ?? !!e.group_id
+      const res = await bot.sendApi(
+        isGroup ? 'send_group_forward_msg' : 'send_private_forward_msg',
+        isGroup ? { group_id: e.group_id, messages } : { user_id: e.user_id, messages }
+      )
+      // TRSS 适配器失败会直接抛错；兼容少数只返回 status: failed 的实现（retcode 1 为异步受理，算成功）
+      if (res && (res.status === 'failed' || res.retcode > 1)) {
+        throw new Error(res.wording || res.message || res.msg || `retcode ${res.retcode}`)
+      }
+      return true
     } catch (err) {
-      logger?.error?.(`[伪造消息] NapCat 原生发送失败，回退默认方式：${err}`);
-      return false;
+      const reason = err?.error?.wording || err?.error?.message || err?.message || String(err)
+      logger.error(`[伪造消息] 发送失败：${reason}`)
+      await e.reply(`伪造消息发送失败：${reason}`)
+      return true
     }
   }
 
-  // 旧的发送方式：依赖 e.group/e.friend.makeForwardMsg，用于非 NapCat 适配器
-  async legacyReply(e, data_msg, { prompt, brief, title, summary }) {
-    // 制作成合并消息
-    let ForwardMsg;
-    if (this.e.group && this.e.group.makeForwardMsg) {
-      ForwardMsg = await this.e.group.makeForwardMsg(data_msg);
-    } else if (this.e.friend && this.e.friend.makeForwardMsg) {
-      ForwardMsg = await this.e.friend.makeForwardMsg(data_msg);
-    } else {
-      console.error("无法创建转发消息");
-      e.reply("当前环境不支持伪造消息");
-      return true;
+  /** 非 OneBot 适配器：Yunzai 通用合并转发 */
+  async sendGeneric (e, nodes) {
+    const target = e.group?.makeForwardMsg ? e.group : e.friend?.makeForwardMsg ? e.friend : null
+    const forward = target
+      ? await target.makeForwardMsg(nodes)
+      : await Bot.makeForwardMsg?.(nodes)
+    if (!forward) {
+      await e.reply('当前环境不支持伪造消息')
+      return true
     }
+    await e.reply(forward)
+    return true
+  }
 
-    // 处理描述
-    if (typeof ForwardMsg.data === "object") {
-      if (ForwardMsg.data.meta && ForwardMsg.data.meta.detail) {
-        let detail = ForwardMsg.data.meta.detail;
-        const safeBrief = Array.isArray(brief) && brief.some(text => text !== "")
-          ? brief.filter(text => text !== "")
-          : [prompt || title || summary || "聊天记录"];
-        detail.news = safeBrief.map(text => ({ text }));
-        detail.source = title !== "" ? title : detail.source;
-        detail.summary = summary !== "" ? summary : detail.summary;
-      }
-      if (ForwardMsg.data.prompt) {
-        ForwardMsg.data.prompt = `[${prompt !== "" ? prompt : "聊天记录"}]`;
-      }
-    } else {
-      // 处理字符串类型的 ForwardMsg.data
-      let regExp = /<summary color=\"#808080\" size=\"26\">查看(\d+)条转发消息<\/summary>/g;
-      let res = regExp.exec(ForwardMsg.data);
-      console.log(res);
-  
-      let pcs = res ? res[1] : 0;
-  
-      let briefTitles = [];
-      if (Array.isArray(brief)) {
-        brief.forEach((element) => {
-          briefTitles.push(`<title color="#777777" size="26">${element !== "" ? element : "聊天记录"}</title>`);
-        });
-      } else {
-        briefTitles = [`<title color="#777777" size="26">${brief !== "" ? brief : "聊天记录"}</title>`];
-      }
-  
-      ForwardMsg.data = ForwardMsg.data.replace(/<msg brief="\[聊天记录\]"/g, `<msg brief=\"[${prompt !== "" ? prompt : "聊天记录"}]\"`)
-        .replace(/<title color=\"#000000\" size=\"34\">转发的聊天记录<\/title>/g, `<title color="#000000" size="34">${title !== "" ? title : "群聊的聊天记录"}</title>`)
-        .replace(/<summary color=\"#808080\" size=\"26\">查看(\d+)条转发消息<\/summary>/g, `<summary color="#808080" size="26">${summary !== "" ? summary : `查看${pcs}条转发消息`}</summary>`)
-        .replace(/\n/g, '')
-        .replace(/<title color="#777777" size="26">.*?<\/title>/g, '___')
-        .replace(/___+/, briefTitles.join(''));
+  /* ═════════════ 黑白名单（仅主人） ═════════════ */
+
+  addWhite (e) { return this.editList(e, '白名单', 'add', /^#?伪造加白/) }
+  delWhite (e) { return this.editList(e, '白名单', 'del', /^#?伪造删白/) }
+  addBlack (e) { return this.editList(e, '黑名单', 'add', /^#?伪造加黑/) }
+  delBlack (e) { return this.editList(e, '黑名单', 'del', /^#?伪造删黑/) }
+  listWhite (e) { return this.showList(e, '白名单') }
+  listBlack (e) { return this.showList(e, '黑名单') }
+
+  async editList (e, key, action, cmd) {
+    if (!e.isMaster) {
+      await e.reply('只有主人才能管理伪造名单哦')
+      return false
     }
-  
-    e.reply(ForwardMsg); // 回复消息
-    return true;
-  }
+    const raw = e.at || e.msg.replace(cmd, '').trim()
+    if (!raw) return e.reply('请 @ 对方或附带其 QQ 号')
+    const id = Number(raw) || String(raw)
 
-  // 检测目标是否受保护（主人或白名单），受保护则禁言伪造者
-  // 主人不受黑白名单和主人保护的影响：操作者为主人时可伪造任何人
-  async checkProtected(e, qq) {
-    if (e.isMaster) return false;
-
-    const wst = new Y(BM_PATH);
-    const muteTime = wst.get('禁言时间') || 5;
-
-    const isMaster = cfg.masterQQ.map(String).includes(String(qq));
-    const inWhite = wst.value('白名单', Number(qq)) || wst.value('白名单', String(qq));
-
-    if (isMaster || inWhite) {
-      e.reply([segment.at(e.user_id), isMaster ? ' 不可以伪造主人哦！' : ' 不可以这样！']);
-      if (e.group?.muteMember) e.group.muteMember(e.user_id, muteTime * 60);
-      return true;
+    const bm = new Y(BM_PATH)
+    const exists = inList(bm, key, id)
+    if (action === 'add') {
+      if (exists) return e.reply(`该用户已在${key}中`)
+      bm.addVal(key, id, 'Array')
+      return e.reply(LIST_INFO[key].add)
     }
-    return false;
+    if (!exists) return e.reply(`该用户不在${key}中`)
+    idForms(id).forEach(v => bm.value(key, v) && bm.delVal(key, v))
+    return e.reply(LIST_INFO[key].del)
   }
 
-  // 判断 user_id 是否在指定名单（兼容数字/字符串）
-  inList(listName, user_id) {
-    const wst = new Y(BM_PATH);
-    return !!(wst.value(listName, Number(user_id)) || wst.value(listName, String(user_id)));
-  }
-
-  // 获取QQ的昵称
-  async getname(qq, e) {
-    // console.log("-----getname------")
-    let name;
-    if (e.isGroup) {
-      try {
-        let member = await Bot.getGroupMemberInfo(e.group_id, qq);
-        // console.log("0000000", member)
-        name = member.card ? member.card : member.nickname;
-        // console.log("111111", name)
-      } catch { }
-      if (typeof (name) == 'undefined' || name == 'undefined' || name == '') {
-        try {
-          let response = await Bot.getStrangerInfo(qq)
-          name = response.nickname
-        } catch {
-          name = qq;
-        }
-      }
-    } else {
-      try {
-        let response = await Bot.getStrangerInfo(qq)
-        name = response.nickname
-      } catch {
-        name = qq;
-      }
+  async showList (e, key) {
+    if (!e.isMaster) {
+      await e.reply('只有主人才能查看伪造名单哦')
+      return false
     }
-    return name;
-  }
-  // 从指令中解析目标 user_id（优先 @，其次正则去除指令前缀）
-  parseUserId(e, prefixReg) {
-    let user_id = e.at || e.msg.replace(prefixReg, '').trim()
-    return Number(user_id) || (user_id ? String(user_id) : null)
-  }
-
-  async addWhite(e) {
-    if (!e.isMaster) { await e.reply('你也配？'); return false }
-    const user_id = this.parseUserId(e, /#|伪造加白/g)
-    if (!user_id) return e.reply('哎呀，你这样我不知道是谁了啦')
-    const wst = new Y(BM_PATH)
-    if (wst.value('白名单', user_id)) return e.reply('该用户已在白名单中')
-    wst.addVal('白名单', user_id)
-    return e.reply('已将该用户加入伪造消息白名单（不可被伪造）')
-  }
-
-  async delWhite(e) {
-    if (!e.isMaster) { await e.reply('无权限'); return false }
-    const user_id = this.parseUserId(e, /#|伪造删白/g)
-    if (!user_id) return e.reply('哎呀，你这样我不知道是谁了啦')
-    const wst = new Y(BM_PATH)
-    if (!wst.value('白名单', user_id)) return e.reply('该用户不在白名单中')
-    wst.delVal('白名单', user_id)
-    return e.reply('已将该用户从伪造白名单中移除')
-  }
-
-  async addBlack(e) {
-    if (!e.isMaster) { await e.reply('你也配？'); return false }
-    const user_id = this.parseUserId(e, /#|伪造加黑/g)
-    if (!user_id) return e.reply('哎呀，你这样我不知道是谁了啦')
-    const wst = new Y(BM_PATH)
-    if (wst.value('黑名单', user_id)) return e.reply('该用户已在黑名单中')
-    wst.addVal('黑名单', user_id)
-    return e.reply('已将该用户加入伪造消息黑名单（禁止使用伪造功能）')
-  }
-
-  async delBlack(e) {
-    if (!e.isMaster) { await e.reply('无权限'); return false }
-    const user_id = this.parseUserId(e, /#|伪造删黑/g)
-    if (!user_id) return e.reply('哎呀，你这样我不知道是谁了啦')
-    const wst = new Y(BM_PATH)
-    if (!wst.value('黑名单', user_id)) return e.reply('该用户不在黑名单中')
-    wst.delVal('黑名单', user_id)
-    return e.reply('已将该用户从伪造黑名单中移除')
-  }
-
-  async listWhite(e) {
-    if (!e.isMaster) { await e.reply('无权限'); return false }
-    const list = new Y(BM_PATH).get('白名单') || []
-    return e.reply(list.length ? `伪造白名单（不可被伪造）：\n${list.join('\n')}` : '白名单为空')
-  }
-
-  async listBlack(e) {
-    if (!e.isMaster) { await e.reply('无权限'); return false }
-    const list = new Y(BM_PATH).get('黑名单') || []
-    return e.reply(list.length ? `伪造黑名单（禁止使用）：\n${list.join('\n')}` : '黑名单为空')
+    const list = new Y(BM_PATH).get(key) || []
+    return e.reply(list.length ? `${LIST_INFO[key].title}：\n${list.join('\n')}` : `${key}为空`)
   }
 }

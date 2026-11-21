@@ -45,13 +45,10 @@ export default class QQInfoQuery extends plugin {
                 return true
             }
 
-            const lines = this.parseData(rawData)
+            const view = this.buildViewData(rawData)
 
-            // 头像与随机背景图都内嵌 base64，确保截图时一定能渲染（远程图直连常来不及加载）
-            const [avatar, bg] = await Promise.all([
-                this.fetchBase64(`https://q1.qlogo.cn/g?b=qq&nk=${qq}&s=640`),
-                this.fetchBase64('https://t.alcy.cc/moez')
-            ])
+            // 头像内嵌 base64，确保截图时一定能渲染（远程图直连常来不及加载）
+            const avatar = await this.fetchBase64(`https://q1.qlogo.cn/g?b=qq&nk=${qq}&s=640`)
 
             const now = new Date().toLocaleString('zh-CN', {
                 year: 'numeric', month: '2-digit', day: '2-digit',
@@ -64,10 +61,11 @@ export default class QQInfoQuery extends plugin {
                 tplFile: './plugins/AQing-plugin/resources/html/qqinfo/qqinfo.html',
                 pluResPath: _path,
                 saveId: 'qqinfo',
+                imgType: 'jpeg',
+                quality: 100,
                 qq: String(qq),
                 avatar,
-                bg,
-                lines,
+                ...view,
                 now,
                 pluginVersion
             }
@@ -124,6 +122,81 @@ export default class QQInfoQuery extends plugin {
             if (key && value) result.push({ key, value })
         }
         return result
+    }
+
+    /* ── 解析结果 → 模板分组数据 ── */
+    buildViewData(rawData) {
+        const map = new Map()
+        for (const { key, value } of this.parseData(rawData)) {
+            // 去掉“查询”前缀与结尾多余的标点（如“0天.”）
+            const k = key.replace(/^查询/, '')
+            const v = value
+                .replace(/[.。]+$/, '')
+                .replace(/(\d)：(\d)/g, '$1:$2') // 时间里的全角冒号统一为半角
+            if (!map.has(k)) map.set(k, v)
+        }
+        const used = new Set()
+        const take = k => { used.add(k); return map.get(k) || '' }
+        const isUnset = v => !v || /^(未设置|未开通|没有|无$|暂无)/.test(v)
+
+        const profile = {
+            nickname: take('昵称'),
+            level: take('等级'),
+            icons: take('图标'),
+            signature: take('签名'),
+            qid: take('QID'),
+            card: take('名片'),
+            age: take('年龄')
+        }
+        take('账号')
+        const tags = []
+        if (!isUnset(profile.qid)) tags.push({ label: 'QID', value: profile.qid })
+        if (!isUnset(profile.card)) tags.push({ label: '名片', value: profile.card })
+        if (!isUnset(profile.age)) tags.push({ label: '年龄', value: profile.age })
+
+        // 注册天数：“10186天(≈27.9年)” → 主值 + 副值
+        const regDaysRaw = take('注册天数')
+        const regDaysM = regDaysRaw.match(/^(\d+)\s*天\s*[(（]?\s*([^)）]*)[)）]?/)
+        const register = {
+            time: take('注册时间'),
+            days: regDaysM ? regDaysM[1] : regDaysRaw,
+            years: regDaysM ? regDaysM[2] : ''
+        }
+
+        const stats = [
+            ['活跃天数', '活跃天数'],
+            ['达人天数', '达人天数'],
+            ['头像修改', '头像修改']
+        ].filter(([k]) => map.has(k)).map(([k, label]) => ({ label, value: take(k) }))
+
+        const vipStats = [
+            ['会员等级', '会员等级'],
+            ['会员经验', '会员经验'],
+            ['会员成长', '成长速度']
+        ].filter(([k]) => map.has(k)).map(([k, label]) => ({ label, value: take(k) }))
+
+        const vipRows = ['超级会员', '年费会员', '普通会员', '年大会员', '月大会员']
+            .filter(k => map.has(k))
+            .map(k => {
+                const value = take(k)
+                return { label: k, value, off: isUnset(value), date: /\d{4}-\d{1,2}-\d{1,2}/.test(value) }
+            })
+
+        // 开通业务：“超级会员9;SVIP+QQ音乐1;…” → [{name, lv}]
+        const services = take('开通业务')
+            .split(/[;；,，]/)
+            .map(s => s.trim())
+            .filter(s => s && !isUnset(s))
+            .map(s => {
+                const m = s.match(/^(.*?)(\d+)$/)
+                return m ? { name: m[1], lv: m[2] } : { name: s, lv: '' }
+            })
+
+        const others = [...map]
+            .filter(([k, v]) => !used.has(k) && v)
+            .map(([label, value]) => ({ label, value }))
+
+        return { profile, tags, register, stats, vipStats, vipRows, services, others }
     }
 
     /* ── 截图失败降级纯文字 ── */
